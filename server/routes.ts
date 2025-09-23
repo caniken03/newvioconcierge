@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 import type { User } from "@shared/schema";
+import { insertContactSchema } from "@shared/schema";
 import multer from "multer";
 import csv from "csv-parser";
 import * as createCsvWriter from "csv-writer";
@@ -15,13 +16,21 @@ import { calendlyService } from "./services/calendly";
 
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "fallback_secret";
 
-// Configure multer for file uploads
+// Ensure upload directory exists
+const uploadDir = '/tmp/uploads/';
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// Configure multer for file uploads with security
 const upload = multer({
-  dest: '/tmp/uploads/',
+  dest: uploadDir,
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB limit
+    files: 1, // Only one file
   },
   fileFilter: (req, file, cb) => {
+    // Only allow CSV files
     if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
       cb(null, true);
     } else {
@@ -29,6 +38,59 @@ const upload = multer({
     }
   },
 });
+
+// CSV Security helpers
+const CSV_MAX_ROWS = 10000; // Maximum rows to process
+
+// Escape dangerous CSV characters to prevent formula injection
+function escapeCsvValue(value: any): string {
+  if (value == null) return '';
+  
+  const str = String(value);
+  // If starts with dangerous characters, prefix with single quote
+  if (str.match(/^[=+\-@]/)) {
+    return `'${str}`;
+  }
+  return str;
+}
+
+// Validate and sanitize contact data
+function validateContactData(data: any): { valid: boolean; contact?: any; error?: string } {
+  try {
+    // Basic field mapping with validation
+    const contactData = {
+      name: data.name || data.Name,
+      phone: data.phone || data.Phone,
+      email: data.email || data.Email || undefined,
+      appointmentType: data.appointmentType || data['Appointment Type'] || undefined,
+      appointmentTime: data.appointmentTime || data['Appointment Time'] ? new Date(data.appointmentTime || data['Appointment Time']) : undefined,
+      appointmentDuration: data.appointmentDuration || data['Appointment Duration'] ? parseInt(data.appointmentDuration || data['Appointment Duration']) : undefined,
+      notes: data.notes || data.Notes || undefined,
+      specialInstructions: data.specialInstructions || data['Special Instructions'] || undefined,
+    };
+
+    // Remove undefined values
+    const cleanedData = Object.fromEntries(
+      Object.entries(contactData).filter(([_, value]) => value !== undefined)
+    );
+
+    // Validate using Zod schema (excluding tenantId as it's added later)
+    const validationSchema = insertContactSchema.omit({ tenantId: true });
+    const validatedContact = validationSchema.parse(cleanedData);
+
+    // Additional validation for required fields
+    if (!validatedContact.name || !validatedContact.phone) {
+      return { valid: false, error: 'Name and phone are required' };
+    }
+
+    return { valid: true, contact: validatedContact };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { valid: false, error: `Validation error: ${error.errors.map(e => e.message).join(', ')}` };
+    }
+    return { valid: false, error: error instanceof Error ? error.message : 'Invalid data format' };
+  }
+}
 
 // Middleware for JWT authentication
 const authenticateJWT = async (req: any, res: any, next: any) => {
@@ -338,47 +400,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // CSV import/export routes
   app.post('/api/contacts/import', authenticateJWT, requireRole(['client_admin', 'super_admin']), upload.single('csvFile'), async (req: any, res) => {
+    let filePath: string | undefined;
+    
     try {
       if (!req.file) {
         return res.status(400).json({ message: 'No CSV file uploaded' });
       }
 
-      const contacts: any[] = [];
-      const filePath = req.file.path;
+      filePath = req.file.path;
+      const validContacts: any[] = [];
+      const errors: any[] = [];
+      let rowCount = 0;
 
       return new Promise((resolve, reject) => {
-        fs.createReadStream(filePath)
+        fs.createReadStream(filePath!)
           .pipe(csv())
           .on('data', (data) => {
-            // Map CSV columns to contact fields
-            const contact = {
-              name: data.name || data.Name,
-              phone: data.phone || data.Phone,
-              email: data.email || data.Email || undefined,
-              appointmentType: data.appointmentType || data['Appointment Type'] || undefined,
-              appointmentTime: data.appointmentTime || data['Appointment Time'] ? new Date(data.appointmentTime || data['Appointment Time']) : undefined,
-              appointmentDuration: data.appointmentDuration || data['Appointment Duration'] ? parseInt(data.appointmentDuration || data['Appointment Duration']) : undefined,
-              notes: data.notes || data.Notes || undefined,
-              specialInstructions: data.specialInstructions || data['Special Instructions'] || undefined,
-            };
+            rowCount++;
+            
+            // Enforce row limit
+            if (rowCount > CSV_MAX_ROWS) {
+              reject(new Error(`CSV file exceeds maximum ${CSV_MAX_ROWS} rows`));
+              return;
+            }
 
-            // Only add contacts with required fields
-            if (contact.name && contact.phone) {
-              contacts.push(contact);
+            // Validate and sanitize each row
+            const validation = validateContactData(data);
+            
+            if (validation.valid) {
+              validContacts.push(validation.contact);
+            } else {
+              errors.push({
+                row: rowCount,
+                data: Object.keys(data).slice(0, 3), // Only show first 3 fields for brevity
+                error: validation.error,
+              });
             }
           })
           .on('end', async () => {
             try {
-              const result = await storage.bulkCreateContacts(req.user.tenantId, contacts);
-              
-              // Clean up uploaded file
-              fs.unlinkSync(filePath);
+              // Only proceed if we have valid contacts
+              if (validContacts.length === 0) {
+                res.status(400).json({
+                  message: 'No valid contacts found in CSV',
+                  created: 0,
+                  errors,
+                  totalProcessed: rowCount,
+                });
+                return resolve(undefined);
+              }
+
+              const result = await storage.bulkCreateContacts(req.user.tenantId, validContacts);
               
               res.json({
-                message: `Successfully imported ${result.created} contacts`,
+                message: `Successfully imported ${result.created} contacts. ${errors.length} rows had errors.`,
                 created: result.created,
-                errors: result.errors,
-                totalProcessed: contacts.length,
+                errors: [...result.errors, ...errors],
+                totalProcessed: rowCount,
+                validRows: validContacts.length,
               });
               resolve(undefined);
             } catch (error) {
@@ -390,15 +469,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
       });
     } catch (error) {
-      res.status(500).json({ message: 'Failed to import contacts' });
+      const errorMessage = error instanceof Error ? error.message : 'Failed to import contacts';
+      res.status(500).json({ message: errorMessage });
+    } finally {
+      // Always clean up the uploaded file
+      if (filePath && fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (cleanupError) {
+          console.error('Failed to cleanup uploaded file:', cleanupError);
+        }
+      }
     }
   });
 
-  app.get('/api/contacts/export', authenticateJWT, async (req: any, res) => {
+  app.get('/api/contacts/export', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    let csvFilePath: string | undefined;
+    
     try {
       const contacts = await storage.exportContactsToCSV(req.user.tenantId);
       
-      const csvFilePath = `/tmp/contacts_export_${Date.now()}.csv`;
+      // Escape all values to prevent CSV injection
+      const safeContacts = contacts.map(contact => ({
+        name: escapeCsvValue(contact.name),
+        phone: escapeCsvValue(contact.phone),
+        email: escapeCsvValue(contact.email),
+        appointmentType: escapeCsvValue(contact.appointmentType),
+        appointmentTime: contact.appointmentTime ? contact.appointmentTime.toISOString() : '',
+        appointmentDuration: escapeCsvValue(contact.appointmentDuration),
+        appointmentStatus: escapeCsvValue(contact.appointmentStatus),
+        notes: escapeCsvValue(contact.notes),
+        specialInstructions: escapeCsvValue(contact.specialInstructions),
+        createdAt: contact.createdAt ? contact.createdAt.toISOString() : '',
+      }));
+      
+      csvFilePath = `/tmp/contacts_export_${req.user.tenantId}_${Date.now()}.csv`;
       const csvWriter = createCsvWriter.createObjectCsvWriter({
         path: csvFilePath,
         header: [
@@ -415,17 +520,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ],
       });
 
-      await csvWriter.writeRecords(contacts);
+      await csvWriter.writeRecords(safeContacts);
       
-      res.download(csvFilePath, 'contacts_export.csv', (err) => {
+      const filename = `contacts_export_${new Date().toISOString().split('T')[0]}.csv`;
+      res.download(csvFilePath, filename, (err) => {
         if (err) {
           console.error('Download error:', err);
         }
         // Clean up file after download
-        fs.unlinkSync(csvFilePath);
+        if (csvFilePath && fs.existsSync(csvFilePath)) {
+          try {
+            fs.unlinkSync(csvFilePath);
+          } catch (cleanupError) {
+            console.error('Failed to cleanup export file:', cleanupError);
+          }
+        }
       });
     } catch (error) {
       res.status(500).json({ message: 'Failed to export contacts' });
+      
+      // Clean up file on error
+      if (csvFilePath && fs.existsSync(csvFilePath)) {
+        try {
+          fs.unlinkSync(csvFilePath);
+        } catch (cleanupError) {
+          console.error('Failed to cleanup export file on error:', cleanupError);
+        }
+      }
     }
   });
 
