@@ -42,8 +42,10 @@ export function useAuth() {
       // Update auth header for future requests
       queryClient.setQueryData(['/api/auth/me'], data.user);
       
-      // Refresh all queries
-      queryClient.invalidateQueries();
+      // Refresh auth and dependent queries
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
       
       // Navigate to home page after login
       navigate('/');
@@ -67,6 +69,9 @@ export function useAuth() {
     localStorage.removeItem('auth_token');
     queryClient.setQueryData(['/api/auth/me'], null);
     queryClient.clear();
+    
+    // Navigate to login page for consistent UX
+    navigate('/');
     
     toast({
       title: "Logged out",
