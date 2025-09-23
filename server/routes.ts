@@ -39,8 +39,36 @@ const upload = multer({
   },
 });
 
-// CSV Security helpers
+// Security helpers
 const CSV_MAX_ROWS = 10000; // Maximum rows to process
+
+// Webhook signature verification
+function verifyWebhookSignature(payload: string, signature: string, secret: string, algorithm: 'sha256' | 'sha1' = 'sha256'): boolean {
+  if (!secret || !signature) return false;
+  
+  const crypto = require('crypto');
+  const expectedSignature = crypto
+    .createHmac(algorithm, secret)
+    .update(payload)
+    .digest('hex');
+  
+  // Handle different signature formats
+  const cleanSignature = signature.replace(/^(sha256=|sha1=)/, '');
+  
+  return crypto.timingSafeEqual(
+    Buffer.from(cleanSignature, 'hex'),
+    Buffer.from(expectedSignature, 'hex')
+  );
+}
+
+// Extract tenant ID from webhook metadata with fallback strategies
+function extractTenantIdFromWebhook(metadata: any, payload: any): string | null {
+  // Priority order: metadata.tenantId, tracking fields, custom fields
+  if (metadata?.tenantId) return metadata.tenantId;
+  if (payload?.tracking?.salesforce_uuid) return payload.tracking.salesforce_uuid; // Calendly
+  if (payload?.metadata?.tenantId) return payload.metadata.tenantId; // Cal.com
+  return null;
+}
 
 // Escape dangerous CSV characters to prevent formula injection
 function escapeCsvValue(value: any): string {
@@ -813,57 +841,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Retell AI webhook endpoint
   app.post('/api/webhooks/retell', async (req, res) => {
     try {
+      const signature = req.headers['x-signature'] || req.headers['signature'];
+      const rawPayload = JSON.stringify(req.body);
+      
+      // Extract tenant ID from webhook metadata
       const payload = retellService.parseWebhookPayload(req.body);
+      const tenantId = extractTenantIdFromWebhook(payload.metadata, payload);
+      
+      if (!tenantId) {
+        console.warn('Retell webhook received without tenant ID in metadata');
+        return res.status(400).json({ message: 'Missing tenant ID in webhook metadata' });
+      }
+
+      // Get tenant configuration for webhook secret
+      const tenantConfig = await storage.getTenantConfig(tenantId);
+      if (!tenantConfig?.retellWebhookSecret) {
+        console.warn(`Retell webhook secret not configured for tenant ${tenantId}`);
+        return res.status(400).json({ message: 'Webhook secret not configured' });
+      }
+
+      // Verify webhook signature
+      if (signature && !verifyWebhookSignature(rawPayload, signature as string, tenantConfig.retellWebhookSecret)) {
+        console.warn(`Invalid Retell webhook signature for tenant ${tenantId}`);
+        return res.status(401).json({ message: 'Invalid webhook signature' });
+      }
       
       if (payload.event === 'call_ended' || payload.event === 'call_completed') {
-        // Find the call session by retellCallId
+        // Find the call session by retellCallId with tenant isolation
         const session = await storage.getCallSessionByRetellId(payload.call_id);
         
-        if (session) {
-          const callOutcome = retellService.determineCallOutcome(payload);
-          
-          // Calculate duration from start time if available
-          let durationSeconds: number | undefined;
-          if (session.startTime && payload.call_status === 'completed') {
-            durationSeconds = Math.floor((Date.now() - session.startTime.getTime()) / 1000);
-          }
-          
-          // Update call session
-          await storage.updateCallSession(session.id, {
-            status: 'completed',
-            endTime: new Date(),
-            callOutcome,
-            durationSeconds,
+        if (!session) {
+          console.warn(`Call session not found for Retell call ID: ${payload.call_id}`);
+          return res.status(404).json({ message: 'Call session not found' });
+        }
+
+        // Verify tenant isolation
+        if (session.tenantId !== tenantId) {
+          console.error(`Tenant mismatch: session tenant ${session.tenantId} vs webhook tenant ${tenantId}`);
+          return res.status(403).json({ message: 'Tenant access denied' });
+        }
+
+        const callOutcome = retellService.determineCallOutcome(payload);
+        
+        // Calculate duration from start time if available
+        let durationSeconds: number | undefined;
+        if (session.startTime && payload.call_status === 'completed') {
+          durationSeconds = Math.floor((Date.now() - session.startTime.getTime()) / 1000);
+        }
+        
+        // Update call session
+        await storage.updateCallSession(session.id, {
+          status: 'completed',
+          endTime: new Date(),
+          callOutcome,
+          durationSeconds,
+        });
+
+        // Update contact with call outcome
+        if (callOutcome === 'confirmed') {
+          await storage.updateContact(session.contactId!, {
+            appointmentStatus: 'confirmed',
+            lastCallOutcome: callOutcome,
+            callAttempts: (await storage.getContact(session.contactId!))?.callAttempts || 0 + 1,
           });
-
-          // Update contact with call outcome
-          if (callOutcome === 'confirmed') {
-            await storage.updateContact(session.contactId!, {
-              appointmentStatus: 'confirmed',
-              lastCallOutcome: callOutcome,
-              callAttempts: (await storage.getContact(session.contactId!))?.callAttempts || 0 + 1,
-            });
-          } else {
-            await storage.updateContact(session.contactId!, {
-              lastCallOutcome: callOutcome,
-              callAttempts: (await storage.getContact(session.contactId!))?.callAttempts || 0 + 1,
-            });
-          }
-
-          // Log the call details
-          await storage.createCallLog({
-            callSessionId: session.id,
-            tenantId: session.tenantId,
-            contactId: session.contactId!,
-            logLevel: 'info',
-            message: `Call completed with outcome: ${callOutcome}`,
-            metadata: JSON.stringify({
-              retellCallId: payload.call_id,
-              transcript: payload.transcript,
-              callAnalysis: payload.call_analysis,
-            }),
+        } else {
+          await storage.updateContact(session.contactId!, {
+            lastCallOutcome: callOutcome,
+            callAttempts: (await storage.getContact(session.contactId!))?.callAttempts || 0 + 1,
           });
         }
+
+        // Log the call details
+        await storage.createCallLog({
+          callSessionId: session.id,
+          tenantId: session.tenantId,
+          contactId: session.contactId!,
+          logLevel: 'info',
+          message: `Call completed with outcome: ${callOutcome}`,
+          metadata: JSON.stringify({
+            retellCallId: payload.call_id,
+            transcript: payload.transcript,
+            callAnalysis: payload.call_analysis,
+          }),
+        });
       }
       
       res.status(200).json({ received: true });
@@ -876,6 +936,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Cal.com webhook endpoint
   app.post('/api/webhooks/cal-com', async (req, res) => {
     try {
+      const signature = req.headers['x-cal-signature'] || req.headers['x-signature'];
+      const rawPayload = JSON.stringify(req.body);
+      
       const payload = calComService.parseWebhookPayload(req.body);
       const action = calComService.determineWebhookAction(payload);
       
@@ -886,14 +949,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const booking = payload.payload.booking;
       const contactData = calComService.mapBookingToContact(booking);
       
-      // Find tenant by Cal.com event type or booking metadata
-      const tenantId = booking.metadata?.tenantId;
+      // Extract tenant ID from booking metadata
+      const tenantId = extractTenantIdFromWebhook(booking.metadata, booking);
       if (!tenantId) {
         console.warn('Cal.com webhook received without tenant ID in metadata');
         return res.status(400).json({ message: 'Missing tenant ID in booking metadata' });
       }
 
-      // Check if contact already exists by email
+      // Get tenant configuration for webhook secret
+      const tenantConfig = await storage.getTenantConfig(tenantId);
+      if (!tenantConfig?.calWebhookSecret) {
+        console.warn(`Cal.com webhook secret not configured for tenant ${tenantId}`);
+        return res.status(400).json({ message: 'Webhook secret not configured' });
+      }
+
+      // Verify webhook signature (Cal.com uses HMAC SHA256)
+      if (signature && !verifyWebhookSignature(rawPayload, signature as string, tenantConfig.calWebhookSecret)) {
+        console.warn(`Invalid Cal.com webhook signature for tenant ${tenantId}`);
+        return res.status(401).json({ message: 'Invalid webhook signature' });
+      }
+
+      // Check if contact already exists by email with tenant isolation
       let existingContact;
       if (contactData.email) {
         const contacts = await storage.searchContacts(tenantId, contactData.email);
@@ -1034,6 +1110,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Calendly webhook endpoint
   app.post('/api/webhooks/calendly', async (req, res) => {
     try {
+      const signature = req.headers['calendly-webhook-signature'] || req.headers['x-signature'];
+      const rawPayload = JSON.stringify(req.body);
+      
       const payload = calendlyService.parseWebhookPayload(req.body);
       const action = calendlyService.determineWebhookAction(payload);
       
@@ -1048,16 +1127,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Missing event or invitee data in webhook payload' });
       }
 
-      // Extract tenant ID from event type URI or custom tracking
-      const tenantId = invitee.tracking?.salesforce_uuid; // Use tracking field for tenant ID
+      // Extract tenant ID from tracking data or event metadata
+      const tenantId = extractTenantIdFromWebhook(invitee?.tracking, invitee);
       if (!tenantId) {
         console.warn('Calendly webhook received without tenant ID in tracking data');
         return res.status(400).json({ message: 'Missing tenant ID in invitee tracking data' });
       }
 
+      // Get tenant configuration for webhook secret
+      const tenantConfig = await storage.getTenantConfig(tenantId);
+      if (!tenantConfig?.calendlyWebhookSecret) {
+        console.warn(`Calendly webhook secret not configured for tenant ${tenantId}`);
+        return res.status(400).json({ message: 'Webhook secret not configured' });
+      }
+
+      // Verify webhook signature (Calendly uses HMAC SHA256)
+      if (signature && !verifyWebhookSignature(rawPayload, signature as string, tenantConfig.calendlyWebhookSecret)) {
+        console.warn(`Invalid Calendly webhook signature for tenant ${tenantId}`);
+        return res.status(401).json({ message: 'Invalid webhook signature' });
+      }
+
       const contactData = calendlyService.mapEventToContact(event, invitee);
       
-      // Check if contact already exists by email
+      // Check if contact already exists by email with tenant isolation
       let existingContact;
       if (contactData.email) {
         const contacts = await storage.searchContacts(tenantId, contactData.email);

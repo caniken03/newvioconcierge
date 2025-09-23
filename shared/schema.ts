@@ -89,11 +89,16 @@ export const tenantConfig = pgTable("tenant_config", {
   retellAgentId: varchar("retell_agent_id", { length: 255 }),
   retellAgentNumber: varchar("retell_agent_number", { length: 50 }),
   retellApiKey: text("retell_api_key"),
+  retellWebhookSecret: text("retell_webhook_secret"),
   // Calendar integration
   calApiKey: text("cal_api_key"),
   calEventTypeId: integer("cal_event_type_id"),
+  calWebhookSecret: text("cal_webhook_secret"),
   calendlyApiKey: text("calendly_api_key"),
-  calendlyOrganizerEmail: varchar("calendly_organizer_email", { length: 255 }),
+  calendlyAccessToken: text("calendly_access_token"),
+  calendlyOrganization: varchar("calendly_organization", { length: 255 }),
+  calendlyUser: varchar("calendly_user", { length: 255 }),
+  calendlyWebhookSecret: text("calendly_webhook_secret"),
   // Business settings
   timezone: varchar("timezone", { length: 100 }).default("Europe/London"),
   followUpHours: integer("follow_up_hours").default(24),
