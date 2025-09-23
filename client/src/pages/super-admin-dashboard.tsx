@@ -210,8 +210,8 @@ export default function SuperAdminDashboard() {
                         {tenant.status}
                       </Badge>
                     </td>
-                    <td className="px-6 py-4 text-sm text-foreground font-medium">0</td>
-                    <td className="px-6 py-4 text-sm text-foreground">0%</td>
+                    <td className="px-6 py-4 text-sm text-foreground font-medium">-</td>
+                    <td className="px-6 py-4 text-sm text-foreground">-</td>
                     <td className="px-6 py-4 text-sm text-muted-foreground">
                       {new Date(tenant.updatedAt).toLocaleDateString()}
                     </td>

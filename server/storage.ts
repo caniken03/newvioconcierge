@@ -55,12 +55,34 @@ export interface IStorage {
   searchContacts(tenantId: string, query: string): Promise<Contact[]>;
   getContactStats(tenantId: string): Promise<{ total: number; pending: number; confirmed: number; }>;
 
+  // Analytics operations
+  getClientAnalytics(tenantId: string): Promise<{
+    totalContacts: number;
+    callsToday: number;
+    successRate: number;
+    appointmentsConfirmed: number;
+    noShowRate: number;
+    recentActivity: any[];
+  }>;
+  getPlatformAnalytics(): Promise<{
+    activeTenants: number;
+    totalCallsToday: number;
+    platformSuccessRate: number;
+    systemHealth: string;
+    recentTenantActivity: any[];
+  }>;
+
+  // CSV import/export operations
+  bulkCreateContacts(tenantId: string, contacts: Omit<InsertContact, 'tenantId'>[]): Promise<{ created: number; errors: any[] }>;
+  exportContactsToCSV(tenantId: string): Promise<Contact[]>;
+
   // Call session operations
   getCallSession(id: string): Promise<CallSession | undefined>;
   getCallSessionsByTenant(tenantId: string): Promise<CallSession[]>;
   createCallSession(session: InsertCallSession): Promise<CallSession>;
   updateCallSession(id: string, updates: Partial<InsertCallSession>): Promise<CallSession>;
   getCallSessionsByContact(contactId: string): Promise<CallSession[]>;
+  getCallSessionByRetellId(retellCallId: string): Promise<CallSession | undefined>;
 
   // Follow-up task operations
   getFollowUpTask(id: string): Promise<FollowUpTask | undefined>;
@@ -243,6 +265,200 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+  async getClientAnalytics(tenantId: string): Promise<{
+    totalContacts: number;
+    callsToday: number;
+    successRate: number;
+    appointmentsConfirmed: number;
+    noShowRate: number;
+    recentActivity: any[];
+  }> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Get total contacts
+    const [contactStats] = await db
+      .select({ count: count() })
+      .from(contacts)
+      .where(and(eq(contacts.tenantId, tenantId), eq(contacts.isActive, true)));
+
+    // Get calls today
+    const [callsToday] = await db
+      .select({ count: count() })
+      .from(callSessions)
+      .where(and(
+        eq(callSessions.tenantId, tenantId),
+        sql`${callSessions.createdAt} >= ${today}`,
+        sql`${callSessions.createdAt} < ${tomorrow}`
+      ));
+
+    // Get success rate (completed calls vs total calls)
+    const [successStats] = await db
+      .select({
+        total: count(),
+        successful: sql<number>`COUNT(CASE WHEN ${callSessions.callOutcome} = 'confirmed' THEN 1 END)`,
+      })
+      .from(callSessions)
+      .where(eq(callSessions.tenantId, tenantId));
+
+    // Get confirmed appointments
+    const [confirmedStats] = await db
+      .select({ count: count() })
+      .from(contacts)
+      .where(and(
+        eq(contacts.tenantId, tenantId),
+        eq(contacts.appointmentStatus, 'confirmed'),
+        eq(contacts.isActive, true)
+      ));
+
+    // Get no-show rate
+    const [completedStats] = await db
+      .select({ count: count() })
+      .from(contacts)
+      .where(and(
+        eq(contacts.tenantId, tenantId),
+        eq(contacts.appointmentStatus, 'completed'),
+        eq(contacts.isActive, true)
+      ));
+
+    // Get recent activity (last 10 call sessions)
+    const recentActivity = await db
+      .select({
+        id: callSessions.id,
+        contactName: contacts.name,
+        outcome: callSessions.callOutcome,
+        createdAt: callSessions.createdAt,
+      })
+      .from(callSessions)
+      .leftJoin(contacts, eq(callSessions.contactId, contacts.id))
+      .where(eq(callSessions.tenantId, tenantId))
+      .orderBy(desc(callSessions.createdAt))
+      .limit(10);
+
+    const totalContacts = contactStats.count || 0;
+    const totalCalls = successStats.total || 0;
+    const successfulCalls = successStats.successful || 0;
+    const confirmedAppointments = confirmedStats.count || 0;
+    const completedAppointments = completedStats.count || 0;
+
+    const successRate = totalCalls > 0 ? (successfulCalls / totalCalls) * 100 : 0;
+    const noShowRate = confirmedAppointments > 0 ? 
+      ((confirmedAppointments - completedAppointments) / confirmedAppointments) * 100 : 0;
+
+    return {
+      totalContacts,
+      callsToday: callsToday.count || 0,
+      successRate: Math.round(successRate * 10) / 10,
+      appointmentsConfirmed: confirmedAppointments,
+      noShowRate: Math.round(noShowRate * 10) / 10,
+      recentActivity,
+    };
+  }
+
+  async getPlatformAnalytics(): Promise<{
+    activeTenants: number;
+    totalCallsToday: number;
+    platformSuccessRate: number;
+    systemHealth: string;
+    recentTenantActivity: any[];
+  }> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Get active tenants
+    const [activeTenants] = await db
+      .select({ count: count() })
+      .from(tenants)
+      .where(eq(tenants.status, 'active'));
+
+    // Get total calls today across all tenants
+    const [callsToday] = await db
+      .select({ count: count() })
+      .from(callSessions)
+      .where(and(
+        sql`${callSessions.createdAt} >= ${today}`,
+        sql`${callSessions.createdAt} < ${tomorrow}`
+      ));
+
+    // Get platform success rate
+    const [successStats] = await db
+      .select({
+        total: count(),
+        successful: sql<number>`COUNT(CASE WHEN ${callSessions.callOutcome} = 'confirmed' THEN 1 END)`,
+      })
+      .from(callSessions);
+
+    // Get recent tenant activity
+    const recentActivity = await db
+      .select({
+        tenantName: tenants.name,
+        contactName: contacts.name,
+        outcome: callSessions.callOutcome,
+        createdAt: callSessions.createdAt,
+      })
+      .from(callSessions)
+      .leftJoin(contacts, eq(callSessions.contactId, contacts.id))
+      .leftJoin(tenants, eq(callSessions.tenantId, tenants.id))
+      .orderBy(desc(callSessions.createdAt))
+      .limit(15);
+
+    const totalCalls = successStats.total || 0;
+    const successfulCalls = successStats.successful || 0;
+    const platformSuccessRate = totalCalls > 0 ? (successfulCalls / totalCalls) * 100 : 0;
+
+    // Simple system health based on calls today and success rate
+    let systemHealth = 'excellent';
+    if (platformSuccessRate < 50) {
+      systemHealth = 'poor';
+    } else if (platformSuccessRate < 75) {
+      systemHealth = 'fair';
+    } else if (platformSuccessRate < 90) {
+      systemHealth = 'good';
+    }
+
+    return {
+      activeTenants: activeTenants.count || 0,
+      totalCallsToday: callsToday.count || 0,
+      platformSuccessRate: Math.round(platformSuccessRate * 10) / 10,
+      systemHealth,
+      recentTenantActivity: recentActivity,
+    };
+  }
+
+  async bulkCreateContacts(tenantId: string, contactsData: Omit<InsertContact, 'tenantId'>[]): Promise<{ created: number; errors: any[] }> {
+    const errors: any[] = [];
+    let created = 0;
+
+    for (const contactData of contactsData) {
+      try {
+        await db.insert(contacts).values({
+          ...contactData,
+          tenantId,
+        });
+        created++;
+      } catch (error) {
+        errors.push({
+          contact: contactData,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    return { created, errors };
+  }
+
+  async exportContactsToCSV(tenantId: string): Promise<Contact[]> {
+    return await db
+      .select()
+      .from(contacts)
+      .where(and(eq(contacts.tenantId, tenantId), eq(contacts.isActive, true)))
+      .orderBy(desc(contacts.createdAt));
+  }
+
   // Call session operations
   async getCallSession(id: string): Promise<CallSession | undefined> {
     const [session] = await db.select().from(callSessions).where(eq(callSessions.id, id));
@@ -277,6 +493,14 @@ export class DatabaseStorage implements IStorage {
       .from(callSessions)
       .where(eq(callSessions.contactId, contactId))
       .orderBy(desc(callSessions.createdAt));
+  }
+
+  async getCallSessionByRetellId(retellCallId: string): Promise<CallSession | undefined> {
+    const [session] = await db
+      .select()
+      .from(callSessions)
+      .where(eq(callSessions.retellCallId, retellCallId));
+    return session;
   }
 
   // Follow-up task operations

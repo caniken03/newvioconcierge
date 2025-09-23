@@ -302,37 +302,37 @@ export default function ClientAdminDashboard() {
                   <div className="w-8 h-8 bg-green-100 text-green-600 rounded-lg flex items-center justify-center">
                     <i className="fas fa-check text-sm"></i>
                   </div>
-                  <span className="text-sm font-medium">Successful Calls</span>
+                  <span className="text-sm font-medium">Success Rate</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-lg font-bold text-foreground">0</span>
-                  <p className="text-xs text-green-500">+0%</p>
+                  <span className="text-lg font-bold text-foreground">{analytics.successRate || 0}%</span>
+                  <p className="text-xs text-green-500">Call conversion</p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center">
+                    <i className="fas fa-calendar-check text-sm"></i>
+                  </div>
+                  <span className="text-sm font-medium">Appointments Confirmed</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-lg font-bold text-foreground">{analytics.appointmentsConfirmed || 0}</span>
+                  <p className="text-xs text-blue-500">Total confirmed</p>
                 </div>
               </div>
 
               <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 bg-yellow-100 text-yellow-600 rounded-lg flex items-center justify-center">
-                    <i className="fas fa-voicemail text-sm"></i>
+                    <i className="fas fa-exclamation-triangle text-sm"></i>
                   </div>
-                  <span className="text-sm font-medium">Voicemail</span>
+                  <span className="text-sm font-medium">No-Show Rate</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-lg font-bold text-foreground">0</span>
-                  <p className="text-xs text-yellow-500">+0%</p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-red-100 text-red-600 rounded-lg flex items-center justify-center">
-                    <i className="fas fa-times text-sm"></i>
-                  </div>
-                  <span className="text-sm font-medium">No Answer</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-lg font-bold text-foreground">0</span>
-                  <p className="text-xs text-red-500">+0%</p>
+                  <span className="text-lg font-bold text-foreground">{analytics.noShowRate || 0}%</span>
+                  <p className="text-xs text-yellow-500">Track reliability</p>
                 </div>
               </div>
             </div>

@@ -4,8 +4,31 @@ import { storage } from "./storage";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 import type { User } from "@shared/schema";
+import multer from "multer";
+import csv from "csv-parser";
+import * as createCsvWriter from "csv-writer";
+import fs from "fs";
+import path from "path";
+import { retellService } from "./services/retell";
+import { calComService } from "./services/cal-com";
+import { calendlyService } from "./services/calendly";
 
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "fallback_secret";
+
+// Configure multer for file uploads
+const upload = multer({
+  dest: '/tmp/uploads/',
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only CSV files are allowed'));
+    }
+  },
+});
 
 // Middleware for JWT authentication
 const authenticateJWT = async (req: any, res: any, next: any) => {
@@ -313,6 +336,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // CSV import/export routes
+  app.post('/api/contacts/import', authenticateJWT, requireRole(['client_admin', 'super_admin']), upload.single('csvFile'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'No CSV file uploaded' });
+      }
+
+      const contacts: any[] = [];
+      const filePath = req.file.path;
+
+      return new Promise((resolve, reject) => {
+        fs.createReadStream(filePath)
+          .pipe(csv())
+          .on('data', (data) => {
+            // Map CSV columns to contact fields
+            const contact = {
+              name: data.name || data.Name,
+              phone: data.phone || data.Phone,
+              email: data.email || data.Email || undefined,
+              appointmentType: data.appointmentType || data['Appointment Type'] || undefined,
+              appointmentTime: data.appointmentTime || data['Appointment Time'] ? new Date(data.appointmentTime || data['Appointment Time']) : undefined,
+              appointmentDuration: data.appointmentDuration || data['Appointment Duration'] ? parseInt(data.appointmentDuration || data['Appointment Duration']) : undefined,
+              notes: data.notes || data.Notes || undefined,
+              specialInstructions: data.specialInstructions || data['Special Instructions'] || undefined,
+            };
+
+            // Only add contacts with required fields
+            if (contact.name && contact.phone) {
+              contacts.push(contact);
+            }
+          })
+          .on('end', async () => {
+            try {
+              const result = await storage.bulkCreateContacts(req.user.tenantId, contacts);
+              
+              // Clean up uploaded file
+              fs.unlinkSync(filePath);
+              
+              res.json({
+                message: `Successfully imported ${result.created} contacts`,
+                created: result.created,
+                errors: result.errors,
+                totalProcessed: contacts.length,
+              });
+              resolve(undefined);
+            } catch (error) {
+              reject(error);
+            }
+          })
+          .on('error', (error) => {
+            reject(error);
+          });
+      });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to import contacts' });
+    }
+  });
+
+  app.get('/api/contacts/export', authenticateJWT, async (req: any, res) => {
+    try {
+      const contacts = await storage.exportContactsToCSV(req.user.tenantId);
+      
+      const csvFilePath = `/tmp/contacts_export_${Date.now()}.csv`;
+      const csvWriter = createCsvWriter.createObjectCsvWriter({
+        path: csvFilePath,
+        header: [
+          { id: 'name', title: 'Name' },
+          { id: 'phone', title: 'Phone' },
+          { id: 'email', title: 'Email' },
+          { id: 'appointmentType', title: 'Appointment Type' },
+          { id: 'appointmentTime', title: 'Appointment Time' },
+          { id: 'appointmentDuration', title: 'Appointment Duration' },
+          { id: 'appointmentStatus', title: 'Appointment Status' },
+          { id: 'notes', title: 'Notes' },
+          { id: 'specialInstructions', title: 'Special Instructions' },
+          { id: 'createdAt', title: 'Created At' },
+        ],
+      });
+
+      await csvWriter.writeRecords(contacts);
+      
+      res.download(csvFilePath, 'contacts_export.csv', (err) => {
+        if (err) {
+          console.error('Download error:', err);
+        }
+        // Clean up file after download
+        fs.unlinkSync(csvFilePath);
+      });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to export contacts' });
+    }
+  });
+
   // Call session routes
   app.get('/api/call-sessions', authenticateJWT, async (req: any, res) => {
     try {
@@ -332,14 +448,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { contactId, triggerTime } = sessionSchema.parse(req.body);
       
+      // Get contact details
+      const contact = await storage.getContact(contactId);
+      if (!contact) {
+        return res.status(404).json({ message: 'Contact not found' });
+      }
+
+      // Get tenant configuration
+      const tenantConfig = await storage.getTenantConfig(req.user.tenantId);
+      if (!tenantConfig?.retellApiKey || !tenantConfig?.retellAgentId || !tenantConfig?.retellAgentNumber) {
+        return res.status(400).json({ message: 'Retell AI configuration missing. Please configure your voice AI settings.' });
+      }
+
+      // Create call session
+      const sessionId = `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const session = await storage.createCallSession({
         contactId,
         tenantId: req.user.tenantId,
-        sessionId: `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        sessionId,
         triggerTime: triggerTime ? new Date(triggerTime) : new Date(),
+        status: 'queued',
+        startTime: new Date(),
       });
       
-      res.status(201).json(session);
+      try {
+        // Trigger Retell call
+        const retellCall = await retellService.createCall(tenantConfig.retellApiKey, {
+          from_number: tenantConfig.retellAgentNumber,
+          to_number: contact.phone,
+          agent_id: tenantConfig.retellAgentId,
+          metadata: {
+            contactId: contact.id,
+            tenantId: req.user.tenantId,
+            appointmentTime: contact.appointmentTime?.toISOString(),
+            appointmentType: contact.appointmentType || '',
+          },
+        });
+
+        // Update session with Retell call ID
+        await storage.updateCallSession(session.id, {
+          retellCallId: retellCall.call_id,
+          status: 'in_progress',
+        });
+
+        res.status(201).json({
+          ...session,
+          retellCallId: retellCall.call_id,
+          status: 'in_progress',
+        });
+      } catch (retellError) {
+        // Update session with error
+        await storage.updateCallSession(session.id, {
+          status: 'failed',
+          errorMessage: retellError instanceof Error ? retellError.message : 'Failed to create call',
+        });
+
+        res.status(500).json({ 
+          message: 'Failed to create call', 
+          error: retellError instanceof Error ? retellError.message : 'Unknown error' 
+        });
+      }
     } catch (error) {
       res.status(400).json({ message: 'Failed to create call session' });
     }
@@ -505,16 +673,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Dashboard analytics routes
   app.get('/api/dashboard/analytics', authenticateJWT, async (req: any, res) => {
     try {
-      // For now, return empty analytics - implement actual calculations later
-      const analytics = {
-        totalContacts: 0,
-        callsToday: 0,
-        successRate: 0,
-        appointmentsConfirmed: 0,
-        noShowRate: 0,
-        recentActivity: [],
-      };
-      
+      const analytics = await storage.getClientAnalytics(req.user.tenantId);
       res.json(analytics);
     } catch (error) {
       res.status(500).json({ message: 'Failed to fetch analytics' });
@@ -523,18 +682,416 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/admin/dashboard/analytics', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
     try {
-      // Platform-wide analytics for super admin
-      const analytics = {
-        activeTenants: 0,
-        totalCallsToday: 0,
-        platformSuccessRate: 0,
-        systemHealth: 'excellent',
-        recentTenantActivity: [],
-      };
-      
+      const analytics = await storage.getPlatformAnalytics();
       res.json(analytics);
     } catch (error) {
       res.status(500).json({ message: 'Failed to fetch platform analytics' });
+    }
+  });
+
+  // Retell AI webhook endpoint
+  app.post('/api/webhooks/retell', async (req, res) => {
+    try {
+      const payload = retellService.parseWebhookPayload(req.body);
+      
+      if (payload.event === 'call_ended' || payload.event === 'call_completed') {
+        // Find the call session by retellCallId
+        const session = await storage.getCallSessionByRetellId(payload.call_id);
+        
+        if (session) {
+          const callOutcome = retellService.determineCallOutcome(payload);
+          
+          // Calculate duration from start time if available
+          let durationSeconds: number | undefined;
+          if (session.startTime && payload.call_status === 'completed') {
+            durationSeconds = Math.floor((Date.now() - session.startTime.getTime()) / 1000);
+          }
+          
+          // Update call session
+          await storage.updateCallSession(session.id, {
+            status: 'completed',
+            endTime: new Date(),
+            callOutcome,
+            durationSeconds,
+          });
+
+          // Update contact with call outcome
+          if (callOutcome === 'confirmed') {
+            await storage.updateContact(session.contactId!, {
+              appointmentStatus: 'confirmed',
+              lastCallOutcome: callOutcome,
+              callAttempts: (await storage.getContact(session.contactId!))?.callAttempts || 0 + 1,
+            });
+          } else {
+            await storage.updateContact(session.contactId!, {
+              lastCallOutcome: callOutcome,
+              callAttempts: (await storage.getContact(session.contactId!))?.callAttempts || 0 + 1,
+            });
+          }
+
+          // Log the call details
+          await storage.createCallLog({
+            callSessionId: session.id,
+            tenantId: session.tenantId,
+            contactId: session.contactId!,
+            logLevel: 'info',
+            message: `Call completed with outcome: ${callOutcome}`,
+            metadata: JSON.stringify({
+              retellCallId: payload.call_id,
+              transcript: payload.transcript,
+              callAnalysis: payload.call_analysis,
+            }),
+          });
+        }
+      }
+      
+      res.status(200).json({ received: true });
+    } catch (error) {
+      console.error('Retell webhook error:', error);
+      res.status(500).json({ message: 'Webhook processing failed' });
+    }
+  });
+
+  // Cal.com webhook endpoint
+  app.post('/api/webhooks/cal-com', async (req, res) => {
+    try {
+      const payload = calComService.parseWebhookPayload(req.body);
+      const action = calComService.determineWebhookAction(payload);
+      
+      if (action === 'unknown') {
+        return res.status(200).json({ received: true, action: 'ignored' });
+      }
+
+      const booking = payload.payload.booking;
+      const contactData = calComService.mapBookingToContact(booking);
+      
+      // Find tenant by Cal.com event type or booking metadata
+      const tenantId = booking.metadata?.tenantId;
+      if (!tenantId) {
+        console.warn('Cal.com webhook received without tenant ID in metadata');
+        return res.status(400).json({ message: 'Missing tenant ID in booking metadata' });
+      }
+
+      // Check if contact already exists by email
+      let existingContact;
+      if (contactData.email) {
+        const contacts = await storage.searchContacts(tenantId, contactData.email);
+        existingContact = contacts.find(c => c.email === contactData.email);
+      }
+
+      if (action === 'create' || action === 'update') {
+        if (existingContact) {
+          // Update existing contact
+          await storage.updateContact(existingContact.id, {
+            appointmentTime: contactData.appointmentTime,
+            appointmentType: contactData.appointmentType,
+            appointmentDuration: contactData.appointmentDuration,
+            appointmentStatus: contactData.appointmentStatus,
+            notes: `${existingContact.notes || ''}\nCal.com booking updated: ${booking.uid}`.trim(),
+          });
+        } else {
+          // Create new contact
+          await storage.createContact({
+            ...contactData,
+            tenantId,
+            notes: `${contactData.notes}\nCal.com booking: ${booking.uid}`,
+          });
+        }
+      } else if (action === 'cancel' && existingContact) {
+        // Cancel appointment
+        await storage.updateContact(existingContact.id, {
+          appointmentStatus: 'cancelled',
+          notes: `${existingContact.notes || ''}\nCal.com booking cancelled: ${booking.uid}`.trim(),
+        });
+      }
+
+      res.status(200).json({ received: true, action });
+    } catch (error) {
+      console.error('Cal.com webhook error:', error);
+      res.status(500).json({ message: 'Webhook processing failed' });
+    }
+  });
+
+  // Cal.com integration routes
+  app.get('/api/integrations/cal-com/bookings', authenticateJWT, async (req: any, res) => {
+    try {
+      const tenantConfig = await storage.getTenantConfig(req.user.tenantId);
+      if (!tenantConfig?.calApiKey) {
+        return res.status(400).json({ message: 'Cal.com API key not configured' });
+      }
+
+      const bookings = await calComService.getBookings(
+        tenantConfig.calApiKey, 
+        tenantConfig.calEventTypeId || undefined
+      );
+      
+      res.json(bookings);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch Cal.com bookings' });
+    }
+  });
+
+  app.get('/api/integrations/cal-com/event-types', authenticateJWT, async (req: any, res) => {
+    try {
+      const tenantConfig = await storage.getTenantConfig(req.user.tenantId);
+      if (!tenantConfig?.calApiKey) {
+        return res.status(400).json({ message: 'Cal.com API key not configured' });
+      }
+
+      const eventTypes = await calComService.getEventTypes(tenantConfig.calApiKey);
+      res.json(eventTypes);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch Cal.com event types' });
+    }
+  });
+
+  app.post('/api/integrations/cal-com/sync', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      const tenantConfig = await storage.getTenantConfig(req.user.tenantId);
+      if (!tenantConfig?.calApiKey) {
+        return res.status(400).json({ message: 'Cal.com API key not configured' });
+      }
+
+      // Fetch all bookings from Cal.com
+      const bookings = await calComService.getBookings(
+        tenantConfig.calApiKey,
+        tenantConfig.calEventTypeId || undefined
+      );
+
+      let created = 0;
+      let updated = 0;
+      const errors: any[] = [];
+
+      for (const booking of bookings) {
+        try {
+          const contactData = calComService.mapBookingToContact(booking);
+          
+          // Check if contact exists
+          let existingContact;
+          if (contactData.email) {
+            const contacts = await storage.searchContacts(req.user.tenantId, contactData.email);
+            existingContact = contacts.find(c => c.email === contactData.email);
+          }
+
+          if (existingContact) {
+            await storage.updateContact(existingContact.id, {
+              appointmentTime: contactData.appointmentTime,
+              appointmentType: contactData.appointmentType,
+              appointmentDuration: contactData.appointmentDuration,
+              appointmentStatus: contactData.appointmentStatus,
+              notes: `${existingContact.notes || ''}\nSynced from Cal.com: ${booking.uid}`.trim(),
+            });
+            updated++;
+          } else {
+            await storage.createContact({
+              ...contactData,
+              tenantId: req.user.tenantId,
+              notes: `${contactData.notes}\nSynced from Cal.com: ${booking.uid}`,
+            });
+            created++;
+          }
+        } catch (error) {
+          errors.push({
+            booking: booking.uid,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+
+      res.json({
+        message: `Cal.com sync completed: ${created} created, ${updated} updated`,
+        created,
+        updated,
+        errors,
+        totalProcessed: bookings.length,
+      });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to sync Cal.com bookings' });
+    }
+  });
+
+  // Calendly webhook endpoint
+  app.post('/api/webhooks/calendly', async (req, res) => {
+    try {
+      const payload = calendlyService.parseWebhookPayload(req.body);
+      const action = calendlyService.determineWebhookAction(payload);
+      
+      if (action === 'unknown') {
+        return res.status(200).json({ received: true, action: 'ignored' });
+      }
+
+      const event = payload.payload.event;
+      const invitee = payload.payload.invitee;
+      
+      if (!event || !invitee) {
+        return res.status(400).json({ message: 'Missing event or invitee data in webhook payload' });
+      }
+
+      // Extract tenant ID from event type URI or custom tracking
+      const tenantId = invitee.tracking?.salesforce_uuid; // Use tracking field for tenant ID
+      if (!tenantId) {
+        console.warn('Calendly webhook received without tenant ID in tracking data');
+        return res.status(400).json({ message: 'Missing tenant ID in invitee tracking data' });
+      }
+
+      const contactData = calendlyService.mapEventToContact(event, invitee);
+      
+      // Check if contact already exists by email
+      let existingContact;
+      if (contactData.email) {
+        const contacts = await storage.searchContacts(tenantId, contactData.email);
+        existingContact = contacts.find(c => c.email === contactData.email);
+      }
+
+      if (action === 'create' || action === 'update') {
+        if (existingContact) {
+          // Update existing contact
+          await storage.updateContact(existingContact.id, {
+            appointmentTime: contactData.appointmentTime,
+            appointmentType: contactData.appointmentType,
+            appointmentDuration: contactData.appointmentDuration,
+            appointmentStatus: contactData.appointmentStatus,
+            notes: `${existingContact.notes || ''}\nCalendly booking updated: ${invitee.uri}`.trim(),
+          });
+        } else {
+          // Create new contact
+          await storage.createContact({
+            ...contactData,
+            tenantId,
+            notes: `${contactData.notes}\nCalendly booking: ${invitee.uri}`,
+          });
+        }
+      } else if (action === 'cancel' && existingContact) {
+        // Cancel appointment
+        await storage.updateContact(existingContact.id, {
+          appointmentStatus: 'cancelled',
+          notes: `${existingContact.notes || ''}\nCalendly booking cancelled: ${invitee.uri}`.trim(),
+        });
+      }
+
+      res.status(200).json({ received: true, action });
+    } catch (error) {
+      console.error('Calendly webhook error:', error);
+      res.status(500).json({ message: 'Webhook processing failed' });
+    }
+  });
+
+  // Calendly integration routes
+  app.get('/api/integrations/calendly/events', authenticateJWT, async (req: any, res) => {
+    try {
+      const tenantConfig = await storage.getTenantConfig(req.user.tenantId);
+      if (!tenantConfig?.calendlyAccessToken) {
+        return res.status(400).json({ message: 'Calendly access token not configured' });
+      }
+
+      const events = await calendlyService.getScheduledEvents(
+        tenantConfig.calendlyAccessToken,
+        tenantConfig.calendlyOrganization,
+        tenantConfig.calendlyUser
+      );
+      
+      res.json(events);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch Calendly events' });
+    }
+  });
+
+  app.get('/api/integrations/calendly/event-types', authenticateJWT, async (req: any, res) => {
+    try {
+      const tenantConfig = await storage.getTenantConfig(req.user.tenantId);
+      if (!tenantConfig?.calendlyAccessToken) {
+        return res.status(400).json({ message: 'Calendly access token not configured' });
+      }
+
+      const eventTypes = await calendlyService.getEventTypes(
+        tenantConfig.calendlyAccessToken,
+        tenantConfig.calendlyOrganization,
+        tenantConfig.calendlyUser
+      );
+      res.json(eventTypes);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch Calendly event types' });
+    }
+  });
+
+  app.post('/api/integrations/calendly/sync', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      const tenantConfig = await storage.getTenantConfig(req.user.tenantId);
+      if (!tenantConfig?.calendlyAccessToken) {
+        return res.status(400).json({ message: 'Calendly access token not configured' });
+      }
+
+      // Fetch all scheduled events from Calendly
+      const events = await calendlyService.getScheduledEvents(
+        tenantConfig.calendlyAccessToken,
+        tenantConfig.calendlyOrganization,
+        tenantConfig.calendlyUser
+      );
+
+      let created = 0;
+      let updated = 0;
+      const errors: any[] = [];
+
+      for (const event of events) {
+        try {
+          // Get invitees for each event
+          const invitees = await calendlyService.getEventInvitees(
+            tenantConfig.calendlyAccessToken,
+            event.uri
+          );
+
+          for (const invitee of invitees) {
+            try {
+              const contactData = calendlyService.mapEventToContact(event, invitee);
+              
+              // Check if contact exists
+              let existingContact;
+              if (contactData.email) {
+                const contacts = await storage.searchContacts(req.user.tenantId, contactData.email);
+                existingContact = contacts.find(c => c.email === contactData.email);
+              }
+
+              if (existingContact) {
+                await storage.updateContact(existingContact.id, {
+                  appointmentTime: contactData.appointmentTime,
+                  appointmentType: contactData.appointmentType,
+                  appointmentDuration: contactData.appointmentDuration,
+                  appointmentStatus: contactData.appointmentStatus,
+                  notes: `${existingContact.notes || ''}\nSynced from Calendly: ${invitee.uri}`.trim(),
+                });
+                updated++;
+              } else {
+                await storage.createContact({
+                  ...contactData,
+                  tenantId: req.user.tenantId,
+                  notes: `${contactData.notes}\nSynced from Calendly: ${invitee.uri}`,
+                });
+                created++;
+              }
+            } catch (error) {
+              errors.push({
+                invitee: invitee.uri,
+                error: error instanceof Error ? error.message : 'Unknown error',
+              });
+            }
+          }
+        } catch (error) {
+          errors.push({
+            event: event.uri,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+
+      res.json({
+        message: `Calendly sync completed: ${created} created, ${updated} updated`,
+        created,
+        updated,
+        errors,
+        totalProcessed: events.length,
+      });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to sync Calendly events' });
     }
   });
 

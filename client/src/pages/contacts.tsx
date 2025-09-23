@@ -30,6 +30,8 @@ export default function Contacts() {
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [isImporting, setIsImporting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Fetch contacts with search
   const { data: contacts = [], isLoading: contactsLoading } = useQuery({
@@ -59,6 +61,58 @@ export default function Contacts() {
       toast({
         title: "Failed to delete contact",
         description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // CSV import mutation
+  const importContactsMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('csvFile', file);
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      
+      const response = await fetch('/api/contacts/import', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Import failed');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/contacts/stats'] });
+      setIsImporting(false);
+      toast({
+        title: "Import Successful",
+        description: `${data.created} contacts imported successfully`,
+      });
+      if (data.errors.length > 0) {
+        toast({
+          title: "Import Warnings",
+          description: `${data.errors.length} contacts had errors`,
+          variant: "destructive",
+        });
+      }
+    },
+    onError: () => {
+      setIsImporting(false);
+      toast({
+        title: "Import Failed",
+        description: "Failed to import contacts from CSV",
         variant: "destructive",
       });
     },
@@ -115,6 +169,71 @@ export default function Contacts() {
       setSelectedContacts(contacts.map((c: Contact) => c.id));
     } else {
       setSelectedContacts([]);
+    }
+  };
+
+  // Handle CSV file import
+  const handleImportCSV = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        setIsImporting(true);
+        importContactsMutation.mutate(file);
+      }
+    };
+    input.click();
+  };
+
+  // Handle CSV export
+  const handleExportCSV = async () => {
+    try {
+      setIsExporting(true);
+      
+      // Use the queryClient's base URL and authentication
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      
+      const response = await fetch('/api/contacts/export', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Export failed');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'contacts_export.csv';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({
+        title: "Export Successful",
+        description: "Contacts exported successfully",
+      });
+    } catch (error) {
+      console.error('CSV Export Error:', error);
+      toast({
+        title: "Export Failed",
+        description: error instanceof Error ? error.message : "Failed to export contacts",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -224,9 +343,24 @@ export default function Contacts() {
                   </Select>
 
                   {/* Actions */}
-                  <Button variant="secondary" data-testid="button-import-csv">
-                    <i className="fas fa-upload text-sm mr-2"></i>
-                    Import CSV
+                  <Button 
+                    variant="secondary" 
+                    onClick={handleImportCSV}
+                    disabled={isImporting}
+                    data-testid="button-import-csv"
+                  >
+                    <i className={`fas ${isImporting ? 'fa-spinner fa-spin' : 'fa-upload'} text-sm mr-2`}></i>
+                    {isImporting ? 'Importing...' : 'Import CSV'}
+                  </Button>
+                  
+                  <Button 
+                    variant="secondary" 
+                    onClick={handleExportCSV}
+                    disabled={isExporting}
+                    data-testid="button-export-csv"
+                  >
+                    <i className={`fas ${isExporting ? 'fa-spinner fa-spin' : 'fa-download'} text-sm mr-2`}></i>
+                    {isExporting ? 'Exporting...' : 'Export CSV'}
                   </Button>
                   
                   <Button 
