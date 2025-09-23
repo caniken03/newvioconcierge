@@ -33,7 +33,7 @@ export default function Contacts() {
 
   // Fetch contacts with search
   const { data: contacts = [], isLoading: contactsLoading } = useQuery({
-    queryKey: ['/api/contacts', { search: searchQuery, page: currentPage }],
+    queryKey: ['/api/contacts', searchQuery, currentPage],
     enabled: !!user,
   });
 

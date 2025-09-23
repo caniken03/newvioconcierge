@@ -11,6 +11,7 @@ import SuperAdminDashboard from "@/pages/super-admin-dashboard";
 import ClientAdminDashboard from "@/pages/client-admin-dashboard";
 import Contacts from "@/pages/contacts";
 import TenantManagement from "@/pages/tenant-management";
+import SystemSettings from "@/pages/system-settings";
 
 function Router() {
   const { user, isLoading } = useAuth();
@@ -37,6 +38,7 @@ function Router() {
       <Route path="/client-admin" component={ClientAdminDashboard} />
       <Route path="/contacts" component={Contacts} />
       <Route path="/tenants" component={TenantManagement} />
+      <Route path="/system" component={SystemSettings} />
       <Route component={NotFound} />
     </Switch>
   );

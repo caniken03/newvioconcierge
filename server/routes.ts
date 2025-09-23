@@ -255,6 +255,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/contacts/stats', authenticateJWT, async (req: any, res) => {
+    try {
+      const stats = await storage.getContactStats(req.user.tenantId);
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch contact stats' });
+    }
+  });
+
   app.get('/api/contacts/:id', authenticateJWT, requireTenantAccess, async (req, res) => {
     try {
       const contact = await storage.getContact(req.params.id);
@@ -301,15 +310,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: 'Failed to delete contact' });
-    }
-  });
-
-  app.get('/api/contacts/stats', authenticateJWT, async (req: any, res) => {
-    try {
-      const stats = await storage.getContactStats(req.user.tenantId);
-      res.json(stats);
-    } catch (error) {
-      res.status(500).json({ message: 'Failed to fetch contact stats' });
     }
   });
 
