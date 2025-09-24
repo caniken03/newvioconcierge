@@ -18,24 +18,66 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Contact } from "@/types";
+import { 
+  Search,
+  Filter,
+  Plus,
+  Upload,
+  Download,
+  Phone,
+  Edit,
+  Trash2,
+  Clock,
+  X,
+  AddressBook,
+  Calendar,
+  CheckCircle,
+  Mail,
+  MessageSquare
+} from "lucide-react";
+import type { Contact, ContactGroup, Location } from "@/types";
+
+// Enhanced filter interfaces
+interface ContactFilters {
+  search: string;
+  status: string;
+  groupId: string;
+  priorityLevel: string;
+  locationId: string;
+  bookingSource: string;
+  preferredContactMethod: string;
+}
 
 export default function Contacts() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [searchQuery, setSearchQuery] = useState("");
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState("all");
   const [isImporting, setIsImporting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
-  // Fetch contacts with search
+  // Enhanced filter state
+  const [filters, setFilters] = useState<ContactFilters>({
+    search: "",
+    status: "all",
+    groupId: "all",
+    priorityLevel: "all",
+    locationId: "all",
+    bookingSource: "all",
+    preferredContactMethod: "all"
+  });
+
+  // Legacy compatibility
+  const searchQuery = filters.search;
+  const statusFilter = filters.status;
+
+  // Fetch contacts with enhanced filtering
   const { data: contacts = [], isLoading: contactsLoading } = useQuery({
-    queryKey: ['/api/contacts', searchQuery, currentPage],
+    queryKey: ['/api/contacts', filters, currentPage],
     enabled: !!user,
   });
 
@@ -43,6 +85,18 @@ export default function Contacts() {
     queryKey: ['/api/contacts/stats'],
     enabled: !!user,
   });
+
+  // Fetch contact groups for filtering
+  const { data: contactGroups = [] } = useQuery({
+    queryKey: ['/api/contact-groups'],
+    enabled: !!user,
+  }) as { data: ContactGroup[] };
+
+  // Fetch locations for filtering
+  const { data: locations = [] } = useQuery({
+    queryKey: ['/api/locations'],
+    enabled: !!user,
+  }) as { data: Location[] };
 
   // Delete contact mutation
   const deleteContactMutation = useMutation({
@@ -237,10 +291,68 @@ export default function Contacts() {
     }
   };
 
-  const filteredContacts = contacts.filter((contact: Contact) => {
-    if (statusFilter === "all") return true;
-    return contact.appointmentStatus === statusFilter;
+  // Fetch contact group memberships for filtering
+  const { data: groupMemberships = [] } = useQuery({
+    queryKey: [`/api/contact-groups/${filters.groupId}/contacts`],
+    enabled: !!user && filters.groupId !== "all",
   });
+
+  // Enhanced filtering logic
+  const filteredContacts = contacts.filter((contact: any) => {
+    // Search filter - search across multiple fields
+    if (filters.search.trim()) {
+      const searchLower = filters.search.toLowerCase();
+      const matchesSearch = [
+        contact.name,
+        contact.email,
+        contact.phone, 
+        contact.companyName,
+        contact.ownerName,
+        contact.notes,
+        contact.appointmentType
+      ].some(field => field?.toLowerCase().includes(searchLower));
+      
+      if (!matchesSearch) return false;
+    }
+
+    // Status filter
+    if (filters.status !== "all" && contact.appointmentStatus !== filters.status) {
+      return false;
+    }
+
+    // Contact group filter - check if contact is in the selected group
+    if (filters.groupId !== "all") {
+      const isInGroup = groupMemberships.some((member: any) => member.contactId === contact.id);
+      if (!isInGroup) return false;
+    }
+
+    // Priority level filter
+    if (filters.priorityLevel !== "all" && contact.priorityLevel !== filters.priorityLevel) {
+      return false;
+    }
+
+    // Location filter
+    if (filters.locationId !== "all" && contact.locationId !== filters.locationId) {
+      return false;
+    }
+
+    // Booking source filter
+    if (filters.bookingSource !== "all" && contact.bookingSource !== filters.bookingSource) {
+      return false;
+    }
+
+    // Preferred contact method filter
+    if (filters.preferredContactMethod !== "all" && contact.preferredContactMethod !== filters.preferredContactMethod) {
+      return false;
+    }
+
+    return true;
+  });
+
+  // Filter update functions
+  const updateFilter = (key: keyof ContactFilters, value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
 
   if (!user) return null;
 
@@ -269,7 +381,7 @@ export default function Contacts() {
                     </p>
                   </div>
                   <div className="w-10 h-10 bg-primary/10 text-primary rounded-lg flex items-center justify-center">
-                    <i className="fas fa-address-book"></i>
+                    <AddressBook className="w-5 h-5" />
                   </div>
                 </div>
               </CardContent>
@@ -285,7 +397,7 @@ export default function Contacts() {
                     </p>
                   </div>
                   <div className="w-10 h-10 bg-yellow-100 text-yellow-600 rounded-lg flex items-center justify-center">
-                    <i className="fas fa-clock"></i>
+                    <Clock className="w-5 h-5" />
                   </div>
                 </div>
               </CardContent>
@@ -301,7 +413,7 @@ export default function Contacts() {
                     </p>
                   </div>
                   <div className="w-10 h-10 bg-green-100 text-green-600 rounded-lg flex items-center justify-center">
-                    <i className="fas fa-check-circle"></i>
+                    <CheckCircle className="w-5 h-5" />
                   </div>
                 </div>
               </CardContent>
@@ -317,19 +429,19 @@ export default function Contacts() {
                 <div className="flex flex-wrap items-center gap-3">
                   {/* Search */}
                   <div className="relative">
-                    <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground text-sm"></i>
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                     <Input
                       type="text"
                       placeholder="Search contacts..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      value={filters.search}
+                      onChange={(e) => updateFilter('search', e.target.value)}
                       className="pl-10 pr-4 py-2 text-sm w-64"
                       data-testid="input-search-contacts"
                     />
                   </div>
 
                   {/* Status Filter */}
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <Select value={filters.status} onValueChange={(value) => updateFilter('status', value)}>
                     <SelectTrigger className="w-40" data-testid="select-status-filter">
                       <SelectValue />
                     </SelectTrigger>
@@ -338,9 +450,20 @@ export default function Contacts() {
                       <SelectItem value="pending">Pending</SelectItem>
                       <SelectItem value="confirmed">Confirmed</SelectItem>
                       <SelectItem value="cancelled">Cancelled</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="rescheduled">Rescheduled</SelectItem>
                     </SelectContent>
                   </Select>
+
+                  {/* Advanced Filters Toggle */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                    data-testid="button-toggle-advanced-filters"
+                  >
+                    <Filter className={`w-4 h-4 mr-2 ${showAdvancedFilters ? 'text-primary' : ''}`} />
+                    Advanced
+                  </Button>
 
                   {/* Actions */}
                   <Button 
@@ -349,7 +472,7 @@ export default function Contacts() {
                     disabled={isImporting}
                     data-testid="button-import-csv"
                   >
-                    <i className={`fas ${isImporting ? 'fa-spinner fa-spin' : 'fa-upload'} text-sm mr-2`}></i>
+                    <Upload className="w-4 h-4 mr-2" />
                     {isImporting ? 'Importing...' : 'Import CSV'}
                   </Button>
                   
@@ -359,7 +482,7 @@ export default function Contacts() {
                     disabled={isExporting}
                     data-testid="button-export-csv"
                   >
-                    <i className={`fas ${isExporting ? 'fa-spinner fa-spin' : 'fa-download'} text-sm mr-2`}></i>
+                    <Download className="w-4 h-4 mr-2" />
                     {isExporting ? 'Exporting...' : 'Export CSV'}
                   </Button>
                   
@@ -370,11 +493,125 @@ export default function Contacts() {
                     }}
                     data-testid="button-add-contact"
                   >
-                    <i className="fas fa-plus text-sm mr-2"></i>
+                    <Plus className="w-4 h-4 mr-2" />
                     Add Contact
                   </Button>
                 </div>
               </div>
+
+              {/* Advanced Filters Panel */}
+              {showAdvancedFilters && (
+                <div className="mt-4 pt-4 border-t border-border">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Contact Groups Filter */}
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Contact Group</label>
+                      <Select value={filters.groupId} onValueChange={(value) => updateFilter('groupId', value)}>
+                        <SelectTrigger data-testid="select-group-filter">
+                          <SelectValue placeholder="All Groups" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Groups</SelectItem>
+                          {contactGroups.map((group) => (
+                            <SelectItem key={group.id} value={group.id}>
+                              {group.name} ({group.contactCount || 0})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Priority Level Filter */}
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Priority Level</label>
+                      <Select value={filters.priorityLevel} onValueChange={(value) => updateFilter('priorityLevel', value)}>
+                        <SelectTrigger data-testid="select-priority-filter">
+                          <SelectValue placeholder="All Priorities" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Priorities</SelectItem>
+                          <SelectItem value="normal">Normal</SelectItem>
+                          <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="urgent">Urgent</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Location Filter */}
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Location</label>
+                      <Select value={filters.locationId} onValueChange={(value) => updateFilter('locationId', value)}>
+                        <SelectTrigger data-testid="select-location-filter">
+                          <SelectValue placeholder="All Locations" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Locations</SelectItem>
+                          {locations.map((location) => (
+                            <SelectItem key={location.id} value={location.id}>
+                              {location.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Booking Source Filter */}
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Booking Source</label>
+                      <Select value={filters.bookingSource} onValueChange={(value) => updateFilter('bookingSource', value)}>
+                        <SelectTrigger data-testid="select-booking-source-filter">
+                          <SelectValue placeholder="All Sources" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Sources</SelectItem>
+                          <SelectItem value="manual">Manual</SelectItem>
+                          <SelectItem value="calcom">Cal.com</SelectItem>
+                          <SelectItem value="calendly">Calendly</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    {/* Preferred Contact Method Filter */}
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Preferred Contact Method</label>
+                      <Select value={filters.preferredContactMethod} onValueChange={(value) => updateFilter('preferredContactMethod', value)}>
+                        <SelectTrigger data-testid="select-contact-method-filter">
+                          <SelectValue placeholder="All Methods" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Methods</SelectItem>
+                          <SelectItem value="voice">Voice</SelectItem>
+                          <SelectItem value="email">Email</SelectItem>
+                          <SelectItem value="sms">SMS</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Clear Filters */}
+                    <div className="flex items-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFilters({
+                          search: "",
+                          status: "all",
+                          groupId: "all",
+                          priorityLevel: "all",
+                          locationId: "all",
+                          bookingSource: "all",
+                          preferredContactMethod: "all"
+                        })}
+                        data-testid="button-clear-filters"
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Clear All Filters
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Bulk Actions */}
               {selectedContacts.length > 0 && (
@@ -405,26 +642,32 @@ export default function Contacts() {
                 <table className="w-full">
                   <thead className="bg-muted/30">
                     <tr>
-                      <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         <Checkbox
                           checked={selectedContacts.length === filteredContacts.length && filteredContacts.length > 0}
                           onCheckedChange={handleSelectAll}
                           data-testid="checkbox-select-all"
                         />
                       </th>
-                      <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Contact
+                      <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Contact Info
                       </th>
-                      <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Company/Owner
+                      </th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Appointment
                       </th>
-                      <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Status
+                      <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Status & Priority
                       </th>
-                      <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Contact Method
+                      </th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Call History
                       </th>
-                      <th className="text-center px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      <th className="text-center px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
@@ -432,12 +675,12 @@ export default function Contacts() {
                   <tbody className="divide-y divide-border">
                     {filteredContacts.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-12 text-center">
+                        <td colSpan={8} className="px-6 py-12 text-center">
                           <div className="text-muted-foreground">
-                            <i className="fas fa-address-book text-4xl mb-4"></i>
+                            <AddressBook className="w-16 h-16 mx-auto mb-4" />
                             <p className="text-lg font-medium mb-2">No contacts found</p>
                             <p className="text-sm">
-                              {searchQuery || statusFilter !== "all" 
+                              {filters.search || Object.values(filters).some(f => f !== "all" && f !== "") 
                                 ? "Try adjusting your search or filters"
                                 : "Add your first contact to get started"
                               }
@@ -446,29 +689,56 @@ export default function Contacts() {
                         </td>
                       </tr>
                     ) : (
-                      filteredContacts.map((contact: Contact) => (
+                      filteredContacts.map((contact: any) => (
                         <tr 
                           key={contact.id} 
                           className="hover:bg-muted/30 transition-colors"
                           data-testid={`row-contact-${contact.id}`}
                         >
-                          <td className="px-6 py-4">
+                          <td className="px-4 py-4">
                             <Checkbox
                               checked={selectedContacts.includes(contact.id)}
                               onCheckedChange={(checked) => handleSelectContact(contact.id, checked as boolean)}
                               data-testid={`checkbox-contact-${contact.id}`}
                             />
                           </td>
-                          <td className="px-6 py-4">
+                          
+                          {/* Contact Info */}
+                          <td className="px-4 py-4">
                             <div>
-                              <p className="font-medium text-foreground">{contact.name}</p>
-                              <p className="text-sm text-muted-foreground">{contact.phone}</p>
+                              <p className="font-medium text-foreground text-sm">{contact.name}</p>
+                              <p className="text-xs text-muted-foreground">{contact.phone}</p>
                               {contact.email && (
                                 <p className="text-xs text-muted-foreground">{contact.email}</p>
                               )}
+                              {contact.timezone && (
+                                <p className="text-xs text-blue-600 mt-1">
+                                  <Clock className="w-3 h-3 mr-1 inline" />
+                                  {contact.timezone}
+                                </p>
+                              )}
                             </div>
                           </td>
-                          <td className="px-6 py-4">
+
+                          {/* Company/Owner */}
+                          <td className="px-4 py-4">
+                            <div className="text-sm">
+                              {contact.companyName && (
+                                <p className="font-medium text-foreground text-sm">{contact.companyName}</p>
+                              )}
+                              {contact.ownerName && (
+                                <p className="text-xs text-muted-foreground">{contact.ownerName}</p>
+                              )}
+                              {contact.bookingSource && (
+                                <Badge variant="outline" className="text-xs mt-1">
+                                  {contact.bookingSource}
+                                </Badge>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Appointment */}
+                          <td className="px-4 py-4">
                             <div>
                               {contact.appointmentType && (
                                 <p className="text-sm font-medium text-foreground">{contact.appointmentType}</p>
@@ -480,35 +750,82 @@ export default function Contacts() {
                               ) : (
                                 <p className="text-xs text-muted-foreground">No appointment scheduled</p>
                               )}
+                              {contact.appointmentDuration && (
+                                <p className="text-xs text-muted-foreground">{contact.appointmentDuration} min</p>
+                              )}
                             </div>
                           </td>
-                          <td className="px-6 py-4">
-                            <Badge
-                              variant={contact.appointmentStatus === 'confirmed' ? 'default' : 'secondary'}
-                              className={
-                                contact.appointmentStatus === 'confirmed'
-                                  ? 'bg-green-100 text-green-800'
-                                  : contact.appointmentStatus === 'pending'
-                                  ? 'bg-yellow-100 text-yellow-800'
-                                  : contact.appointmentStatus === 'cancelled'
-                                  ? 'bg-red-100 text-red-800'
-                                  : 'bg-blue-100 text-blue-800'
-                              }
-                            >
-                              {contact.appointmentStatus}
-                            </Badge>
+
+                          {/* Status & Priority */}
+                          <td className="px-4 py-4">
+                            <div className="flex flex-col gap-1">
+                              <Badge
+                                variant={contact.appointmentStatus === 'confirmed' ? 'default' : 'secondary'}
+                                className={
+                                  contact.appointmentStatus === 'confirmed'
+                                    ? 'bg-green-100 text-green-800 text-xs'
+                                    : contact.appointmentStatus === 'pending'
+                                    ? 'bg-yellow-100 text-yellow-800 text-xs'
+                                    : contact.appointmentStatus === 'cancelled'
+                                    ? 'bg-red-100 text-red-800 text-xs'
+                                    : 'bg-blue-100 text-blue-800 text-xs'
+                                }
+                              >
+                                {contact.appointmentStatus}
+                              </Badge>
+                              {contact.priorityLevel && (
+                                <Badge 
+                                  variant="outline"
+                                  className={`text-xs ${
+                                    contact.priorityLevel === 'urgent' ? 'border-red-300 text-red-700' :
+                                    contact.priorityLevel === 'high' ? 'border-orange-300 text-orange-700' :
+                                    contact.priorityLevel === 'medium' ? 'border-yellow-300 text-yellow-700' :
+                                    'border-green-300 text-green-700'
+                                  }`}
+                                >
+                                  {contact.priorityLevel}
+                                </Badge>
+                              )}
+                            </div>
                           </td>
-                          <td className="px-6 py-4">
+
+                          {/* Contact Method */}
+                          <td className="px-4 py-4">
                             <div className="text-sm">
-                              <p className="text-foreground">
-                                Attempts: {contact.callAttempts}
+                              {contact.preferredContactMethod && (
+                                <Badge variant="outline" className="text-xs">
+                                  {contact.preferredContactMethod === 'voice' ? (
+                                    <Phone className="w-3 h-3 mr-1" />
+                                  ) : contact.preferredContactMethod === 'sms' ? (
+                                    <MessageSquare className="w-3 h-3 mr-1" />
+                                  ) : (
+                                    <Mail className="w-3 h-3 mr-1" />
+                                  )}
+                                  {contact.preferredContactMethod}
+                                </Badge>
+                              )}
+                              {contact.callBeforeHours && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Call before: {contact.callBeforeHours}h
+                                </p>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Call History */}
+                          <td className="px-4 py-4">
+                            <div className="text-sm">
+                              <p className="text-foreground text-xs">
+                                Attempts: {contact.callAttempts || 0}
                               </p>
                               <p className="text-xs text-muted-foreground">
                                 {contact.lastCallOutcome || 'Never called'}
                               </p>
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-center">
+
+                          {/* Actions */}
+                          <td className="px-4 py-4 text-center">
                             <div className="flex items-center justify-center space-x-2">
                               <button
                                 onClick={() => handleTriggerCall(contact.id)}
@@ -516,7 +833,7 @@ export default function Contacts() {
                                 data-testid={`button-call-contact-${contact.id}`}
                                 title="Trigger call"
                               >
-                                <i className="fas fa-phone text-sm"></i>
+                                <Phone className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => handleEdit(contact)}
@@ -524,7 +841,7 @@ export default function Contacts() {
                                 data-testid={`button-edit-contact-${contact.id}`}
                                 title="Edit contact"
                               >
-                                <i className="fas fa-edit text-sm"></i>
+                                <Edit className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => handleDelete(contact.id)}
@@ -532,7 +849,7 @@ export default function Contacts() {
                                 data-testid={`button-delete-contact-${contact.id}`}
                                 title="Delete contact"
                               >
-                                <i className="fas fa-trash text-sm"></i>
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
                           </td>
