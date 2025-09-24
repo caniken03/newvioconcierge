@@ -170,6 +170,30 @@ const requireTenantAccess = (req: any, res: any, next: any) => {
   next();
 };
 
+// Contact-specific tenant access control
+const requireContactAccess = async (req: any, res: any, next: any) => {
+  const { id } = req.params;
+  
+  if (req.user.role === 'super_admin') {
+    return next(); // Super admin has access to all contacts
+  }
+  
+  try {
+    const contact = await storage.getContact(id);
+    if (!contact) {
+      return res.status(404).json({ message: 'Contact not found' });
+    }
+    
+    if (contact.tenantId !== req.user.tenantId) {
+      return res.status(403).json({ message: 'Access denied to this tenant' });
+    }
+    
+    next();
+  } catch (error) {
+    return res.status(500).json({ message: 'Error checking contact access' });
+  }
+};
+
 export async function registerRoutes(app: Express): Promise<Server> {
   
   // Authentication routes
@@ -378,7 +402,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/contacts/:id', authenticateJWT, requireTenantAccess, async (req, res) => {
+  app.get('/api/contacts/:id', authenticateJWT, requireContactAccess, async (req, res) => {
     try {
       const contact = await storage.getContact(req.params.id);
       if (!contact) {

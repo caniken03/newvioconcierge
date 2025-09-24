@@ -475,7 +475,7 @@ export default function Contacts() {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedContacts(contacts.map((c: Contact) => c.id));
+      setSelectedContacts((contacts || []).map((c: Contact) => c.id));
     } else {
       setSelectedContacts([]);
     }
@@ -588,7 +588,7 @@ export default function Contacts() {
   }) as { data: GroupMembership[] };
 
   // Comprehensive Enhanced filtering logic
-  const filteredContacts = contacts.filter((contact: Contact) => {
+  const filteredContacts = (contacts || []).filter((contact: Contact) => {
     // Advanced Search Filter with field selection and operators
     if (filters.search.trim()) {
       const searchLower = filters.search.toLowerCase();

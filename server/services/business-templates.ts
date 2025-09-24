@@ -629,18 +629,18 @@ export class BusinessTemplateService {
    */
   private generateMedicalVariables(contact: any, tenantConfig: any): any {
     const variables = {
-      customer_name: String(this.extractFirstName(contact.name || '')),  // First name only for HIPAA
-      business_name: String(tenantConfig.companyName || 'your healthcare provider'),
-      appointment_date: String(this.formatDateForVoice(contact.appointmentTime)),
-      appointment_time: String(this.formatTimeForVoice(contact.appointmentTime)),
-      provider_name: String('your healthcare provider'),  // Always anonymous for privacy
-      callback_number: String(tenantConfig.retellAgentNumber || '')
-      // NOTE: special_instructions OMITTED for HIPAA compliance (may contain PHI)
+      // Retell AI agent expects these specific variable names:
+      first_name: String(this.extractFirstName(contact.name || '')),  // First name only for HIPAA
+      company_name: String(tenantConfig.companyName || 'your healthcare provider'),
+      appointment_spoken: String(this.formatAppointmentSpoken(contact.appointmentTime)),
+      owner_name: String('your healthcare provider'),  // Always anonymous for privacy
+      internal_reference: String(contact.id || '')
       // NOTE: appointment_type OMITTED for HIPAA compliance (may reveal medical condition)
-      // NOTE: preparation_instructions REMOVED to ensure no PHI exposure
+      // NOTE: special_instructions OMITTED for HIPAA compliance (may contain PHI)
+      // NOTE: last_name OMITTED for HIPAA compliance
     };
     
-    console.log('🏥 Generated medical variables:', JSON.stringify(variables, null, 2));
+    console.log('🏥 Generated medical variables (Retell AI format):', JSON.stringify(variables, null, 2));
     return variables;
   }
 
@@ -648,17 +648,18 @@ export class BusinessTemplateService {
    * Dental practice variables (using standard variable names)
    */
   private generateDentalVariables(contact: any, tenantConfig: any): any {
+    const nameParts = (contact.name || '').split(' ');
     return {
-      customer_name: contact.name || '',  // Full name okay for dental
-      customer_phone: contact.phone || '',  // Include phone for completeness
-      business_name: tenantConfig.companyName || 'our dental office',
-      provider_name: contact.ownerName || 'your dentist',
-      appointment_type: this.formatDentalProcedure(contact.appointmentType || 'appointment'),
-      appointment_date: this.formatDateForVoice(contact.appointmentTime),
-      appointment_time: this.formatTimeForVoice(contact.appointmentTime),
-      appointment_duration: this.formatDurationForVoice(contact.appointmentDuration),
-      special_instructions: this.formatDentalPrep(contact.specialInstructions || ''),
-      callback_number: tenantConfig.retellAgentNumber || ''
+      // Retell AI agent expects these specific variable names:
+      first_name: String(nameParts[0] || ''),
+      last_name: String(nameParts.slice(1).join(' ') || ''),
+      company_name: String(tenantConfig.companyName || 'our dental office'),
+      owner_name: String(contact.ownerName || 'your dentist'),
+      appointment_type: String(this.formatDentalProcedure(contact.appointmentType || 'appointment')),
+      appointment_spoken: String(this.formatAppointmentSpoken(contact.appointmentTime)),
+      appointment_duration: String(contact.appointmentDuration || ''),
+      special_instructions: String(this.formatDentalPrep(contact.specialInstructions || '')),
+      internal_reference: String(contact.id || '')
     };
   }
 
@@ -666,16 +667,18 @@ export class BusinessTemplateService {
    * Salon/spa variables (full service experience)
    */
   private generateSalonVariables(contact: any, tenantConfig: any): any {
+    const nameParts = (contact.name || '').split(' ');
     return {
-      customer_name: contact.name || '',  // Full name for personal service
-      stylist_name: contact.ownerName || 'your stylist',
-      business_name: tenantConfig.companyName || '',
-      service_type: contact.appointmentType || 'service',
-      appointment_date: this.formatDateForVoice(contact.appointmentTime),
-      appointment_time: this.formatTimeForVoice(contact.appointmentTime),
-      service_duration: this.formatDurationForVoice(contact.appointmentDuration),
-      service_notes: this.formatBeautyInstructions(contact.specialInstructions || ''),
-      callback_number: tenantConfig.retellAgentNumber || ''
+      // Retell AI agent expects these specific variable names:
+      first_name: String(nameParts[0] || ''),
+      last_name: String(nameParts.slice(1).join(' ') || ''),
+      owner_name: String(contact.ownerName || 'your stylist'),
+      company_name: String(tenantConfig.companyName || 'our salon'),
+      appointment_type: String(contact.appointmentType || 'service'),
+      appointment_spoken: String(this.formatAppointmentSpoken(contact.appointmentTime)),
+      appointment_duration: String(contact.appointmentDuration || ''),
+      special_instructions: String(this.formatBeautyInstructions(contact.specialInstructions || '')),
+      internal_reference: String(contact.id || '')
     };
   }
 
@@ -683,15 +686,17 @@ export class BusinessTemplateService {
    * Restaurant variables (guest experience)
    */
   private generateRestaurantVariables(contact: any, tenantConfig: any): any {
+    const nameParts = (contact.name || '').split(' ');
     return {
-      guest_name: contact.name || '',
-      restaurant_name: tenantConfig.companyName || '',
-      party_size: this.extractPartySize(contact.specialInstructions || ''),
-      reservation_date: this.formatDateForVoice(contact.appointmentTime),
-      reservation_time: this.formatTimeForVoice(contact.appointmentTime),
-      occasion_context: contact.appointmentType || '',
-      dietary_accommodations: this.extractDietaryRequirements(contact.specialInstructions || ''),
-      restaurant_phone: tenantConfig.retellAgentNumber || ''
+      // Retell AI agent expects these specific variable names:
+      first_name: String(nameParts[0] || ''),
+      last_name: String(nameParts.slice(1).join(' ') || ''),
+      company_name: String(tenantConfig.companyName || 'our restaurant'),
+      appointment_type: String(contact.appointmentType || 'reservation'),
+      appointment_spoken: String(this.formatAppointmentSpoken(contact.appointmentTime)),
+      appointment_duration: String(contact.appointmentDuration || ''),
+      special_instructions: String(this.extractDietaryRequirements(contact.specialInstructions || '')),
+      internal_reference: String(contact.id || '')
     };
   }
 
@@ -699,16 +704,18 @@ export class BusinessTemplateService {
    * Generic business variables
    */
   private generateGenericVariables(contact: any, tenantConfig: any): any {
+    const nameParts = (contact.name || '').split(' ');
     return {
-      customer_name: contact.name || '',
-      business_name: tenantConfig.companyName || '',
-      appointment_type: contact.appointmentType || 'appointment',
-      appointment_date: this.formatDateForVoice(contact.appointmentTime),
-      appointment_time: this.formatTimeForVoice(contact.appointmentTime),
-      appointment_duration: this.formatDurationForVoice(contact.appointmentDuration),
-      service_provider: contact.ownerName || 'your service provider',
-      special_instructions: contact.specialInstructions || '',
-      callback_number: tenantConfig.retellAgentNumber || ''
+      // Retell AI agent expects these specific variable names:
+      first_name: String(nameParts[0] || ''),
+      last_name: String(nameParts.slice(1).join(' ') || ''),
+      company_name: String(tenantConfig.companyName || 'our office'),
+      owner_name: String(contact.ownerName || 'your service provider'),
+      appointment_type: String(contact.appointmentType || 'appointment'),
+      appointment_spoken: String(this.formatAppointmentSpoken(contact.appointmentTime)),
+      appointment_duration: String(contact.appointmentDuration || ''),
+      special_instructions: String(contact.specialInstructions || ''),
+      internal_reference: String(contact.id || '')
     };
   }
 
@@ -758,6 +765,27 @@ export class BusinessTemplateService {
       });
     } catch {
       return 'your scheduled time';
+    }
+  }
+
+  private formatAppointmentSpoken(appointmentTime: string | Date | null): string {
+    if (!appointmentTime) return 'your upcoming appointment';
+    
+    try {
+      const date = new Date(appointmentTime);
+      const dateStr = date.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      const timeStr = date.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true 
+      });
+      return `${dateStr} at ${timeStr}`;
+    } catch {
+      return 'your upcoming appointment';
     }
   }
 
