@@ -1,0 +1,186 @@
+Login → bounce back to login is almost always a **redirect loop** caused by 1–2 small auth bugs. Here’s a tight checklist + copy-paste fixes you can try right now.
+
+# Likely causes (ranked)
+
+1. **Token/cookie never actually set**
+
+* Backend returns 200 but **no `Set-Cookie`** (or it’s blocked by `SameSite/Domain/Secure`).
+* If you use localStorage, a race means the redirect happens **before** the token is saved.
+
+2. **Auth guard logic loops**
+
+* Router/middleware checks “not authenticated” during a brief loading state and sends you back to `/login`—even though you log in fine.
+
+3. **Expired/invalid JWT**
+
+* `exp` in the past, wrong audience/issuer, or device **clock skew** (>1–2 mins).
+
+4. **HTTPS/CORS/3rd-party cookie issues**
+
+* Cookie needs `SameSite=None; Secure` over HTTPS.
+* Wrong cookie `domain`/`path` (e.g., set on `api.example.com` but app is `app.example.com`).
+* Safari/Brave blocking cross-site cookies.
+
+5. **Service Worker / stale cache**
+
+* App shell still running old code that always redirects.
+
+---
+
+# Quick checks (2–3 minutes)
+
+* **Private window** (no extensions). If it works → storage/caching/extension issue.
+* **DevTools → Network** while pressing “Log in”:
+
+  * Find the login request, open **Response** and **Cookies**. Confirm you see **`Set-Cookie: session=...`** (or check your token is returned and written to storage).
+  * Immediately after, look for a **/me** or **/bootstrap** call that returns **401/403** → that’s your loop trigger.
+* **Application tab → Cookies/Local Storage**: is the token there **after** login?
+
+---
+
+# Client-side fixes
+
+### A) Prevent redirect during “loading”
+
+**React Router guard example**
+
+```tsx
+// useAuth.ts
+export function useAuth() {
+  const [status, setStatus] = useState<'loading'|'authed'|'guest'>('loading');
+  useEffect(() => {
+    (async () => {
+      const t = localStorage.getItem('token');
+      if (!t) return setStatus('guest');
+      // Optional: ping /me to validate
+      const ok = await fetch('/api/me', { headers: { Authorization: `Bearer ${t}` }})
+        .then(r => r.ok).catch(() => false);
+      setStatus(ok ? 'authed' : 'guest');
+    })();
+  }, []);
+  return status;
+}
+
+// RequireAuth.tsx
+export default function RequireAuth({ children }: { children: React.ReactNode }) {
+  const status = useAuth();
+  if (status === 'loading') return null; // <-- don't redirect yet
+  if (status === 'guest') return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+```
+
+### B) Make login **atomic** (save token before navigating)
+
+```ts
+// after successful login response
+const { token } = await api.post('/auth/login', { email, password }).then(r => r.data);
+localStorage.setItem('token', token); // first
+// small microtask yield to ensure it's persisted
+await Promise.resolve();
+navigate('/dashboard', { replace: true }); // then move
+```
+
+### C) Next.js (App Router) middleware loop fix
+
+```ts
+// middleware.ts
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+
+export function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+  const token = req.cookies.get('session')?.value;
+
+  const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/signup');
+  const isProtected = pathname.startsWith('/app');
+
+  // Avoid redirecting while NextAuth/session is "loading"
+  if (!token && isProtected) {
+    const url = req.nextUrl.clone();
+    url.pathname = '/login';
+    url.searchParams.set('next', pathname);
+    return NextResponse.redirect(url);
+  }
+
+  if (token && isAuthPage) {
+    const url = req.nextUrl.clone();
+    url.pathname = '/app';
+    return NextResponse.redirect(url);
+  }
+  return NextResponse.next();
+}
+```
+
+---
+
+# Server-side fixes
+
+### 1) Cookies that actually stick
+
+```ts
+// Express + cookie-session example
+app.set('trust proxy', 1); // if behind a proxy
+res.cookie('session', jwt, {
+  httpOnly: true,
+  secure: true,          // required with SameSite=None
+  sameSite: 'none',      // cross-site SPA → API
+  domain: '.example.com',// if app and API on subdomains
+  path: '/',
+  maxAge: 1000 * 60 * 60 * 24 * 7,
+});
+```
+
+**Common pitfalls**
+
+* Missing `secure` with `SameSite=None` → browser drops cookie.
+* Wrong `domain` (set to `api.example.com` but app is `app.example.com`).
+* Missing `trust proxy` behind Cloudflare/NGINX → cookies marked insecure.
+
+### 2) CORS must allow credentials (if using cookies)
+
+```ts
+app.use(cors({
+  origin: ['https://app.example.com'],
+  credentials: true,
+}));
+```
+
+And on fetch:
+
+```ts
+fetch('https://api.example.com/auth/login', {
+  method: 'POST',
+  credentials: 'include', // important for cookies
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email, password })
+});
+```
+
+### 3) JWT sanity
+
+* Check `iat/exp` vs device time; allow small **clock skew** (e.g., 2–5 min).
+* Verify `aud/iss` exactly match what your verifier expects.
+
+### 4) Post-login bootstrap consistency
+
+* The same auth method used for login must be accepted by **/me** or **/bootstrap**.
+* If login uses cookies but **/me** expects `Authorization: Bearer`, you’ll get a loop. Support **both** or standardise.
+
+---
+
+# Cache/Service Worker clean
+
+* DevTools → Application → Service Workers: **Unregister**.
+* Clear Storage → **Clear site data**.
+* Hard reload. If it fixes it, redeploy without caching the old `/login` shell or add versioned cache keys.
+
+---
+
+# If you want a one-shot “most likely to fix”
+
+1. Set cookie to `SameSite=None; Secure; Path=/; Domain=.yourdomain.com`.
+2. Ensure **/me** returns 200 immediately after login in the **same tab**.
+3. In the client, **don’t redirect** while auth status is “loading”.
+
+If you want, I can walk you **step-by-step** starting with a quick Network panel check to see whether the cookie/token is actually set after login.
