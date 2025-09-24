@@ -1703,7 +1703,6 @@ export default function Contacts() {
                           <td className="px-4 py-4">
                             <div>
                               <p className="font-medium text-foreground">{contact.name}</p>
-                              {contact.name.includes('Updated') ? null : <p className="text-sm text-muted-foreground">Updated</p>}
                               <p className="text-sm text-muted-foreground">{contact.phone}</p>
                             </div>
                           </td>
