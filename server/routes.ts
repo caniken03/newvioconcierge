@@ -426,6 +426,150 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Contact Groups routes
+  app.get('/api/contact-groups', authenticateJWT, async (req: any, res) => {
+    try {
+      const groups = await storage.getContactGroupsByTenant(req.user.tenantId);
+      res.json(groups);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch contact groups' });
+    }
+  });
+
+  app.post('/api/contact-groups', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      const groupSchema = z.object({
+        name: z.string().min(1).max(50),
+        description: z.string().optional(),
+        color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default('#3B82F6'),
+      });
+
+      const groupData = groupSchema.parse(req.body);
+      const group = await storage.createContactGroup({
+        ...groupData,
+        tenantId: req.user.tenantId,
+      });
+
+      res.status(201).json(group);
+    } catch (error) {
+      res.status(400).json({ message: 'Failed to create contact group' });
+    }
+  });
+
+  app.patch('/api/contact-groups/:id', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      const updateSchema = z.object({
+        name: z.string().min(1).max(50).optional(),
+        description: z.string().optional(),
+        color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+      });
+
+      const updates = updateSchema.parse(req.body);
+      const group = await storage.updateContactGroup(req.params.id, req.user.tenantId, updates);
+      res.json(group);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update contact group';
+      if (errorMessage.includes('not found or access denied')) {
+        res.status(404).json({ message: errorMessage });
+      } else {
+        res.status(400).json({ message: errorMessage });
+      }
+    }
+  });
+
+  app.delete('/api/contact-groups/:id', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      await storage.deleteContactGroup(req.params.id, req.user.tenantId);
+      res.status(204).send();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete contact group';
+      if (errorMessage.includes('not found or access denied')) {
+        res.status(404).json({ message: errorMessage });
+      } else {
+        res.status(500).json({ message: errorMessage });
+      }
+    }
+  });
+
+  app.post('/api/contact-groups/:id/contacts', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      const addContactSchema = z.object({
+        contactId: z.string().uuid(),
+      });
+
+      const { contactId } = addContactSchema.parse(req.body);
+      const membership = await storage.addContactToGroup(contactId, req.params.id, req.user.tenantId, req.user.id);
+      res.status(201).json(membership);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to add contact to group';
+      if (errorMessage.includes('not found or access denied')) {
+        res.status(404).json({ message: errorMessage });
+      } else if (errorMessage.includes('already in this group')) {
+        res.status(409).json({ message: errorMessage });
+      } else {
+        res.status(400).json({ message: errorMessage });
+      }
+    }
+  });
+
+  app.delete('/api/contact-groups/:id/contacts/:contactId', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      await storage.removeContactFromGroup(req.params.contactId, req.params.id, req.user.tenantId);
+      res.status(204).send();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to remove contact from group';
+      if (errorMessage.includes('not found or access denied')) {
+        res.status(404).json({ message: errorMessage });
+      } else {
+        res.status(500).json({ message: errorMessage });
+      }
+    }
+  });
+
+  app.get('/api/contact-groups/:id/contacts', authenticateJWT, async (req: any, res) => {
+    try {
+      const contacts = await storage.getContactsInGroup(req.params.id, req.user.tenantId);
+      res.json(contacts);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch contacts in group';
+      if (errorMessage.includes('not found or access denied')) {
+        res.status(404).json({ message: errorMessage });
+      } else {
+        res.status(500).json({ message: errorMessage });
+      }
+    }
+  });
+
+  // Locations routes
+  app.get('/api/locations', authenticateJWT, async (req: any, res) => {
+    try {
+      const locations = await storage.getLocationsByTenant(req.user.tenantId);
+      res.json(locations);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch locations' });
+    }
+  });
+
+  app.post('/api/locations', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      const locationSchema = z.object({
+        name: z.string().min(1),
+        address: z.string().optional(),
+        phone: z.string().optional(),
+      });
+
+      const locationData = locationSchema.parse(req.body);
+      const location = await storage.createLocation({
+        ...locationData,
+        tenantId: req.user.tenantId,
+      });
+
+      res.status(201).json(location);
+    } catch (error) {
+      res.status(400).json({ message: 'Failed to create location' });
+    }
+  });
+
   // CSV import/export routes
   app.post('/api/contacts/import', authenticateJWT, requireRole(['client_admin', 'super_admin']), upload.single('csvFile'), async (req: any, res) => {
     let filePath: string | undefined;

@@ -7,6 +7,9 @@ import {
   tenantConfig,
   callLogs,
   systemSettings,
+  contactGroups,
+  groupMembership,
+  locations,
   type User,
   type InsertUser,
   type Tenant,
@@ -23,9 +26,16 @@ import {
   type InsertCallLog,
   type SystemSetting,
   type InsertSystemSetting,
+  type ContactGroup,
+  type InsertContactGroup,
+  type GroupMembership,
+  type InsertGroupMembership,
+  type Location,
+  type InsertLocation,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, count, sql, gt, lt, like, inArray } from "drizzle-orm";
+import { getTableColumns } from "drizzle-orm";
 import bcrypt from "bcrypt";
 
 export interface IStorage {
@@ -54,6 +64,24 @@ export interface IStorage {
   deleteContact(id: string): Promise<void>;
   searchContacts(tenantId: string, query: string): Promise<Contact[]>;
   getContactStats(tenantId: string): Promise<{ total: number; pending: number; confirmed: number; }>;
+
+  // Contact groups operations
+  getContactGroup(id: string): Promise<ContactGroup | undefined>;
+  getContactGroupsByTenant(tenantId: string): Promise<ContactGroup[]>;
+  createContactGroup(group: InsertContactGroup): Promise<ContactGroup>;
+  updateContactGroup(id: string, tenantId: string, updates: Partial<InsertContactGroup>): Promise<ContactGroup>;
+  deleteContactGroup(id: string, tenantId: string): Promise<void>;
+  addContactToGroup(contactId: string, groupId: string, tenantId: string, addedBy: string): Promise<GroupMembership>;
+  removeContactFromGroup(contactId: string, groupId: string, tenantId: string): Promise<void>;
+  getContactsInGroup(groupId: string, tenantId: string): Promise<Contact[]>;
+  getGroupsForContact(contactId: string, tenantId: string): Promise<ContactGroup[]>;
+
+  // Location operations
+  getLocation(id: string): Promise<Location | undefined>;
+  getLocationsByTenant(tenantId: string): Promise<Location[]>;
+  createLocation(location: InsertLocation): Promise<Location>;
+  updateLocation(id: string, tenantId: string, updates: Partial<InsertLocation>): Promise<Location>;
+  deleteLocation(id: string, tenantId: string): Promise<void>;
 
   // Analytics operations
   getClientAnalytics(tenantId: string): Promise<{
@@ -599,6 +627,240 @@ export class DatabaseStorage implements IStorage {
       .where(eq(systemSettings.key, key))
       .returning();
     return updatedSetting;
+  }
+
+  // Contact groups operations
+  async getContactGroup(id: string): Promise<ContactGroup | undefined> {
+    const [group] = await db.select().from(contactGroups).where(eq(contactGroups.id, id));
+    return group;
+  }
+
+  async getContactGroupsByTenant(tenantId: string): Promise<ContactGroup[]> {
+    return await db
+      .select()
+      .from(contactGroups)
+      .where(eq(contactGroups.tenantId, tenantId))
+      .orderBy(asc(contactGroups.name));
+  }
+
+  async createContactGroup(group: InsertContactGroup): Promise<ContactGroup> {
+    const [newGroup] = await db.insert(contactGroups).values(group).returning();
+    return newGroup;
+  }
+
+  async updateContactGroup(id: string, tenantId: string, updates: Partial<InsertContactGroup>): Promise<ContactGroup> {
+    const [updatedGroup] = await db
+      .update(contactGroups)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(eq(contactGroups.id, id), eq(contactGroups.tenantId, tenantId)))
+      .returning();
+    
+    if (!updatedGroup) {
+      throw new Error('Contact group not found or access denied');
+    }
+    return updatedGroup;
+  }
+
+  async deleteContactGroup(id: string, tenantId: string): Promise<void> {
+    // Use transaction for atomic multi-step deletion
+    await db.transaction(async (tx) => {
+      // First verify the group exists and belongs to the tenant
+      const [group] = await tx
+        .select()
+        .from(contactGroups)
+        .where(and(eq(contactGroups.id, id), eq(contactGroups.tenantId, tenantId)));
+      
+      if (!group) {
+        throw new Error('Contact group not found or access denied');
+      }
+
+      // First, remove all memberships for this group
+      await tx.delete(groupMembership).where(eq(groupMembership.groupId, id));
+      
+      // Then delete the group
+      await tx.delete(contactGroups).where(eq(contactGroups.id, id));
+    });
+  }
+
+  async addContactToGroup(contactId: string, groupId: string, tenantId: string, addedBy: string): Promise<GroupMembership> {
+    try {
+      const [membership] = await db.transaction(async (tx) => {
+        // Verify both contact and group belong to the tenant within transaction
+        const [contact] = await tx
+          .select()
+          .from(contacts)
+          .where(and(eq(contacts.id, contactId), eq(contacts.tenantId, tenantId)));
+        
+        const [group] = await tx
+          .select()
+          .from(contactGroups)
+          .where(and(eq(contactGroups.id, groupId), eq(contactGroups.tenantId, tenantId)));
+
+        if (!contact || !group) {
+          throw new Error('Contact or group not found or access denied');
+        }
+
+        try {
+          // Insert membership - will throw constraint error if already exists
+          const [newMembership] = await tx
+            .insert(groupMembership)
+            .values({ contactId, groupId, addedBy })
+            .returning();
+          
+          // Atomically recompute the group's contact count to ensure integrity
+          await tx
+            .update(contactGroups)
+            .set({ 
+              contactCount: sql`(SELECT COUNT(*) FROM ${groupMembership} WHERE ${groupMembership.groupId} = ${groupId})` 
+            })
+            .where(and(eq(contactGroups.id, groupId), eq(contactGroups.tenantId, tenantId)));
+          
+          return [newMembership];
+        } catch (insertError) {
+          // Handle Postgres unique constraint violation (23505) within transaction
+          if ((insertError as any).code === '23505' || 
+              (insertError instanceof Error && insertError.message.includes('duplicate key'))) {
+            throw new Error('Contact is already in this group');
+          }
+          throw insertError;
+        }
+      });
+      
+      return membership;
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Contact is already in this group') {
+        throw error; // Re-throw the specific error
+      }
+      throw error;
+    }
+  }
+
+  async removeContactFromGroup(contactId: string, groupId: string, tenantId: string): Promise<void> {
+    await db.transaction(async (tx) => {
+      // Verify both contact and group belong to the tenant within transaction
+      const [contact] = await tx
+        .select()
+        .from(contacts)
+        .where(and(eq(contacts.id, contactId), eq(contacts.tenantId, tenantId)));
+      
+      const [group] = await tx
+        .select()
+        .from(contactGroups)
+        .where(and(eq(contactGroups.id, groupId), eq(contactGroups.tenantId, tenantId)));
+
+      if (!contact || !group) {
+        throw new Error('Contact or group not found or access denied');
+      }
+
+      // Delete membership and get the result to check if any rows were affected
+      const deletionResult = await tx
+        .delete(groupMembership)
+        .where(and(
+          eq(groupMembership.contactId, contactId),
+          eq(groupMembership.groupId, groupId)
+        ))
+        .returning();
+
+      if (deletionResult.length === 0) {
+        throw new Error('Contact is not in this group');
+      }
+
+      // Only update count if a row was actually deleted - recompute for integrity
+      await tx
+        .update(contactGroups)
+        .set({ 
+          contactCount: sql`(SELECT COUNT(*) FROM ${groupMembership} WHERE ${groupMembership.groupId} = ${groupId})` 
+        })
+        .where(and(eq(contactGroups.id, groupId), eq(contactGroups.tenantId, tenantId)));
+    });
+  }
+
+  async getContactsInGroup(groupId: string, tenantId: string): Promise<Contact[]> {
+    // First verify the group belongs to the tenant
+    const [group] = await db
+      .select()
+      .from(contactGroups)
+      .where(and(eq(contactGroups.id, groupId), eq(contactGroups.tenantId, tenantId)));
+
+    if (!group) {
+      throw new Error('Group not found or access denied');
+    }
+
+    return await db
+      .select(getTableColumns(contacts))
+      .from(contacts)
+      .innerJoin(groupMembership, eq(contacts.id, groupMembership.contactId))
+      .where(and(
+        eq(groupMembership.groupId, groupId),
+        eq(contacts.tenantId, tenantId)
+      ))
+      .orderBy(asc(contacts.name));
+  }
+
+  async getGroupsForContact(contactId: string, tenantId: string): Promise<ContactGroup[]> {
+    // First verify the contact belongs to the tenant
+    const [contact] = await db
+      .select()
+      .from(contacts)
+      .where(and(eq(contacts.id, contactId), eq(contacts.tenantId, tenantId)));
+
+    if (!contact) {
+      throw new Error('Contact not found or access denied');
+    }
+
+    return await db
+      .select(getTableColumns(contactGroups))
+      .from(contactGroups)
+      .innerJoin(groupMembership, eq(contactGroups.id, groupMembership.groupId))
+      .where(and(
+        eq(groupMembership.contactId, contactId),
+        eq(contactGroups.tenantId, tenantId)
+      ))
+      .orderBy(asc(contactGroups.name));
+  }
+
+  // Location operations
+  async getLocation(id: string): Promise<Location | undefined> {
+    const [location] = await db.select().from(locations).where(eq(locations.id, id));
+    return location;
+  }
+
+  async getLocationsByTenant(tenantId: string): Promise<Location[]> {
+    return await db
+      .select()
+      .from(locations)
+      .where(and(eq(locations.tenantId, tenantId), eq(locations.isActive, true)))
+      .orderBy(asc(locations.name));
+  }
+
+  async createLocation(location: InsertLocation): Promise<Location> {
+    const [newLocation] = await db.insert(locations).values(location).returning();
+    return newLocation;
+  }
+
+  async updateLocation(id: string, tenantId: string, updates: Partial<InsertLocation>): Promise<Location> {
+    const [updatedLocation] = await db
+      .update(locations)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(eq(locations.id, id), eq(locations.tenantId, tenantId)))
+      .returning();
+    
+    if (!updatedLocation) {
+      throw new Error('Location not found or access denied');
+    }
+    return updatedLocation;
+  }
+
+  async deleteLocation(id: string, tenantId: string): Promise<void> {
+    const result = await db
+      .update(locations)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(and(eq(locations.id, id), eq(locations.tenantId, tenantId)))
+      .returning();
+    
+    if (!result.length) {
+      throw new Error('Location not found or access denied');
+    }
   }
 
   // Authentication
