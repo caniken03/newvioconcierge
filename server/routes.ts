@@ -183,16 +183,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { email, password, role } = loginSchema.parse(req.body);
       
-      // Debug logging
-      console.log(`🔐 Login attempt: ${email} as ${role}`);
-      
       const user = await storage.authenticateUser(email, password);
       if (!user) {
-        console.log(`❌ Authentication failed for ${email}`);
         return res.status(401).json({ message: 'Invalid credentials' });
       }
-      
-      console.log(`✅ User authenticated: ${user.email}, role: ${user.role}`);
 
       // Validate selected role matches user's actual role
       if (user.role !== role) {

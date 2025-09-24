@@ -1314,28 +1314,16 @@ export class DatabaseStorage implements IStorage {
 
   // Authentication
   async authenticateUser(email: string, password: string): Promise<User | null> {
-    console.log(`🔍 Authenticating user: ${email}`);
-    
     const user = await this.getUserByEmail(email);
-    if (!user) {
-      console.log(`❌ User not found: ${email}`);
+    if (!user || !user.isActive) {
       return null;
     }
-    
-    if (!user.isActive) {
-      console.log(`❌ User inactive: ${email}`);
-      return null;
-    }
-    
-    console.log(`📧 Found user: ${user.email}, role: ${user.role}, active: ${user.isActive}`);
 
     const isValidPassword = await bcrypt.compare(password, user.hashedPassword);
     if (!isValidPassword) {
-      console.log(`❌ Invalid password for: ${email}`);
       return null;
     }
-    
-    console.log(`✅ Password valid for: ${email}`);
+
     return user;
   }
 }
