@@ -361,7 +361,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         contacts = await storage.getContactsByTenant(req.user.tenantId, parseInt(limit), offset);
       }
       
-      res.json(contacts);
+      // Ensure proper date serialization for appointmentTime
+      const serializedContacts = contacts.map(contact => ({
+        ...contact,
+        appointmentTime: contact.appointmentTime ? contact.appointmentTime.toISOString() : null,
+        createdAt: contact.createdAt ? contact.createdAt.toISOString() : null,
+        updatedAt: contact.updatedAt ? contact.updatedAt.toISOString() : null,
+        lastContactTime: contact.lastContactTime ? contact.lastContactTime.toISOString() : null
+      }));
+      
+      res.json(serializedContacts);
     } catch (error) {
       res.status(500).json({ message: 'Failed to fetch contacts' });
     }
