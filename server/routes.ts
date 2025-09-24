@@ -188,10 +188,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: 'Invalid credentials' });
       }
 
-      // Check role if specified
-      if (role && user.role !== role) {
-        return res.status(401).json({ message: 'Invalid role for this user' });
-      }
+      // Role check removed - let the user log in with their actual role from database
 
       const token = jwt.sign(
         { userId: user.id, tenantId: user.tenantId, role: user.role },
