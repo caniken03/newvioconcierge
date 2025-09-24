@@ -35,9 +35,12 @@ export function useAuth() {
       const response = await apiRequest('POST', '/api/auth/login', credentials);
       return response.json();
     },
-    onSuccess: (data) => {
-      // Store token
+    onSuccess: async (data) => {
+      // Store token FIRST (atomic operation)
       localStorage.setItem('auth_token', data.token);
+      
+      // Small microtask yield to ensure token is persisted
+      await Promise.resolve();
       
       // Update auth header for future requests
       queryClient.setQueryData(['/api/auth/me'], data.user);
@@ -47,8 +50,8 @@ export function useAuth() {
       queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
       queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
       
-      // Navigate to home page after login
-      navigate('/');
+      // Navigate to home page AFTER token is saved (prevent race condition)
+      navigate('/', { replace: true });
       
       toast({
         title: "Welcome back!",
