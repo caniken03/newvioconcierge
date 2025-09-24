@@ -4,16 +4,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState<'super_admin' | 'client_admin' | 'client_user'>('super_admin');
   
   const { login, loginLoading } = useAuth();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    login({ email, password });
+    login({ email, password, role });
   };
 
   return (
@@ -63,6 +65,33 @@ export default function Login() {
               />
             </div>
 
+            {/* Role Selection */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-foreground">Login As</Label>
+              <RadioGroup value={role} onValueChange={(value) => setRole(value as any)} className="space-y-2">
+                <div className="flex items-center space-x-3 p-3 border border-border rounded-lg hover:bg-accent cursor-pointer transition-colors">
+                  <RadioGroupItem value="super_admin" id="super_admin" data-testid="role-super-admin" />
+                  <Label htmlFor="super_admin" className="flex-1 cursor-pointer">
+                    <span className="font-medium text-sm">Super Administrator</span>
+                    <p className="text-xs text-muted-foreground">Full platform access</p>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-3 p-3 border border-border rounded-lg hover:bg-accent cursor-pointer transition-colors">
+                  <RadioGroupItem value="client_admin" id="client_admin" data-testid="role-client-admin" />
+                  <Label htmlFor="client_admin" className="flex-1 cursor-pointer">
+                    <span className="font-medium text-sm">Client Administrator</span>
+                    <p className="text-xs text-muted-foreground">Business account management</p>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-3 p-3 border border-border rounded-lg hover:bg-accent cursor-pointer transition-colors">
+                  <RadioGroupItem value="client_user" id="client_user" data-testid="role-client-user" />
+                  <Label htmlFor="client_user" className="flex-1 cursor-pointer">
+                    <span className="font-medium text-sm">Client User</span>
+                    <p className="text-xs text-muted-foreground">Staff member access</p>
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
 
             <Button
               type="submit"

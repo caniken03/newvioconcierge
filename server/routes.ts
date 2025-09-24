@@ -178,7 +178,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const loginSchema = z.object({
         email: z.string().email(),
         password: z.string().min(1),
-        role: z.enum(['super_admin', 'client_admin', 'client_user']).optional(),
+        role: z.enum(['super_admin', 'client_admin', 'client_user']),
       });
 
       const { email, password, role } = loginSchema.parse(req.body);
@@ -188,7 +188,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: 'Invalid credentials' });
       }
 
-      // Role check removed - let the user log in with their actual role from database
+      // Validate selected role matches user's actual role
+      if (user.role !== role) {
+        return res.status(403).json({ message: 'Incorrect role selected' });
+      }
 
       const token = jwt.sign(
         { userId: user.id, tenantId: user.tenantId, role: user.role },
