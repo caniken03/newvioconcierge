@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -5,8 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Link } from "wouter";
+import ContactModal from "@/components/modals/contact-modal";
 
 export default function ClientAdminDashboard() {
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+  
   const { data: contacts = [], isLoading: contactsLoading } = useQuery({
     queryKey: ['/api/contacts'],
   });
@@ -145,12 +149,13 @@ export default function ClientAdminDashboard() {
                 <i className="fas fa-upload text-sm mr-2"></i>
                 Import CSV
               </Button>
-              <Link href="/contacts">
-                <Button data-testid="button-add-contact">
-                  <i className="fas fa-plus text-sm mr-2"></i>
-                  Add Contact
-                </Button>
-              </Link>
+              <Button 
+                onClick={() => setIsContactModalOpen(true)}
+                data-testid="button-add-contact"
+              >
+                <i className="fas fa-plus text-sm mr-2"></i>
+                Add Contact
+              </Button>
             </div>
           </div>
         </div>
@@ -386,6 +391,13 @@ export default function ClientAdminDashboard() {
           </CardContent>
         </Card>
       </div>
+      
+      {/* Contact Modal */}
+      <ContactModal
+        isOpen={isContactModalOpen}
+        onClose={() => setIsContactModalOpen(false)}
+        contact={null}
+      />
     </div>
   );
 }
