@@ -628,17 +628,20 @@ export class BusinessTemplateService {
    * Medical practice variables (HIPAA compliant)
    */
   private generateMedicalVariables(contact: any, tenantConfig: any): any {
-    return {
-      customer_name: this.extractFirstName(contact.name || ''),  // First name only for HIPAA
-      business_name: tenantConfig.companyName || 'your healthcare provider',
-      appointment_date: this.formatDateForVoice(contact.appointmentTime),
-      appointment_time: this.formatTimeForVoice(contact.appointmentTime),
-      provider_name: 'your healthcare provider',  // Always anonymous for privacy
-      callback_number: tenantConfig.retellAgentNumber || ''
+    const variables = {
+      customer_name: String(this.extractFirstName(contact.name || '')),  // First name only for HIPAA
+      business_name: String(tenantConfig.companyName || 'your healthcare provider'),
+      appointment_date: String(this.formatDateForVoice(contact.appointmentTime)),
+      appointment_time: String(this.formatTimeForVoice(contact.appointmentTime)),
+      provider_name: String('your healthcare provider'),  // Always anonymous for privacy
+      callback_number: String(tenantConfig.retellAgentNumber || '')
       // NOTE: special_instructions OMITTED for HIPAA compliance (may contain PHI)
       // NOTE: appointment_type OMITTED for HIPAA compliance (may reveal medical condition)
       // NOTE: preparation_instructions REMOVED to ensure no PHI exposure
     };
+    
+    console.log('🏥 Generated medical variables:', JSON.stringify(variables, null, 2));
+    return variables;
   }
 
   /**

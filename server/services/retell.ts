@@ -98,6 +98,8 @@ export class RetellService {
     
     console.log(`📞 Creating business-aware call for ${businessType} with ${Object.keys(dynamicVariables).length} variables`);
     console.log(`🎭 Variables sent: ${Object.keys(dynamicVariables).join(', ')}`);
+    console.log(`📋 Variable values:`, JSON.stringify(dynamicVariables, null, 2));
+    console.log(`📡 Full API payload:`, JSON.stringify(callRequest, null, 2));
     console.log(`📡 Retell AI agent will incorporate variables into natural conversation`);
     
     return this.createCall(apiKey, callRequest);
