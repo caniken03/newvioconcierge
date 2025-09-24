@@ -28,7 +28,20 @@ export interface Contact {
   appointmentTime?: string;
   appointmentType?: string;
   appointmentDuration?: number;
-  appointmentStatus: 'pending' | 'confirmed' | 'cancelled' | 'completed';
+  appointmentStatus: 'pending' | 'confirmed' | 'cancelled' | 'rescheduled';
+  
+  // Enhanced PRD fields
+  timezone?: string;
+  callBeforeHours?: number;
+  lastContactTime?: string;
+  ownerName?: string;
+  companyName?: string;
+  bookingSource?: 'manual' | 'calcom' | 'calendly';
+  locationId?: string;
+  priorityLevel?: 'normal' | 'high' | 'urgent';
+  preferredContactMethod?: 'voice' | 'email' | 'sms';
+  
+  // Existing fields
   callAttempts: number;
   lastCallOutcome?: string;
   notes?: string;
@@ -103,4 +116,33 @@ export interface ContactStats {
   total: number;
   pending: number;
   confirmed: number;
+}
+
+export interface ContactGroup {
+  id: string;
+  tenantId: string;
+  name: string;
+  description?: string;
+  color: string;
+  contactCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GroupMembership {
+  contactId: string;
+  groupId: string;
+  addedAt: string;
+  addedBy: string;
+}
+
+export interface Location {
+  id: string;
+  tenantId: string;
+  name: string;
+  address?: string;
+  phone?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }

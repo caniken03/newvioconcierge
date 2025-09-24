@@ -35,7 +35,7 @@ import {
   Mail,
   MessageSquare
 } from "lucide-react";
-import type { Contact, ContactGroup, Location } from "@/types";
+import type { Contact, ContactGroup, Location, ContactStats, GroupMembership } from "@/types";
 
 // Enhanced filter interfaces
 interface ContactFilters {
@@ -79,12 +79,12 @@ export default function Contacts() {
   const { data: contacts = [], isLoading: contactsLoading } = useQuery({
     queryKey: ['/api/contacts', filters, currentPage],
     enabled: !!user,
-  });
+  }) as { data: Contact[], isLoading: boolean };
 
   const { data: contactStats = { total: 0, pending: 0, confirmed: 0 } } = useQuery({
     queryKey: ['/api/contacts/stats'],
     enabled: !!user,
-  });
+  }) as { data: ContactStats };
 
   // Fetch contact groups for filtering
   const { data: contactGroups = [] } = useQuery({
@@ -294,11 +294,11 @@ export default function Contacts() {
   // Fetch contact group memberships for filtering
   const { data: groupMemberships = [] } = useQuery({
     queryKey: [`/api/contact-groups/${filters.groupId}/contacts`],
-    enabled: !!user && filters.groupId !== "all",
-  });
+    enabled: !!user && filters.groupId !== "all" && typeof filters.groupId === 'string' && filters.groupId.length > 0,
+  }) as { data: GroupMembership[] };
 
   // Enhanced filtering logic
-  const filteredContacts = contacts.filter((contact: any) => {
+  const filteredContacts = contacts.filter((contact: Contact) => {
     // Search filter - search across multiple fields
     if (filters.search.trim()) {
       const searchLower = filters.search.toLowerCase();
