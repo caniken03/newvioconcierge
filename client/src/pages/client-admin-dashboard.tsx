@@ -7,9 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Link } from "wouter";
 import ContactModal from "@/components/modals/contact-modal";
+import CallNowModal from "@/components/call-now-modal";
 
 export default function ClientAdminDashboard() {
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+  const [isCallModalOpen, setIsCallModalOpen] = useState(false);
+  const [selectedContact, setSelectedContact] = useState<any>(null);
   
   const { data: contacts = [], isLoading: contactsLoading } = useQuery({
     queryKey: ['/api/contacts'],
@@ -241,6 +244,10 @@ export default function ClientAdminDashboard() {
                       <div className="flex items-center justify-center space-x-2">
                         <button
                           className="text-muted-foreground hover:text-primary transition-colors"
+                          onClick={() => {
+                            setSelectedContact(contact);
+                            setIsCallModalOpen(true);
+                          }}
                           data-testid={`button-call-contact-${contact.id}`}
                         >
                           <i className="fas fa-phone text-sm"></i>
@@ -397,6 +404,16 @@ export default function ClientAdminDashboard() {
         isOpen={isContactModalOpen}
         onClose={() => setIsContactModalOpen(false)}
         contact={null}
+      />
+      
+      {/* Call Now Modal */}
+      <CallNowModal
+        isOpen={isCallModalOpen}
+        onClose={() => {
+          setIsCallModalOpen(false);
+          setSelectedContact(null);
+        }}
+        contact={selectedContact}
       />
     </div>
   );

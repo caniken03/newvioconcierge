@@ -116,7 +116,8 @@ export default function CallNowModal({ isOpen, onClose, contact }: CallNowModalP
   // Call initiation mutation
   const initiateCallMutation = useMutation({
     mutationFn: async (contactId: string) => {
-      return apiRequest('POST', `/api/contacts/${contactId}/call`);
+      const response = await apiRequest('POST', `/api/contacts/${contactId}/call`);
+      return response.json();
     },
     onSuccess: (data) => {
       setCurrentCallSessionId(data.callSessionId);
