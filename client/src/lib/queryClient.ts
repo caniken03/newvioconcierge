@@ -2,6 +2,14 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
+    // Clear expired tokens on authentication errors
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem('auth_token');
+      // Refresh the page to reset the auth state
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      }
+    }
     const text = (await res.text()) || res.statusText;
     throw new Error(`${res.status}: ${text}`);
   }
@@ -53,8 +61,8 @@ export const getQueryFn: <T>(options: {
       credentials: "include",
     });
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      // Clear invalid token
+    if (unauthorizedBehavior === "returnNull" && (res.status === 401 || res.status === 403)) {
+      // Clear invalid/expired token
       localStorage.removeItem('auth_token');
       return null;
     }
