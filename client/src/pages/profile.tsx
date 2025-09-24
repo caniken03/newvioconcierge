@@ -59,7 +59,7 @@ export default function Profile() {
       title: "Calendar & Integration Settings",
       description: "Manage Cal.com, Calendly, and other integrations",
       icon: Settings,
-      accessLevel: "client_admin_only"
+      accessLevel: "super_admin_only"
     },
     {
       id: "team",
@@ -84,9 +84,12 @@ export default function Profile() {
     }
   ];
 
-  const accessibleSections = profileSections.filter(section => 
-    section.accessLevel === "all_users" || user.role === "client_admin" || user.role === "super_admin"
-  );
+  const accessibleSections = profileSections.filter(section => {
+    if (section.accessLevel === "all_users") return true;
+    if (section.accessLevel === "client_admin_only") return user.role === "client_admin" || user.role === "super_admin";
+    if (section.accessLevel === "super_admin_only") return user.role === "super_admin";
+    return false;
+  });
 
   // Set initial tab to first accessible section for the user's role
   const [activeTab, setActiveTab] = useState(accessibleSections[0]?.id || "account");
