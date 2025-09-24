@@ -1033,6 +1033,137 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Call Now endpoint - Trigger immediate call via Retell AI
+  app.post('/api/contacts/:id/call', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      const contactId = req.params.id;
+      const tenantId = req.user.tenantId;
+
+      // Get contact details
+      const contact = await storage.getContact(contactId);
+      if (!contact || contact.tenantId !== tenantId) {
+        return res.status(404).json({ message: 'Contact not found' });
+      }
+
+      // Get tenant configuration for Retell AI
+      const tenantConfig = await storage.getTenantConfig(tenantId);
+      if (!tenantConfig?.retellApiKey || !tenantConfig?.retellAgentId || !tenantConfig?.retellAgentNumber) {
+        return res.status(400).json({ 
+          message: 'Retell AI not configured for this tenant. Please contact support to set up voice calling.' 
+        });
+      }
+
+      // Create call session record
+      const callSession = await storage.createCallSession({
+        contactId,
+        tenantId,
+        status: 'queued',
+        triggerTime: new Date(),
+        sessionId: `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      });
+
+      // Prepare Retell call request
+      const callRequest = {
+        from_number: tenantConfig.retellAgentNumber,
+        to_number: contact.phone,
+        agent_id: tenantConfig.retellAgentId,
+        metadata: {
+          contactId: contact.id,
+          tenantId: tenantId,
+          callSessionId: callSession.id,
+          appointmentTime: contact.appointmentTime,
+          appointmentType: contact.appointmentType,
+          contactName: contact.name,
+        }
+      };
+
+      // Trigger call via Retell AI
+      const retellResponse = await retellService.createCall(tenantConfig.retellApiKey, callRequest);
+
+      // Update call session with Retell call ID
+      await storage.updateCallSession(callSession.id, {
+        retellCallId: retellResponse.call_id,
+        status: 'in_progress',
+        startTime: new Date()
+      });
+
+      // Update contact call attempts
+      await storage.updateContact(contactId, {
+        callAttempts: (contact.callAttempts || 0) + 1,
+        lastContactTime: new Date()
+      });
+
+      res.json({
+        success: true,
+        callSessionId: callSession.id,
+        retellCallId: retellResponse.call_id,
+        status: 'in_progress',
+        message: 'Call initiated successfully'
+      });
+
+    } catch (error) {
+      console.error('Call Now error:', error);
+      
+      // More specific error handling
+      if (error instanceof Error && error.message.includes('Retell API error')) {
+        res.status(400).json({ 
+          message: 'Failed to initiate call. Please check phone number and try again.',
+          error: error.message 
+        });
+      } else {
+        res.status(500).json({ message: 'Failed to initiate call' });
+      }
+    }
+  });
+
+  // Get call status endpoint
+  app.get('/api/calls/:sessionId', authenticateJWT, async (req: any, res) => {
+    try {
+      const sessionId = req.params.sessionId;
+      const callSession = await storage.getCallSession(sessionId);
+      
+      if (!callSession || callSession.tenantId !== req.user.tenantId) {
+        return res.status(404).json({ message: 'Call session not found' });
+      }
+
+      // If call is still in progress and we have Retell call ID, get latest status
+      if (callSession.status === 'in_progress' && callSession.retellCallId) {
+        const tenantConfig = await storage.getTenantConfig(req.user.tenantId);
+        if (tenantConfig?.retellApiKey) {
+          try {
+            const retellCall = await retellService.getCall(tenantConfig.retellApiKey, callSession.retellCallId);
+            
+            // Update our session if status changed
+            if (retellCall.status !== callSession.status) {
+              await storage.updateCallSession(sessionId, {
+                status: retellCall.status === 'completed' ? 'completed' : retellCall.status,
+                endTime: retellCall.status === 'completed' ? new Date() : undefined
+              });
+            }
+          } catch (error) {
+            console.warn('Failed to get latest call status from Retell:', error);
+          }
+        }
+      }
+
+      // Return session with contact info
+      const contact = await storage.getContact(callSession.contactId);
+      
+      res.json({
+        ...callSession,
+        contact: contact ? {
+          id: contact.id,
+          name: contact.name,
+          phone: contact.phone
+        } : null
+      });
+
+    } catch (error) {
+      console.error('Get call status error:', error);
+      res.status(500).json({ message: 'Failed to get call status' });
+    }
+  });
+
   app.get('/api/admin/dashboard/analytics', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
     try {
       const analytics = await storage.getPlatformAnalytics();

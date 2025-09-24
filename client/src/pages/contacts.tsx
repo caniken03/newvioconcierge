@@ -10,6 +10,7 @@ import ContactGroupsModal from "@/components/modals/contact-groups-modal";
 import ContactGroupAssignment from "@/components/contact-group-assignment";
 import BulkStatusUpdateModal from "@/components/modals/bulk-status-update-modal";
 import { ContactTimeline } from "@/components/contact-timeline";
+import CallNowModal from "@/components/call-now-modal";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -165,6 +166,10 @@ export default function Contacts() {
   // Timeline modal state
   const [isTimelineModalOpen, setIsTimelineModalOpen] = useState(false);
   const [timelineContactId, setTimelineContactId] = useState<string | null>(null);
+  
+  // Call Now modal state
+  const [isCallNowModalOpen, setIsCallNowModalOpen] = useState(false);
+  const [callNowContact, setCallNowContact] = useState<Contact | null>(null);
 
   // Enhanced filter state
   const [filters, setFilters] = useState<ContactFilters>(initialFilters);
@@ -391,6 +396,11 @@ export default function Contacts() {
   const handleViewTimeline = (contactId: string) => {
     setTimelineContactId(contactId);
     setIsTimelineModalOpen(true);
+  };
+
+  const handleCallNow = (contact: Contact) => {
+    setCallNowContact(contact);
+    setIsCallNowModalOpen(true);
   };
 
   const handleDelete = (contactId: string) => {
@@ -1863,10 +1873,10 @@ export default function Contacts() {
                           <td className="px-4 py-4 text-center">
                             <div className="flex items-center justify-center space-x-2">
                               <button
-                                onClick={() => handleTriggerCall(contact.id)}
+                                onClick={() => handleCallNow(contact)}
                                 className="text-muted-foreground hover:text-primary transition-colors"
                                 data-testid={`button-call-contact-${contact.id}`}
-                                title="Trigger call"
+                                title="Call now via AI agent"
                               >
                                 <Phone className="w-4 h-4" />
                               </button>
@@ -1971,6 +1981,16 @@ export default function Contacts() {
               </DialogContent>
             </Dialog>
           )}
+
+          {/* Call Now Modal */}
+          <CallNowModal
+            isOpen={isCallNowModalOpen}
+            onClose={() => {
+              setIsCallNowModalOpen(false);
+              setCallNowContact(null);
+            }}
+            contact={callNowContact}
+          />
 
           {/* Contact Groups Modal */}
           <ContactGroupsModal
