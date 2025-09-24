@@ -114,23 +114,26 @@ export default function Profile() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className={`grid w-full lg:w-auto lg:grid-cols-none lg:flex grid-cols-${accessibleSections.length}`}>
-          {accessibleSections.map((section) => {
-            const IconComponent = section.icon;
-            return (
-              <TabsTrigger 
-                key={section.id} 
-                value={section.id}
-                className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-                data-testid={`tab-${section.id}`}
-              >
-                <IconComponent className="w-4 h-4" />
-                <span className="hidden sm:inline">{section.title}</span>
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
+        <div className="w-full overflow-x-auto">
+          <TabsList className="inline-flex h-12 items-center justify-start rounded-xl bg-muted p-1 text-muted-foreground min-w-full lg:min-w-0 lg:w-auto">
+            {accessibleSections.map((section) => {
+              const IconComponent = section.icon;
+              return (
+                <TabsTrigger 
+                  key={section.id} 
+                  value={section.id}
+                  className="inline-flex items-center justify-center whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm gap-2 min-w-fit flex-shrink-0"
+                  data-testid={`tab-${section.id}`}
+                >
+                  <IconComponent className="w-4 h-4 flex-shrink-0" />
+                  <span className="hidden sm:inline text-xs lg:text-sm font-medium">{section.title}</span>
+                  <span className="sm:hidden text-xs font-medium">{section.title.split(' ')[0]}</span>
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+        </div>
 
         {/* Render only accessible sections based on user role */}
         {accessibleSections.map((section) => {
