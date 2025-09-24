@@ -1021,6 +1021,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Contact timeline endpoint
+  app.get('/api/contacts/:id/timeline', authenticateJWT, async (req: any, res) => {
+    try {
+      const contactId = req.params.id;
+      const timeline = await storage.getContactTimeline(contactId, req.user.tenantId);
+      res.json(timeline);
+    } catch (error) {
+      console.error('Contact timeline error:', error);
+      res.status(500).json({ message: 'Failed to fetch contact timeline' });
+    }
+  });
+
   app.get('/api/admin/dashboard/analytics', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
     try {
       const analytics = await storage.getPlatformAnalytics();

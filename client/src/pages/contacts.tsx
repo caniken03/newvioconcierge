@@ -9,11 +9,19 @@ import ContactModal from "@/components/modals/contact-modal";
 import ContactGroupsModal from "@/components/modals/contact-groups-modal";
 import ContactGroupAssignment from "@/components/contact-group-assignment";
 import BulkStatusUpdateModal from "@/components/modals/bulk-status-update-modal";
+import { ContactTimeline } from "@/components/contact-timeline";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { 
   Select,
   SelectContent,
@@ -54,7 +62,8 @@ import {
   ChevronDown,
   User,
   Globe,
-  MessageCircle
+  MessageCircle,
+  Activity
 } from "lucide-react";
 import type { Contact, ContactGroup, Location, ContactStats, GroupMembership } from "@/types";
 
@@ -152,6 +161,10 @@ export default function Contacts() {
   const [bulkNotesModalOpen, setBulkNotesModalOpen] = useState(false);
   const [bulkTimezoneModalOpen, setBulkTimezoneModalOpen] = useState(false);
   const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
+  
+  // Timeline modal state
+  const [isTimelineModalOpen, setIsTimelineModalOpen] = useState(false);
+  const [timelineContactId, setTimelineContactId] = useState<string | null>(null);
 
   // Enhanced filter state
   const [filters, setFilters] = useState<ContactFilters>(initialFilters);
@@ -373,6 +386,11 @@ export default function Contacts() {
   const handleEdit = (contact: Contact) => {
     setEditingContact(contact);
     setIsContactModalOpen(true);
+  };
+
+  const handleViewTimeline = (contactId: string) => {
+    setTimelineContactId(contactId);
+    setIsTimelineModalOpen(true);
   };
 
   const handleDelete = (contactId: string) => {
@@ -1853,6 +1871,14 @@ export default function Contacts() {
                                 <Phone className="w-4 h-4" />
                               </button>
                               <button
+                                onClick={() => handleViewTimeline(contact.id)}
+                                className="text-muted-foreground hover:text-primary transition-colors"
+                                data-testid={`button-timeline-contact-${contact.id}`}
+                                title="View timeline"
+                              >
+                                <Activity className="w-4 h-4" />
+                              </button>
+                              <button
                                 onClick={() => handleEdit(contact)}
                                 className="text-muted-foreground hover:text-primary transition-colors"
                                 data-testid={`button-edit-contact-${contact.id}`}
@@ -1920,6 +1946,31 @@ export default function Contacts() {
             }}
             contact={editingContact}
           />
+
+          {/* Timeline Modal */}
+          {timelineContactId && (
+            <Dialog 
+              open={isTimelineModalOpen} 
+              onOpenChange={(open) => {
+                setIsTimelineModalOpen(open);
+                if (!open) {
+                  setTimelineContactId(null);
+                }
+              }}
+            >
+              <DialogContent className="max-w-4xl h-[80vh]" data-testid="timeline-modal">
+                <DialogHeader>
+                  <DialogTitle>Contact Timeline</DialogTitle>
+                  <DialogDescription>
+                    Complete interaction history and activity timeline for this contact.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex-1 overflow-hidden">
+                  <ContactTimeline contactId={timelineContactId} />
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
 
           {/* Contact Groups Modal */}
           <ContactGroupsModal

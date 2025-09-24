@@ -92,6 +92,21 @@ export interface IStorage {
     noShowRate: number;
     recentActivity: any[];
   }>;
+  getContactTimeline(contactId: string, tenantId: string): Promise<{
+    contactId: string;
+    totalEvents: number;
+    events: Array<{
+      id: string;
+      type: string;
+      timestamp: Date;
+      title: string;
+      description: string;
+      status: string;
+      outcome?: string;
+      duration?: number;
+      metadata?: any;
+    }>;
+  }>;
   getPlatformAnalytics(): Promise<{
     activeTenants: number;
     totalCallsToday: number;
@@ -549,6 +564,187 @@ export class DatabaseStorage implements IStorage {
     });
 
     return { updatedCount, errors };
+  }
+
+  // Contact Timeline method
+  async getContactTimeline(contactId: string, tenantId: string): Promise<{
+    contactId: string;
+    totalEvents: number;
+    events: Array<{
+      id: string;
+      type: string;
+      timestamp: Date;
+      title: string;
+      description: string;
+      status: string;
+      outcome?: string;
+      duration?: number;
+      metadata?: any;
+    }>;
+  }> {
+    // Get call sessions for this contact
+    const callSessionsData = await db
+      .select({
+        id: callSessions.id,
+        type: sql<string>`'call_session'`,
+        timestamp: callSessions.createdAt,
+        status: callSessions.status,
+        outcome: callSessions.callOutcome,
+        duration: callSessions.durationSeconds,
+        startTime: callSessions.startTime,
+        endTime: callSessions.endTime,
+        details: sql<string>`CASE 
+          WHEN ${callSessions.callOutcome} IS NOT NULL 
+          THEN CONCAT('Call outcome: ', ${callSessions.callOutcome})
+          ELSE CONCAT('Call status: ', ${callSessions.status})
+        END`
+      })
+      .from(callSessions)
+      .where(and(
+        eq(callSessions.contactId, contactId),
+        eq(callSessions.tenantId, tenantId)
+      ));
+
+    // Get follow-up tasks for this contact
+    const followUpTasksData = await db
+      .select({
+        id: followUpTasks.id,
+        type: sql<string>`'follow_up_task'`,
+        timestamp: followUpTasks.createdAt,
+        status: followUpTasks.status,
+        taskType: followUpTasks.taskType,
+        scheduledTime: followUpTasks.scheduledTime,
+        attempts: followUpTasks.attempts,
+        details: sql<string>`CONCAT('Task type: ', ${followUpTasks.taskType}, ' - ', ${followUpTasks.status})`
+      })
+      .from(followUpTasks)
+      .where(and(
+        eq(followUpTasks.contactId, contactId),
+        eq(followUpTasks.tenantId, tenantId)
+      ));
+
+    // Get group membership changes
+    const groupMembershipData = await db
+      .select({
+        id: groupMembership.groupId,
+        type: sql<string>`'group_membership'`,
+        timestamp: groupMembership.addedAt,
+        groupName: contactGroups.name,
+        groupColor: contactGroups.color,
+        details: sql<string>`CONCAT('Added to group: ', ${contactGroups.name})`
+      })
+      .from(groupMembership)
+      .leftJoin(contactGroups, eq(groupMembership.groupId, contactGroups.id))
+      .where(and(
+        eq(groupMembership.contactId, contactId),
+        eq(contactGroups.tenantId, tenantId)
+      ));
+
+    // Get contact creation/update info
+    const contactData = await db
+      .select({
+        id: contacts.id,
+        createdAt: contacts.createdAt,
+        updatedAt: contacts.updatedAt,
+        appointmentStatus: contacts.appointmentStatus
+      })
+      .from(contacts)
+      .where(and(
+        eq(contacts.id, contactId),
+        eq(contacts.tenantId, tenantId)
+      ))
+      .limit(1);
+
+    // Combine all timeline events
+    const timelineEvents = [];
+
+    // Add call sessions
+    timelineEvents.push(...callSessionsData.map(item => ({
+      id: item.id,
+      type: 'call_session',
+      timestamp: item.timestamp,
+      title: `Voice Call - ${item.outcome || item.status}`,
+      description: item.details,
+      status: item.status,
+      outcome: item.outcome,
+      duration: item.duration,
+      metadata: {
+        startTime: item.startTime,
+        endTime: item.endTime,
+        durationFormatted: item.duration ? `${Math.floor(item.duration / 60)}m ${item.duration % 60}s` : null
+      }
+    })));
+
+    // Add follow-up tasks
+    timelineEvents.push(...followUpTasksData.map(item => ({
+      id: item.id,
+      type: 'follow_up_task',
+      timestamp: item.timestamp,
+      title: `Follow-up Task - ${item.taskType}`,
+      description: item.details,
+      status: item.status,
+      metadata: {
+        scheduledTime: item.scheduledTime,
+        attempts: item.attempts,
+        taskType: item.taskType
+      }
+    })));
+
+    // Add group memberships
+    timelineEvents.push(...groupMembershipData.map(item => ({
+      id: item.id,
+      type: 'group_membership',
+      timestamp: item.timestamp,
+      title: `Added to Group`,
+      description: item.details,
+      status: 'completed',
+      metadata: {
+        groupName: item.groupName,
+        groupColor: item.groupColor
+      }
+    })));
+
+    // Add contact lifecycle events
+    if (contactData.length > 0) {
+      const contact = contactData[0];
+      
+      // Contact creation
+      timelineEvents.push({
+        id: `${contact.id}-created`,
+        type: 'contact_lifecycle',
+        timestamp: contact.createdAt,
+        title: 'Contact Created',
+        description: 'Contact was added to the system',
+        status: 'completed',
+        metadata: {
+          appointmentStatus: contact.appointmentStatus
+        }
+      });
+
+      // Contact updates (if different from creation)
+      if (contact.updatedAt && contact.updatedAt.getTime() !== contact.createdAt?.getTime()) {
+        timelineEvents.push({
+          id: `${contact.id}-updated`,
+          type: 'contact_lifecycle',
+          timestamp: contact.updatedAt,
+          title: 'Contact Updated',
+          description: 'Contact information was modified',
+          status: 'completed',
+          metadata: {
+            appointmentStatus: contact.appointmentStatus
+          }
+        });
+      }
+    }
+
+    // Sort by timestamp (newest first)
+    timelineEvents.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    return {
+      contactId,
+      totalEvents: timelineEvents.length,
+      events: timelineEvents
+    };
   }
 
   // Enhanced contact analytics
