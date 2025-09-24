@@ -100,23 +100,7 @@ export default function Header() {
       );
     }
 
-    if ((user.role === 'client_admin' || user.role === 'client_user')) {
-      switch (location) {
-        case '/':
-          return (
-            <Link href="/contacts">
-              <Button data-testid="button-quick-add-contact">
-                <i className="fas fa-plus text-sm mr-2"></i>
-                Add Contact
-              </Button>
-            </Link>
-          );
-        // Removed duplicate Add Contact button for /contacts page - it's handled within the page itself
-        default:
-          return null;
-      }
-    }
-
+    // Removed all Add Contact buttons from header - they're handled within their respective pages
     return null;
   };
 
