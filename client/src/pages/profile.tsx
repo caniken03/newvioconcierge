@@ -131,7 +131,7 @@ export default function Profile() {
                 Business Information
               </CardTitle>
               <CardDescription>
-                Manage your business details, contact information, and operating hours
+                Manage your business details and contact information
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -154,27 +154,12 @@ export default function Profile() {
                     <Label htmlFor="trading-name">Trading Name / DBA</Label>
                     <Input 
                       id="trading-name"
-                      placeholder="Trading name (if different)"
+                      placeholder="The name the system will read out during calls (e.g., 'City Dental Clinic')"
                       data-testid="input-trading-name"
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="business-type">Business Type *</Label>
-                    <Select data-testid="select-business-type">
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select business type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="medical">
-                          Medical Practice / Healthcare
-                          <Badge variant="outline" className="ml-2">HIPAA Required</Badge>
-                        </SelectItem>
-                        <SelectItem value="salon">Salon / Spa / Beauty Services</SelectItem>
-                        <SelectItem value="restaurant">Restaurant / Dining Establishment</SelectItem>
-                        <SelectItem value="consultant">Consultant / Professional Services</SelectItem>
-                        <SelectItem value="general">General Business / Other</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      This is the name customers will hear during voice calls
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="website-url">Business Website</Label>
@@ -218,96 +203,6 @@ export default function Profile() {
                 </div>
               </div>
 
-              <Separator />
-
-              {/* Business Location */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium flex items-center gap-2">
-                  <MapPin className="w-4 h-4" />
-                  Business Location
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="street-address">Street Address *</Label>
-                    <Input 
-                      id="street-address"
-                      placeholder="123 Business Street"
-                      data-testid="input-street-address"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="city">City *</Label>
-                    <Input 
-                      id="city"
-                      placeholder="London"
-                      data-testid="input-city"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="county">County/State *</Label>
-                    <Input 
-                      id="county"
-                      placeholder="Greater London"
-                      data-testid="input-county"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="postal-code">Postal Code *</Label>
-                    <Input 
-                      id="postal-code"
-                      placeholder="SW1A 1AA"
-                      data-testid="input-postal-code"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="timezone">Business Timezone *</Label>
-                    <Select defaultValue="Europe/London" data-testid="select-timezone">
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Europe/London">Europe/London (GMT)</SelectItem>
-                        <SelectItem value="Europe/Dublin">Europe/Dublin (GMT)</SelectItem>
-                        <SelectItem value="Europe/Paris">Europe/Paris (CET)</SelectItem>
-                        <SelectItem value="America/New_York">America/New_York (EST)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Business Hours */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium flex items-center gap-2">
-                  <Clock className="w-4 h-4" />
-                  Business Hours
-                </h3>
-                <div className="space-y-3">
-                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
-                    <div key={day} className="flex items-center space-x-4">
-                      <div className="w-20 text-sm font-medium">{day}</div>
-                      <div className="flex items-center space-x-2">
-                        <Switch defaultChecked={day !== 'Sunday'} data-testid={`switch-${day.toLowerCase()}`} />
-                        <Input 
-                          type="time" 
-                          defaultValue="09:00" 
-                          className="w-24"
-                          data-testid={`time-${day.toLowerCase()}-open`}
-                        />
-                        <span className="text-muted-foreground">to</span>
-                        <Input 
-                          type="time" 
-                          defaultValue={day === 'Saturday' ? '15:00' : '17:00'} 
-                          className="w-24"
-                          data-testid={`time-${day.toLowerCase()}-close`}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
 
               <div className="flex justify-end pt-4">
                 <Button data-testid="button-save-business-profile">
