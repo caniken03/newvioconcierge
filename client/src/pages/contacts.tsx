@@ -7,6 +7,7 @@ import Sidebar from "@/components/layout/sidebar";
 import Header from "@/components/layout/header";
 import ContactModal from "@/components/modals/contact-modal";
 import ContactGroupsModal from "@/components/modals/contact-groups-modal";
+import ContactGroupAssignment from "@/components/contact-group-assignment";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,6 +64,7 @@ export default function Contacts() {
   const [isImporting, setIsImporting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [isGroupAssignmentOpen, setIsGroupAssignmentOpen] = useState(false);
 
   // Enhanced filter state
   const [filters, setFilters] = useState<ContactFilters>({
@@ -351,6 +353,41 @@ export default function Contacts() {
   const { data: groupMemberships = [] } = useQuery({
     queryKey: [`/api/contact-groups/${filters.groupId}/contacts`],
     enabled: !!user && filters.groupId !== "all" && typeof filters.groupId === 'string' && filters.groupId.length > 0,
+  }) as { data: Contact[] };
+
+  // Get all group memberships for all contacts (we'll filter display later)
+  const { data: allGroupMemberships = [] } = useQuery({
+    queryKey: ['/api/all-group-memberships', contactGroups.map(g => g.id)],
+    queryFn: async () => {
+      if (!contactGroups.length) return [];
+      
+      const allMemberships: GroupMembership[] = [];
+      
+      // Fetch memberships for each group
+      for (const group of contactGroups) {
+        try {
+          const response = await apiRequest('GET', `/api/contact-groups/${group.id}/contacts`);
+          const groupContacts = await response.json() as any[];
+          
+          // Add membership records for all contacts in this group
+          groupContacts.forEach(contact => {
+            allMemberships.push({
+              contactId: contact.id,
+              groupId: group.id,
+              groupName: group.name,
+              groupColor: group.color,
+              addedBy: '',
+              addedAt: new Date().toISOString()
+            });
+          });
+        } catch (error) {
+          // Skip groups we can't access
+        }
+      }
+      
+      return allMemberships;
+    },
+    enabled: !!user && contactGroups.length > 0,
   }) as { data: GroupMembership[] };
 
   // Enhanced filtering logic
@@ -378,7 +415,7 @@ export default function Contacts() {
 
     // Contact group filter - check if contact is in the selected group
     if (filters.groupId !== "all") {
-      const isInGroup = groupMemberships.some((member: any) => member.contactId === contact.id);
+      const isInGroup = groupMemberships.some((c: Contact) => c.id === contact.id);
       if (!isInGroup) return false;
     }
 
@@ -661,6 +698,24 @@ export default function Contacts() {
                     Advanced
                   </Button>
 
+                  {/* Bulk Actions */}
+                  {selectedContacts.length > 0 && (
+                    <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-lg border">
+                      <span className="text-sm text-primary font-medium">
+                        {selectedContacts.length} selected
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setIsGroupAssignmentOpen(true)}
+                        data-testid="button-bulk-assign-groups"
+                      >
+                        <Users className="w-4 h-4 mr-1" />
+                        Assign to Groups
+                      </Button>
+                    </div>
+                  )}
+
                   {/* Actions */}
                   <Button 
                     variant="secondary" 
@@ -913,6 +968,27 @@ export default function Contacts() {
                                   {contact.timezone}
                                 </p>
                               )}
+                              
+                              {/* Group Membership Badges */}
+                              {allGroupMemberships
+                                .filter(membership => membership.contactId === contact.id)
+                                .length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {allGroupMemberships
+                                    .filter(membership => membership.contactId === contact.id)
+                                    .map(membership => (
+                                      <Badge
+                                        key={membership.groupId}
+                                        style={{ backgroundColor: membership.groupColor }}
+                                        className="text-white text-xs px-1.5 py-0.5 h-5"
+                                        data-testid={`badge-group-${membership.groupId}`}
+                                      >
+                                        {membership.groupName}
+                                      </Badge>
+                                    ))
+                                  }
+                                </div>
+                              )}
                             </div>
                           </td>
 
@@ -1105,6 +1181,17 @@ export default function Contacts() {
             isOpen={isGroupsModalOpen}
             onClose={handleCloseGroupsModal}
             editingGroup={editingGroup}
+          />
+          
+          {/* Group Assignment Modal */}
+          <ContactGroupAssignment
+            isOpen={isGroupAssignmentOpen}
+            onClose={() => setIsGroupAssignmentOpen(false)}
+            selectedContactIds={selectedContacts}
+            selectedContactNames={selectedContacts.map(id => {
+              const contact = contacts.find((c: Contact) => c.id === id);
+              return contact?.name || '';
+            })}
           />
         </main>
       </div>
