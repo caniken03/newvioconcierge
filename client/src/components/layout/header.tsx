@@ -98,7 +98,6 @@ export default function Header() {
     if ((user.role === 'client_admin' || user.role === 'client_user')) {
       switch (location) {
         case '/':
-        case '/contacts':
           return (
             <Link href="/contacts">
               <Button data-testid="button-quick-add-contact">
@@ -107,6 +106,7 @@ export default function Header() {
               </Button>
             </Link>
           );
+        // Removed duplicate Add Contact button for /contacts page - it's handled within the page itself
         default:
           return null;
       }

@@ -199,12 +199,41 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
     }
   };
 
-  // Reset step when modal opens/closes
+  // Reset step and form when modal opens/closes
   React.useEffect(() => {
     if (isOpen) {
       setCurrentStep(1);
+      
+      // Ensure clean form state for new contacts
+      if (!contact) {
+        form.reset({
+          // Basic Contact Information
+          name: "",
+          phone: "",
+          email: "",
+          
+          // Appointment Details
+          appointmentTime: "",
+          appointmentType: "",
+          appointmentDuration: 60,
+          appointmentStatus: 'pending',
+          
+          // Enhanced PRD Fields
+          timezone: "Europe/London",
+          callBeforeHours: 24,
+          ownerName: "",
+          companyName: "",
+          bookingSource: 'manual',
+          priorityLevel: 'normal',
+          preferredContactMethod: 'voice',
+          
+          // Additional Information
+          notes: "",
+          specialInstructions: "",
+        });
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, contact, form]);
 
   // Create contact mutation
   const createContactMutation = useMutation({
@@ -380,9 +409,12 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
                   <FormLabel>Appointment Type</FormLabel>
                   <FormControl>
                     <Input 
-                      {...field} 
+                      {...field}
+                      value={field.value || ""} 
+                      onChange={(e) => field.onChange(e.target.value)}
                       placeholder="Consultation, Checkup, Treatment..."
                       data-testid="input-appointment-type"
+                      autoComplete="off"
                     />
                   </FormControl>
                   <FormMessage />
