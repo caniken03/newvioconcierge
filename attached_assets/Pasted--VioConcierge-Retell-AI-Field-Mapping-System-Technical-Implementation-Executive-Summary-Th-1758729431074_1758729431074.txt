@@ -1,0 +1,1149 @@
+# VioConcierge → Retell AI Field Mapping System - Technical Implementation
+
+## Executive Summary
+
+This document details the **technical mapping process** that allows Retell AI to access VioConcierge contact information through **placeholder variables**. The system automatically extracts contact fields and maps them to **Retell AI's `retell_llm_dynamic_variables`** system for dynamic script personalization.
+
+---
+
+## 🔗 **Core Mapping Architecture**
+
+### **How VioConcierge Fields Become Retell AI Placeholders**
+
+```typescript
+FieldMappingArchitecture {
+  // The mapping process: VioConcierge Database → API Call → Retell AI Variables
+  data_flow: {
+    step_1: "VioConcierge contact stored in database",
+    step_2: "Contact data extracted when call is triggered", 
+    step_3: "Fields mapped to Retell AI variable names",
+    step_4: "Variables sent via retell_llm_dynamic_variables API parameter",
+    step_5: "Retell AI agent uses variables in pre-written scripts"
+  }
+  
+  // Technical implementation: VioConcierge field → Retell AI placeholder
+  core_mapping_table: {
+    // Direct 1:1 field mappings
+    "contact.name" → "{{customer_name}}",
+    "contact.phone" → "{{customer_phone}}", 
+    "contact.appointment_time" → "{{appointment_date}}" + "{{appointment_time}}",
+    "contact.appointment_type" → "{{appointment_type}}",
+    "contact.appointment_duration" → "{{appointment_duration}}",
+    "contact.owner_name" → "{{provider_name}}",
+    "contact.special_instructions" → "{{special_instructions}}",
+    "tenant_config.company_name" → "{{business_name}}",
+    "tenant_config.retell_agent_number" → "{{callback_number}}"
+  }
+}
+```
+
+---
+
+## 🔄 **Technical Mapping Implementation**
+
+### **Field Extraction & Variable Population Process**
+
+```python
+async def map_vioconcierge_to_retell_variables(contact: dict, tenant_config: dict) -> dict:
+    """
+    CORE MAPPING FUNCTION: Convert VioConcierge contact fields to Retell AI variables
+    This is the main function that creates the mapping between systems
+    """
+    
+    # Initialize the retell_llm_dynamic_variables dictionary
+    retell_variables = {}
+    
+    # === PRIMARY FIELD MAPPINGS ===
+    
+    # 1. CUSTOMER NAME MAPPING
+    if contact.get("name"):
+        retell_variables["customer_name"] = contact["name"]
+        logger.info(f"📝 Mapped contact.name '{contact['name']}' → {{{{customer_name}}}}")
+    
+    # 2. PHONE NUMBER MAPPING (used for calling, not spoken)
+    if contact.get("phone"):
+        retell_variables["customer_phone"] = contact["phone"]
+        logger.info(f"📞 Mapped contact.phone '{contact['phone']}' → {{{{customer_phone}}}}")
+    
+    # 3. APPOINTMENT TIME MAPPING (split into date and time components)
+    if contact.get("appointment_time"):
+        # Parse the appointment datetime
+        appointment_dt = parse_appointment_datetime(contact["appointment_time"])
+        
+        # Split into separate components for Retell AI
+        retell_variables["appointment_date"] = format_date_for_voice(appointment_dt)
+        retell_variables["appointment_time"] = format_time_for_voice(appointment_dt)
+        retell_variables["appointment_day"] = appointment_dt.strftime("%A")
+        
+        logger.info(f"📅 Mapped contact.appointment_time '{contact['appointment_time']}' → {{{{appointment_date}}}}, {{{{appointment_time}}}}")
+    
+    # 4. APPOINTMENT TYPE MAPPING
+    if contact.get("appointment_type"):
+        retell_variables["appointment_type"] = contact["appointment_type"]
+        logger.info(f"🎯 Mapped contact.appointment_type '{contact['appointment_type']}' → {{{{appointment_type}}}}")
+    
+    # 5. APPOINTMENT DURATION MAPPING
+    if contact.get("appointment_duration"):
+        # Convert minutes to natural language
+        duration_text = convert_minutes_to_voice_format(contact["appointment_duration"])
+        retell_variables["appointment_duration"] = duration_text
+        logger.info(f"⏱️ Mapped contact.appointment_duration '{contact['appointment_duration']}' → {{{{appointment_duration}}}}")
+    
+    # 6. SERVICE PROVIDER MAPPING
+    if contact.get("owner_name"):
+        retell_variables["provider_name"] = contact["owner_name"]
+        logger.info(f"👨‍⚕️ Mapped contact.owner_name '{contact['owner_name']}' → {{{{provider_name}}}}")
+    
+    # 7. SPECIAL INSTRUCTIONS MAPPING
+    if contact.get("special_instructions"):
+        retell_variables["special_instructions"] = contact["special_instructions"]
+        logger.info(f"📋 Mapped contact.special_instructions → {{{{special_instructions}}}}")
+    
+    # === BUSINESS CONTEXT MAPPINGS ===
+    
+    # 8. BUSINESS NAME MAPPING (from tenant configuration)
+    if tenant_config.get("company_name"):
+        retell_variables["business_name"] = tenant_config["company_name"]
+        logger.info(f"🏢 Mapped tenant_config.company_name '{tenant_config['company_name']}' → {{{{business_name}}}}")
+    
+    # 9. CALLBACK NUMBER MAPPING (from tenant configuration)
+    if tenant_config.get("retell_agent_number"):
+        # Format phone number for voice delivery
+        formatted_phone = format_phone_for_voice_callback(tenant_config["retell_agent_number"])
+        retell_variables["callback_number"] = formatted_phone
+        logger.info(f"📞 Mapped tenant_config.retell_agent_number → {{{{callback_number}}}}")
+    
+    # === DERIVED/COMPUTED MAPPINGS ===
+    
+    # 10. TIME OF DAY GREETING (computed from appointment time)
+    if contact.get("appointment_time"):
+        greeting = determine_appropriate_greeting(contact["appointment_time"])
+        retell_variables["time_of_day"] = greeting
+        logger.info(f"🌅 Computed time-appropriate greeting → {{{{time_of_day}}}}")
+    
+    # Log complete mapping result
+    logger.info(f"✅ Complete mapping: {len(retell_variables)} VioConcierge fields → Retell AI variables")
+    logger.info(f"📋 Variables created: {list(retell_variables.keys())}")
+    
+    return retell_variables
+
+def parse_appointment_datetime(appointment_time_str: str) -> datetime:
+    """Parse VioConcierge appointment_time field into datetime object"""
+    try:
+        # Handle ISO format with timezone
+        if appointment_time_str.endswith('Z'):
+            dt = datetime.fromisoformat(appointment_time_str.replace('Z', '+00:00'))
+        else:
+            dt = datetime.fromisoformat(appointment_time_str)
+        
+        # Convert to UK timezone for voice delivery
+        uk_tz = pytz.timezone('Europe/London')
+        return dt.astimezone(uk_tz)
+        
+    except Exception as e:
+        logger.error(f"❌ Error parsing appointment time '{appointment_time_str}': {e}")
+        return datetime.now(pytz.timezone('Europe/London'))
+
+def format_date_for_voice(dt: datetime) -> str:
+    """Convert datetime to natural voice date format"""
+    return dt.strftime("%A, %B %d")  # "Monday, January 15"
+
+def format_time_for_voice(dt: datetime) -> str:
+    """Convert datetime to natural voice time format"""
+    return dt.strftime("%I:%M %p").lstrip("0")  # "2:30 PM"
+
+def convert_minutes_to_voice_format(minutes: int) -> str:
+    """Convert appointment duration minutes to natural voice format"""
+    if minutes < 60:
+        return f"{minutes} minutes"
+    elif minutes == 60:
+        return "1 hour"
+    else:
+        hours = minutes // 60
+        remaining_minutes = minutes % 60
+        if remaining_minutes == 0:
+            return f"{hours} hours"
+        else:
+            return f"{hours} hours and {remaining_minutes} minutes"
+
+def format_phone_for_voice_callback(phone: str) -> str:
+    """Format phone number for natural voice callback reference"""
+    if phone.startswith("+44"):
+        # Convert +447403305280 to "074-0330-5280" for clear voice delivery
+        uk_number = phone[3:]  # Remove +44 prefix
+        if len(uk_number) == 10:
+            return f"{uk_number[:3]}-{uk_number[3:7]}-{uk_number[7:]}"
+    
+    return phone  # Return original if can't format
+
+def determine_appropriate_greeting(appointment_time_str: str) -> str:
+    """Determine appropriate greeting based on current time"""
+    current_hour = datetime.now(pytz.timezone('Europe/London')).hour
+    
+    if 5 <= current_hour < 12:
+        return "Good morning"
+    elif 12 <= current_hour < 17:
+        return "Good afternoon"
+    elif 17 <= current_hour < 21:
+        return "Good evening"
+    else:
+        return "Hello"
+```
+
+---
+
+## 📞 **Retell AI API Integration - Variable Transmission**
+
+### **How Variables Are Sent to Retell AI**
+
+```python
+async def send_mapped_variables_to_retell(contact: dict, tenant_config: dict) -> dict:
+    """
+    Send VioConcierge contact data to Retell AI via retell_llm_dynamic_variables
+    This is the technical process that makes the mapping work
+    """
+    
+    # STEP 1: Create the variable mapping
+    retell_variables = await map_vioconcierge_to_retell_variables(contact, tenant_config)
+    
+    # STEP 2: Build Retell AI API request payload
+    retell_api_payload = {
+        "from_number": tenant_config["retell_agent_number"],  # Your VioConcierge number
+        "to_number": contact["phone"],                        # Customer's phone
+        "agent_id": tenant_config["retell_agent_id"],         # Your Retell AI agent
+        
+        # THIS IS THE KEY MAPPING TRANSMISSION:
+        # VioConcierge variables → Retell AI placeholders
+        "retell_llm_dynamic_variables": retell_variables,
+        
+        # Additional call configuration
+        "webhook_url": f"{BASE_URL}/api/webhook/call-outcome",
+        "webhook_metadata": {
+            "session_id": f"call_{contact['id']}_{int(datetime.now().timestamp())}",
+            "contact_id": contact["id"],
+            "tenant_id": tenant_config["tenant_id"]
+        }
+    }
+    
+    # STEP 3: Send to Retell AI API
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "https://api.retellai.com/v2/create-phone-call",
+            json=retell_api_payload,
+            headers={
+                "Authorization": f"Bearer {tenant_config.get('retell_api_key', GLOBAL_RETELL_API_KEY)}",
+                "Content-Type": "application/json"
+            }
+        )
+        
+        if response.status_code == 200:
+            logger.info("✅ VioConcierge variables successfully transmitted to Retell AI")
+            logger.info(f"📋 Variables sent: {list(retell_variables.keys())}")
+            return {"success": True, "variables_sent": retell_variables}
+        else:
+            logger.error(f"❌ Failed to send variables to Retell AI: {response.status_code}")
+            return {"success": False, "error": response.text}
+
+# EXAMPLE: Exact API payload sent to Retell AI
+example_retell_api_call = {
+    "from_number": "+447403305280",
+    "to_number": "+447912345678", 
+    "agent_id": "agent_e53a44a8e7abed30866388d300",
+    
+    # THIS IS WHERE VIOCONCIERGE DATA BECOMES RETELL AI PLACEHOLDERS
+    "retell_llm_dynamic_variables": {
+        "customer_name": "Sarah Johnson",              # From contact.name
+        "business_name": "Luxury Hair Studio",        # From tenant_config.company_name
+        "appointment_date": "Monday, January 15th",   # From contact.appointment_time (parsed)
+        "appointment_time": "2:30 PM",                # From contact.appointment_time (parsed)
+        "appointment_type": "Hair Color and Cut",     # From contact.appointment_type
+        "appointment_duration": "2 hours",            # From contact.appointment_duration (converted)
+        "provider_name": "Maria",                     # From contact.owner_name
+        "special_instructions": "I have your color preferences on file", # From contact.special_instructions (processed)
+        "callback_number": "074-0330-5280"           # From tenant_config.retell_agent_number (formatted)
+    },
+    
+    "webhook_url": "https://your-domain.com/api/webhook/call-outcome"
+}
+
+# RESULT: Retell AI receives these variables and can use them in scripts like:
+# "Hi {{customer_name}}! This is {{provider_name}} from {{business_name}}. 
+#  I'm calling about your {{appointment_type}} on {{appointment_date}} at {{appointment_time}}..."
+```
+
+---
+
+## 📋 **Detailed Field-by-Field Mapping Process**
+
+### **1. Contact Name Mapping**
+
+```python
+def map_contact_name_field(contact: dict, business_type: str) -> dict:
+    """
+    Map VioConcierge contact.name field to Retell AI customer_name variable
+    """
+    
+    # Extract name from VioConcierge contact record
+    vioconcierge_name = contact.get("name", "")
+    
+    # Apply business-type specific processing
+    if business_type == "medical":
+        # HIPAA: Use first name only
+        processed_name = extract_first_name(vioconcierge_name)
+    else:
+        # Other businesses: Use full name
+        processed_name = vioconcierge_name.strip()
+    
+    # Create Retell AI variable mapping
+    retell_mapping = {
+        "customer_name": processed_name
+    }
+    
+    logger.info(f"👤 Name mapping: VioConcierge '{vioconcierge_name}' → Retell AI {{{{customer_name}}}} = '{processed_name}'")
+    
+    return retell_mapping
+
+# Example transformations:
+# VioConcierge: contact.name = "Dr. Sarah Johnson"
+# Medical Business: {{customer_name}} = "Sarah" (first name only)
+# Salon Business: {{customer_name}} = "Dr. Sarah Johnson" (full name)
+```
+
+### **2. Appointment Time Mapping**
+
+```python
+def map_appointment_time_field(contact: dict) -> dict:
+    """
+    Map VioConcierge appointment_time to multiple Retell AI time variables
+    """
+    
+    # Extract appointment time from VioConcierge contact
+    vioconcierge_appointment_time = contact.get("appointment_time")  # "2024-01-15T14:30:00Z"
+    
+    if not vioconcierge_appointment_time:
+        return {}
+    
+    # Parse ISO datetime string
+    try:
+        appointment_dt = datetime.fromisoformat(vioconcierge_appointment_time.replace('Z', '+00:00'))
+        
+        # Convert to UK timezone
+        uk_tz = pytz.timezone('Europe/London')
+        local_dt = appointment_dt.astimezone(uk_tz)
+        
+        # Create multiple Retell AI variables from single VioConcierge field
+        retell_mapping = {
+            "appointment_date": local_dt.strftime("%A, %B %d"),        # "Monday, January 15"
+            "appointment_time": local_dt.strftime("%I:%M %p").lstrip("0"), # "2:30 PM"
+            "appointment_day": local_dt.strftime("%A"),                # "Monday"
+            "appointment_month": local_dt.strftime("%B"),              # "January"
+            "appointment_year": local_dt.strftime("%Y")                # "2024"
+        }
+        
+        logger.info(f"📅 Appointment time mapping:")
+        logger.info(f"   VioConcierge: contact.appointment_time = '{vioconcierge_appointment_time}'")
+        logger.info(f"   Retell AI: {{{{appointment_date}}}} = '{retell_mapping['appointment_date']}'")
+        logger.info(f"   Retell AI: {{{{appointment_time}}}} = '{retell_mapping['appointment_time']}'")
+        
+        return retell_mapping
+        
+    except Exception as e:
+        logger.error(f"❌ Error parsing appointment time '{vioconcierge_appointment_time}': {e}")
+        return {}
+
+# Example transformation:
+# VioConcierge: contact.appointment_time = "2024-01-15T14:30:00Z"
+# Retell AI: {{appointment_date}} = "Monday, January 15"
+# Retell AI: {{appointment_time}} = "2:30 PM"
+# Retell AI: {{appointment_day}} = "Monday"
+```
+
+### **3. Special Instructions Mapping**
+
+```python
+def map_special_instructions_field(contact: dict, business_type: str) -> dict:
+    """
+    Map VioConcierge special_instructions to Retell AI special_instructions variable
+    Applies business-type specific processing and compliance filtering
+    """
+    
+    # Extract special instructions from VioConcierge contact
+    vioconcierge_instructions = contact.get("special_instructions", "")
+    
+    if not vioconcierge_instructions:
+        return {}
+    
+    # Apply business-type specific processing
+    if business_type == "medical":
+        # HIPAA compliance: Sanitize or omit medical instructions
+        processed_instructions = sanitize_medical_instructions(vioconcierge_instructions)
+        retell_variable_name = "preparation_instructions"  # Different variable name for medical
+        
+    elif business_type == "salon":
+        # Beauty services: Format service preferences
+        processed_instructions = format_beauty_preferences(vioconcierge_instructions)
+        retell_variable_name = "service_preferences"
+        
+    elif business_type == "restaurant":
+        # Restaurant: Extract dietary and special requests
+        processed_instructions = format_dining_requirements(vioconcierge_instructions)
+        retell_variable_name = "special_requests"
+        
+    elif business_type == "consultant":
+        # Professional: Format preparation requirements
+        processed_instructions = format_business_preparation(vioconcierge_instructions)
+        retell_variable_name = "preparation_requirements"
+        
+    else:  # general business
+        # General: Include as-is with basic formatting
+        processed_instructions = vioconcierge_instructions.strip()
+        retell_variable_name = "special_instructions"
+    
+    # Create Retell AI variable mapping
+    retell_mapping = {
+        retell_variable_name: processed_instructions
+    }
+    
+    logger.info(f"📋 Special instructions mapping:")
+    logger.info(f"   VioConcierge: contact.special_instructions = '{vioconcierge_instructions[:50]}...'")
+    logger.info(f"   Retell AI: {{{{{retell_variable_name}}}}} = '{processed_instructions[:50]}...'")
+    
+    return retell_mapping
+
+# Example transformations by business type:
+
+# MEDICAL:
+# VioConcierge: contact.special_instructions = "Bring current medications list and insurance card"
+# Retell AI: {{preparation_instructions}} = "Please bring your insurance card and arrive 15 minutes early"
+
+# SALON:
+# VioConcierge: contact.special_instructions = "Color formula: L'Oreal 7.1, allergic to sulfates"
+# Retell AI: {{service_preferences}} = "I have your color formula and allergy information on file"
+
+# RESTAURANT:
+# VioConcierge: contact.special_instructions = "Party of 4, gluten-free options needed, celebrating anniversary"
+# Retell AI: {{special_requests}} = "Please note: gluten-free options needed for your anniversary celebration"
+```
+
+### **4. Service Provider Mapping**
+
+```python
+def map_service_provider_field(contact: dict, business_type: str) -> dict:
+    """
+    Map VioConcierge owner_name field to appropriate Retell AI provider variable
+    """
+    
+    # Extract provider name from VioConcierge contact
+    vioconcierge_provider = contact.get("owner_name", "")
+    
+    if not vioconcierge_provider:
+        return {}
+    
+    # Apply business-type specific processing
+    if business_type == "medical":
+        # HIPAA: Anonymize provider for privacy
+        processed_provider = "your healthcare provider"
+        retell_variable_name = "provider_name"
+        
+    elif business_type == "salon":
+        # Beauty: Use first name for personal connection
+        first_name = vioconcierge_provider.split()[0] if vioconcierge_provider else "your stylist"
+        processed_provider = first_name
+        retell_variable_name = "stylist_name"
+        
+    elif business_type == "restaurant":
+        # Restaurant: Use first name for server
+        first_name = vioconcierge_provider.split()[0] if vioconcierge_provider else "your server"
+        processed_provider = f"your server {first_name}"
+        retell_variable_name = "server_name"
+        
+    elif business_type == "consultant":
+        # Professional: Use full professional name
+        processed_provider = vioconcierge_provider
+        retell_variable_name = "consultant_name"
+        
+    else:  # general business
+        # General: Use full name as service provider
+        processed_provider = vioconcierge_provider
+        retell_variable_name = "service_provider"
+    
+    # Create Retell AI variable mapping
+    retell_mapping = {
+        retell_variable_name: processed_provider
+    }
+    
+    logger.info(f"👨‍⚕️ Provider mapping: VioConcierge '{vioconcierge_provider}' → Retell AI {{{{{retell_variable_name}}}}} = '{processed_provider}'")
+    
+    return retell_mapping
+
+# Example transformations by business type:
+
+# MEDICAL:
+# VioConcierge: contact.owner_name = "Dr. Michael Chen, MD"
+# Retell AI: {{provider_name}} = "your healthcare provider"
+
+# SALON:
+# VioConcierge: contact.owner_name = "Maria Rodriguez"
+# Retell AI: {{stylist_name}} = "Maria"
+
+# RESTAURANT:
+# VioConcierge: contact.owner_name = "John Smith"
+# Retell AI: {{server_name}} = "your server John"
+```
+
+---
+
+## 🔄 **Complete Mapping Process Implementation**
+
+### **Main Mapping Function Called During Call Execution**
+
+```python
+async def execute_contact_to_retell_mapping(contact_id: str, tenant_id: str) -> RetellCallExecutionResult:
+    """
+    COMPLETE MAPPING PROCESS: From VioConcierge contact ID to Retell AI call with variables
+    This is the full technical implementation of the mapping system
+    """
+    
+    # === DATA RETRIEVAL ===
+    
+    # Get contact data from VioConcierge database
+    contact = await db.contacts.find_one({
+        "id": contact_id,
+        "tenant_id": tenant_id
+    })
+    
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    
+    # Get tenant configuration from VioConcierge database
+    tenant_config = await db.tenant_config.find_one({"tenant_id": tenant_id})
+    
+    if not tenant_config:
+        raise HTTPException(status_code=422, detail="Tenant configuration missing")
+    
+    logger.info(f"📋 Retrieved VioConcierge data for mapping:")
+    logger.info(f"   Contact: {contact.get('name')} (ID: {contact_id})")
+    logger.info(f"   Business: {tenant_config.get('company_name')} (Type: {tenant_config.get('business_type', 'general')})")
+    
+    # === FIELD MAPPING EXECUTION ===
+    
+    # Execute complete field mapping process
+    retell_variables = {}
+    
+    # 1. Map customer name
+    name_mapping = map_contact_name_field(contact, tenant_config.get("business_type", "general"))
+    retell_variables.update(name_mapping)
+    
+    # 2. Map appointment timing
+    time_mapping = map_appointment_time_field(contact)
+    retell_variables.update(time_mapping)
+    
+    # 3. Map appointment type
+    if contact.get("appointment_type"):
+        retell_variables["appointment_type"] = contact["appointment_type"]
+        logger.info(f"🎯 Mapped appointment_type: '{contact['appointment_type']}'")
+    
+    # 4. Map appointment duration
+    if contact.get("appointment_duration"):
+        duration_text = convert_minutes_to_voice_format(contact["appointment_duration"])
+        retell_variables["appointment_duration"] = duration_text
+        logger.info(f"⏱️ Mapped duration: {contact['appointment_duration']} min → '{duration_text}'")
+    
+    # 5. Map service provider
+    provider_mapping = map_service_provider_field(contact, tenant_config.get("business_type", "general"))
+    retell_variables.update(provider_mapping)
+    
+    # 6. Map special instructions
+    instructions_mapping = map_special_instructions_field(contact, tenant_config.get("business_type", "general"))
+    retell_variables.update(instructions_mapping)
+    
+    # 7. Map business context
+    retell_variables["business_name"] = tenant_config.get("company_name", "your service provider")
+    retell_variables["callback_number"] = format_phone_for_voice_callback(tenant_config.get("retell_agent_number", ""))
+    
+    # 8. Add computed variables
+    retell_variables["time_of_day"] = determine_appropriate_greeting(contact.get("appointment_time"))
+    
+    # === RETELL AI API EXECUTION ===
+    
+    # Build API payload with mapped variables
+    session_id = f"call_{contact_id}_{int(datetime.now().timestamp())}"
+    
+    retell_payload = {
+        "from_number": tenant_config["retell_agent_number"],
+        "to_number": contact["phone"],
+        "agent_id": tenant_config["retell_agent_id"],
+        
+        # SEND MAPPED VARIABLES TO RETELL AI
+        "retell_llm_dynamic_variables": retell_variables,
+        
+        "webhook_url": f"{BASE_URL}/api/webhook/call-outcome",
+        "webhook_metadata": {
+            "session_id": session_id,
+            "contact_id": contact_id,
+            "tenant_id": tenant_id,
+            "mapping_applied": True
+        }
+    }
+    
+    # Execute Retell AI call with mapped variables
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "https://api.retellai.com/v2/create-phone-call",
+            json=retell_payload,
+            headers={
+                "Authorization": f"Bearer {tenant_config.get('retell_api_key', GLOBAL_RETELL_API_KEY)}",
+                "Content-Type": "application/json"
+            }
+        )
+        
+        if response.status_code == 200:
+            retell_response = response.json()
+            
+            # Record successful mapping and call initiation
+            await record_mapping_execution(
+                session_id=session_id,
+                contact=contact,
+                tenant_config=tenant_config,
+                mapped_variables=retell_variables,
+                retell_call_id=retell_response.get("call_id")
+            )
+            
+            logger.info(f"✅ Complete mapping executed successfully:")
+            logger.info(f"   VioConcierge Contact ID: {contact_id}")
+            logger.info(f"   Retell AI Call ID: {retell_response.get('call_id')}")
+            logger.info(f"   Variables Mapped: {len(retell_variables)}")
+            logger.info(f"   Variables Sent: {list(retell_variables.keys())}")
+            
+            return RetellCallExecutionResult(
+                success=True,
+                session_id=session_id,
+                retell_call_id=retell_response.get("call_id"),
+                variables_mapped=retell_variables,
+                mapping_successful=True
+            )
+            
+        else:
+            logger.error(f"❌ Retell AI call failed after successful mapping: {response.status_code}")
+            return RetellCallExecutionResult(
+                success=False,
+                session_id=session_id,
+                error=f"Retell API error: {response.status_code}",
+                variables_mapped=retell_variables,
+                mapping_successful=True
+            )
+
+async def record_mapping_execution(session_id: str, contact: dict, tenant_config: dict, mapped_variables: dict, retell_call_id: str):
+    """
+    Record the mapping execution for debugging and analytics
+    """
+    
+    mapping_record = {
+        "id": str(uuid.uuid4()),
+        "session_id": session_id,
+        "contact_id": contact["id"],
+        "tenant_id": tenant_config["tenant_id"],
+        
+        # Original VioConcierge data
+        "original_contact_data": {
+            "name": contact.get("name"),
+            "appointment_time": contact.get("appointment_time"),
+            "appointment_type": contact.get("appointment_type"),
+            "appointment_duration": contact.get("appointment_duration"),
+            "owner_name": contact.get("owner_name"),
+            "special_instructions": contact.get("special_instructions")
+        },
+        
+        # Mapped Retell AI variables
+        "retell_variables_sent": mapped_variables,
+        
+        # Mapping metadata
+        "business_type": tenant_config.get("business_type"),
+        "mapping_timestamp": datetime.now(timezone.utc).isoformat(),
+        "retell_call_id": retell_call_id,
+        
+        # Success tracking
+        "mapping_successful": True,
+        "variables_count": len(mapped_variables)
+    }
+    
+    # Store mapping record for analytics
+    await db.call_mapping_logs.insert_one(mapping_record)
+    
+    logger.info(f"📋 Mapping execution recorded: {session_id}")
+
+@dataclass
+class RetellCallExecutionResult:
+    success: bool
+    session_id: str
+    retell_call_id: Optional[str] = None
+    variables_mapped: Optional[dict] = None
+    mapping_successful: bool = False
+    error: Optional[str] = None
+```
+
+---
+
+## 🛠️ **Mapping Configuration & Customization**
+
+### **Tenant-Level Mapping Configuration**
+
+```python
+class MappingConfigurationManager:
+    """
+    Manages how VioConcierge fields map to Retell AI variables per tenant
+    """
+    
+    async def get_tenant_mapping_config(self, tenant_id: str) -> TenantMappingConfig:
+        """
+        Get tenant-specific field mapping configuration
+        """
+        
+        # Get tenant configuration
+        tenant_config = await db.tenant_config.find_one({"tenant_id": tenant_id})
+        business_type = tenant_config.get("business_type", "general") if tenant_config else "general"
+        
+        # Get custom mapping overrides if any
+        custom_mapping = await db.tenant_field_mappings.find_one({"tenant_id": tenant_id})
+        
+        # Build complete mapping configuration
+        mapping_config = TenantMappingConfig(
+            tenant_id=tenant_id,
+            business_type=business_type,
+            
+            # Default mappings based on business type
+            default_mappings=self.get_default_mappings_for_business_type(business_type),
+            
+            # Custom overrides
+            custom_mappings=custom_mapping.get("field_mappings", {}) if custom_mapping else {},
+            
+            # Field inclusion/exclusion rules
+            field_inclusion_rules=self.get_field_inclusion_rules(business_type),
+            
+            # Variable processing rules
+            processing_rules=self.get_processing_rules(business_type)
+        )
+        
+        return mapping_config
+    
+    def get_default_mappings_for_business_type(self, business_type: str) -> dict:
+        """
+        Get default VioConcierge → Retell AI field mappings for business type
+        """
+        
+        default_mappings = {
+            "medical": {
+                # HIPAA-compliant minimal mappings
+                "contact.name": "customer_name",
+                "contact.appointment_time": ["appointment_date", "appointment_time"],
+                "tenant_config.company_name": "business_name",
+                "tenant_config.retell_agent_number": "callback_number",
+                # OMITTED: appointment_type, owner_name, special_instructions (sanitized separately)
+            },
+            
+            "salon": {
+                # Enhanced service experience mappings
+                "contact.name": "customer_name",
+                "contact.appointment_time": ["appointment_date", "appointment_time"],
+                "contact.appointment_type": "service_type",
+                "contact.appointment_duration": "service_duration",
+                "contact.owner_name": "stylist_name",
+                "contact.special_instructions": "service_preferences",
+                "tenant_config.company_name": "salon_name",
+                "tenant_config.retell_agent_number": "callback_number"
+            },
+            
+            "restaurant": {
+                # Guest experience focused mappings
+                "contact.name": "guest_name",
+                "contact.appointment_time": ["reservation_date", "reservation_time"],
+                "contact.appointment_type": "dining_occasion",
+                "contact.special_instructions": "special_requests",
+                "tenant_config.company_name": "restaurant_name",
+                "tenant_config.retell_agent_number": "callback_number"
+                # OMITTED: owner_name (not relevant for dining)
+            },
+            
+            "consultant": {
+                # Professional business context mappings
+                "contact.name": "client_name",
+                "contact.appointment_time": ["meeting_date", "meeting_time"],
+                "contact.appointment_type": "consultation_type",
+                "contact.appointment_duration": "meeting_duration",
+                "contact.owner_name": "consultant_name",
+                "contact.company_name": "client_company",
+                "contact.special_instructions": "preparation_requirements",
+                "tenant_config.company_name": "consulting_firm",
+                "tenant_config.retell_agent_number": "callback_number"
+            },
+            
+            "general": {
+                # Flexible general business mappings
+                "contact.name": "customer_name",
+                "contact.appointment_time": ["appointment_date", "appointment_time"],
+                "contact.appointment_type": "appointment_type",
+                "contact.appointment_duration": "appointment_duration",
+                "contact.owner_name": "service_provider",
+                "contact.special_instructions": "special_instructions",
+                "tenant_config.company_name": "business_name",
+                "tenant_config.retell_agent_number": "callback_number"
+            }
+        }
+        
+        return default_mappings.get(business_type, default_mappings["general"])
+
+@dataclass
+class TenantMappingConfig:
+    tenant_id: str
+    business_type: str
+    default_mappings: dict
+    custom_mappings: dict
+    field_inclusion_rules: dict
+    processing_rules: dict
+```
+
+---
+
+## 📊 **Real-World Mapping Examples**
+
+### **Complete Mapping Execution Examples**
+
+#### **Example 1: Medical Practice Contact**
+
+```python
+# INPUT: VioConcierge Contact Data
+vioconcierge_contact = {
+    "id": "contact-123",
+    "name": "Sarah Elizabeth Johnson",
+    "phone": "+447912345678",
+    "email": "sarah.j@email.com",
+    "appointment_time": "2024-01-15T14:30:00Z",
+    "appointment_type": "Cardiology Follow-up",
+    "appointment_duration": 30,
+    "owner_name": "Dr. Michael Chen, MD",
+    "special_instructions": "Bring current medication list and insurance card",
+    "notes": "Patient has history of hypertension, responds well to voice calls"
+}
+
+# MAPPING PROCESS EXECUTION:
+mapping_result = await execute_contact_to_retell_mapping("contact-123", "tenant-456")
+
+# OUTPUT: Retell AI Variables Sent
+retell_variables_sent = {
+    "customer_name": "Sarah",                           # HIPAA: First name only
+    "business_name": "Downtown Medical Center",
+    "appointment_date": "Monday, January 15th",        # Parsed from appointment_time
+    "appointment_time": "2:30 PM",                     # Parsed from appointment_time
+    "provider_name": "your healthcare provider",       # HIPAA: Anonymized
+    "preparation_instructions": "Please bring your insurance card and arrive 15 minutes early", # Sanitized
+    "callback_number": "074-0330-5280",               # Formatted for voice
+    "time_of_day": "Good afternoon"                    # Computed greeting
+}
+
+# OMITTED FROM RETELL AI (HIPAA Compliance):
+omitted_fields = [
+    "appointment_type",        # "Cardiology Follow-up" - too medical-specific
+    "appointment_duration",    # Duration not relevant for medical privacy
+    "owner_name",             # "Dr. Michael Chen, MD" - anonymized for privacy
+    "email",                  # Not relevant for voice calls
+    "notes"                   # Internal medical notes never included
+]
+
+# RETELL AI RECEIVES: The mapped variables above
+# RETELL AI SCRIPT USES: {{customer_name}}, {{appointment_date}}, etc. in voice script
+```
+
+#### **Example 2: Salon Service Contact**
+
+```python
+# INPUT: VioConcierge Contact Data
+vioconcierge_contact = {
+    "id": "contact-789",
+    "name": "Emma Williams", 
+    "phone": "+447987654321",
+    "email": "emma.w@email.com",
+    "appointment_time": "2024-01-15T10:00:00Z",
+    "appointment_type": "Hair Color and Highlights",
+    "appointment_duration": 150,
+    "owner_name": "Maria Rodriguez",
+    "special_instructions": "Color formula: L'Oreal 7.1 Natural Blonde, allergic to sulfates, prefers quiet environment",
+    "notes": "Regular VIP client, always tips 20%, books monthly"
+}
+
+# MAPPING PROCESS EXECUTION:
+mapping_result = await execute_contact_to_retell_mapping("contact-789", "tenant-salon")
+
+# OUTPUT: Retell AI Variables Sent
+retell_variables_sent = {
+    "customer_name": "Emma Williams",                   # Full name for personal service
+    "salon_name": "Luxury Hair Studio",
+    "appointment_date": "Monday, January 15th",        # Parsed from appointment_time
+    "appointment_time": "10:00 AM",                    # Parsed from appointment_time
+    "service_type": "Hair Color and Highlights",       # Direct mapping from appointment_type
+    "service_duration": "2 hours and 30 minutes",      # Converted from 150 minutes
+    "stylist_name": "Maria",                           # First name from owner_name
+    "service_preferences": "I have your color formula and allergy information on file", # Processed special_instructions
+    "callback_number": "074-0330-5280",               # Formatted for voice
+    "time_of_day": "Good morning"                      # Computed greeting
+}
+
+# INCLUDED FOR ENHANCED EXPERIENCE:
+included_fields = [
+    "name",                   # Full name for personalized salon service
+    "appointment_type",       # Specific service details improve experience
+    "appointment_duration",   # Helps client plan their time
+    "owner_name",            # Stylist name for personal connection
+    "special_instructions"    # Service preferences and requirements
+]
+
+# OMITTED FROM RETELL AI (Not Relevant):
+omitted_fields = [
+    "email",                 # Not relevant for voice confirmation
+    "notes"                  # Internal stylist notes not for customer
+]
+
+# RETELL AI RECEIVES: All the mapped variables for enhanced personalization
+```
+
+---
+
+## ⚙️ **Technical Implementation Code**
+
+### **Main Mapping Function (Production Code)**
+
+```python
+# This is the actual production function that performs the mapping
+async def create_retell_variables_from_contact(contact: dict, tenant_config: dict) -> dict:
+    """
+    PRODUCTION MAPPING FUNCTION
+    Converts VioConcierge contact fields to Retell AI retell_llm_dynamic_variables
+    """
+    
+    business_type = tenant_config.get("business_type", "general")
+    retell_variables = {}
+    
+    logger.info(f"🔄 Starting field mapping for {business_type} business")
+    logger.info(f"📋 Input contact fields: {list(contact.keys())}")
+    
+    # === CORE FIELD MAPPINGS ===
+    
+    # Customer Name
+    if "name" in contact:
+        if business_type == "medical":
+            retell_variables["customer_name"] = extract_first_name(contact["name"])
+        else:
+            retell_variables["customer_name"] = contact["name"]
+        
+        logger.debug(f"👤 name: '{contact['name']}' → customer_name: '{retell_variables['customer_name']}'")
+    
+    # Appointment Time (split into multiple variables)
+    if "appointment_time" in contact:
+        dt = parse_appointment_datetime(contact["appointment_time"])
+        retell_variables["appointment_date"] = dt.strftime("%A, %B %d")
+        retell_variables["appointment_time"] = dt.strftime("%I:%M %p").lstrip("0")
+        retell_variables["appointment_day"] = dt.strftime("%A")
+        
+        logger.debug(f"📅 appointment_time: '{contact['appointment_time']}' → appointment_date: '{retell_variables['appointment_date']}', appointment_time: '{retell_variables['appointment_time']}'")
+    
+    # Appointment Type
+    if "appointment_type" in contact and business_type != "medical":
+        retell_variables["appointment_type"] = contact["appointment_type"]
+        logger.debug(f"🎯 appointment_type: '{contact['appointment_type']}' → appointment_type: '{retell_variables['appointment_type']}'")
+    
+    # Appointment Duration
+    if "appointment_duration" in contact and business_type != "medical":
+        duration_text = convert_minutes_to_voice_format(contact["appointment_duration"])
+        retell_variables["appointment_duration"] = duration_text
+        logger.debug(f"⏱️ appointment_duration: {contact['appointment_duration']} → appointment_duration: '{duration_text}'")
+    
+    # Service Provider/Owner
+    if "owner_name" in contact:
+        if business_type == "medical":
+            retell_variables["provider_name"] = "your healthcare provider"
+        elif business_type == "salon":
+            retell_variables["stylist_name"] = extract_first_name(contact["owner_name"])
+        else:
+            retell_variables["provider_name"] = contact["owner_name"]
+        
+        logger.debug(f"👨‍⚕️ owner_name: '{contact['owner_name']}' → provider field: '{list(retell_variables.keys())[-1]}'")
+    
+    # Special Instructions
+    if "special_instructions" in contact:
+        if business_type == "medical":
+            sanitized = sanitize_medical_instructions(contact["special_instructions"])
+            if sanitized:
+                retell_variables["preparation_instructions"] = sanitized
+        else:
+            retell_variables["special_instructions"] = contact["special_instructions"]
+        
+        logger.debug(f"📋 special_instructions mapped with {business_type} processing")
+    
+    # === BUSINESS CONTEXT MAPPINGS ===
+    
+    # Business Name
+    if "company_name" in tenant_config:
+        retell_variables["business_name"] = tenant_config["company_name"]
+        logger.debug(f"🏢 company_name: '{tenant_config['company_name']}' → business_name")
+    
+    # Callback Number
+    if "retell_agent_number" in tenant_config:
+        formatted_phone = format_phone_for_voice_callback(tenant_config["retell_agent_number"])
+        retell_variables["callback_number"] = formatted_phone
+        logger.debug(f"📞 retell_agent_number: '{tenant_config['retell_agent_number']}' → callback_number: '{formatted_phone}'")
+    
+    # === COMPUTED VARIABLES ===
+    
+    # Time-appropriate greeting
+    retell_variables["time_of_day"] = determine_appropriate_greeting(contact.get("appointment_time"))
+    
+    logger.info(f"✅ Mapping complete: {len(retell_variables)} variables created")
+    logger.info(f"📋 Final variables: {list(retell_variables.keys())}")
+    
+    return retell_variables
+
+# This function is called when triggering any call (immediate or scheduled)
+async def trigger_call_with_mapping(contact_id: str, tenant_id: str, call_type: str = "immediate"):
+    """
+    Trigger call with complete VioConcierge → Retell AI mapping
+    """
+    
+    # Get contact and tenant data
+    contact = await db.contacts.find_one({"id": contact_id, "tenant_id": tenant_id})
+    tenant_config = await db.tenant_config.find_one({"tenant_id": tenant_id})
+    
+    # Execute mapping process
+    retell_variables = await create_retell_variables_from_contact(contact, tenant_config)
+    
+    # Send to Retell AI with mapped variables
+    retell_response = await call_retell_api_with_variables(
+        contact=contact,
+        tenant_config=tenant_config,
+        variables=retell_variables,
+        call_type=call_type
+    )
+    
+    return retell_response
+
+async def call_retell_api_with_variables(contact: dict, tenant_config: dict, variables: dict, call_type: str):
+    """
+    Make the actual Retell AI API call with mapped variables
+    """
+    
+    payload = {
+        "from_number": tenant_config["retell_agent_number"],
+        "to_number": contact["phone"],
+        "agent_id": tenant_config["retell_agent_id"],
+        
+        # THIS IS WHERE THE MAPPING GETS SENT TO RETELL AI
+        "retell_llm_dynamic_variables": variables,
+        
+        "webhook_url": f"{BASE_URL}/api/webhook/call-outcome"
+    }
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "https://api.retellai.com/v2/create-phone-call",
+            json=payload,
+            headers={"Authorization": f"Bearer {tenant_config.get('retell_api_key', GLOBAL_RETELL_API_KEY)}"}
+        )
+        
+        return response
+```
+
+---
+
+## 📋 **Field Mapping Reference Table**
+
+### **Complete VioConcierge → Retell AI Mapping Reference**
+
+```typescript
+CompleteMappingReference {
+  // ALWAYS MAPPED (All Business Types)
+  universal_mappings: {
+    "contact.name" → "{{customer_name}}",
+    "contact.phone" → "{{customer_phone}}" // (used for calling, not spoken)
+    "contact.appointment_time" → "{{appointment_date}}" + "{{appointment_time}}",
+    "tenant_config.company_name" → "{{business_name}}",
+    "tenant_config.retell_agent_number" → "{{callback_number}}"
+  },
+  
+  // CONDITIONALLY MAPPED (Business Type Dependent)
+  conditional_mappings: {
+    "contact.appointment_type": {
+      medical: "OMITTED",                    // Privacy protection
+      salon: "{{service_type}}",             // Enhanced service experience
+      restaurant: "{{dining_occasion}}",     // Guest experience
+      consultant: "{{consultation_type}}",   // Professional context
+      general: "{{appointment_type}}"        // Standard mapping
+    },
+    
+    "contact.appointment_duration": {
+      medical: "OMITTED",                    // Privacy protection
+      salon: "{{service_duration}}",        // Service planning
+      restaurant: "{{dining_duration}}",    // Experience planning
+      consultant: "{{meeting_duration}}",   // Professional time management
+      general: "{{appointment_duration}}"   // Standard mapping
+    },
+    
+    "contact.owner_name": {
+      medical: "{{provider_name}}" = "your healthcare provider", // Anonymized
+      salon: "{{stylist_name}}" = "Maria",  // First name for personal connection
+      restaurant: "OMITTED",                // Not relevant for dining
+      consultant: "{{consultant_name}}",    // Full professional name
+      general: "{{service_provider}}"       // Standard service provider
+    },
+    
+    "contact.special_instructions": {
+      medical: "{{preparation_instructions}}" // Sanitized version only
+      salon: "{{service_preferences}}",      // Beauty preferences and requirements
+      restaurant: "{{special_requests}}",    // Dietary requirements and requests
+      consultant: "{{preparation_requirements}}", // Meeting preparation
+      general: "{{special_instructions}}"    // Direct mapping
+    }
+  },
+  
+  // NEVER MAPPED (All Business Types)
+  never_mapped: [
+    "contact.notes",          // Internal staff notes
+    "contact.email",          // Not relevant for voice calls
+    "contact.created_at",     // Internal timestamp
+    "contact.updated_at",     // Internal timestamp
+    "contact.group_ids",      // Internal organization
+    "contact.booking_source", // Internal tracking
+    "contact.call_attempts",  // Internal counter
+    "contact.tenant_id"       // Internal reference
+  ]
+}
+```
+
+### **Mapping Process Flow Diagram**
+
+```
+📊 Technical Mapping Process Flow
+
+VioConcierge Contact Creation → Field Storage → Call Trigger → Mapping Process → Retell AI Variables
+            ↓                       ↓             ↓              ↓                   ↓
+    ┌───────────────┐    ┌───────────────┐    ┌──────────────┐    ┌───────────────┐    ┌─────────────────┐
+    │ User fills    │    │ Fields stored │    │ Call Now or  │    │ Mapping       │    │ Variables sent  │
+    │ contact form: │ → │ in Supabase:  │ → │ Scheduled    │ → │ Function      │ → │ to Retell AI:   │
+    │               │    │               │    │ Call         │    │ Executes      │    │                 │
+    │ • Name        │    │ • name        │    │ Triggered    │    │ Business Type │    │ • {{customer_   │
+    │ • Phone       │    │ • phone       │    │              │    │ Specific      │    │   name}}        │
+    │ • Appointment │    │ • appointment │    │              │    │ Processing    │    │ • {{appointment │
+    │ • Duration    │    │ • duration    │    │              │    │               │    │   _date}}       │
+    │ • Provider    │    │ • owner_name  │    │              │    │               │    │ • {{provider_   │
+    │ • Instructions│    │ • special_    │    │              │    │               │    │   name}}        │
+    │               │    │   instructions│    │              │    │               │    │ • etc...        │
+    └───────────────┘    └───────────────┘    └──────────────┘    └───────────────┘    └─────────────────┘
+                                                                            ↓
+                                                                    ┌───────────────┐
+                                                                    │ Retell AI     │
+                                                                    │ Agent uses    │
+                                                                    │ variables in  │
+                                                                    │ script:       │
+                                                                    │ "Hi {{customer│
+                                                                    │ _name}}..."   │
+                                                                    └───────────────┘
+```
+
+**The mapping system ensures that when users create contacts in VioConcierge, Retell AI automatically receives the appropriate information formatted as placeholder variables for personalized voice script delivery.** 🎯

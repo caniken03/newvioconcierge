@@ -183,6 +183,88 @@ Thank you for choosing {{business_name}}.`,
 };
 
 /**
+ * Dental Practice Template (balanced privacy and personalization)
+ */
+const dentalPracticeTemplate: BusinessTemplate = {
+  id: 'dental',
+  name: 'Dental Practice',
+  icon: '🦷',
+  description: 'Dental appointment templates with patient-friendly personalization and privacy protection',
+  complianceRequired: false,
+  
+  fieldOmissionRules: {
+    // Staff-only fields NEVER included in voice calls
+    omitCompletely: [
+      'notes',                    // Staff-only internal notes
+      'email',                    // Not relevant for voice calls
+      'bookingSource',           // Internal system information
+      'locationId',              // Internal reference
+    ],
+    
+    // No anonymization needed for dental (less sensitive than medical)
+    anonymizeFields: {},
+    
+    // All relevant fields can be included with dental appointments
+    conditionalInclude: {
+      'appointmentTime': 'date_and_time_only',     // Include date and time
+      'appointmentDuration': 'voice_friendly',      // Include duration
+      'phone': 'never_spoken_aloud'                // Used for calling but not mentioned
+    }
+  },
+
+  voiceScriptTemplates: [
+    {
+      id: 'dental_friendly',
+      name: 'Friendly Dental Reminder',
+      script: `Hello {{customer_name}}, this is {{business_name}}.
+
+We're calling to remind you about your {{appointment_type}} appointment on {{appointment_date}} at {{appointment_time}} with {{provider_name}}.
+
+To confirm this appointment, please press 1.
+To reschedule, please press 2.
+
+{{special_instructions}}
+
+If you have any questions, please call us at {{callback_number}}.
+
+Thank you for choosing {{business_name}}.`,
+      estimatedDuration: 65,
+      complianceLevel: 'standard',
+      variablesUsed: ['customer_name', 'business_name', 'appointment_type', 'appointment_date', 'appointment_time', 'provider_name', 'special_instructions', 'callback_number'],
+      variablesOmitted: ['customer_phone', 'appointment_duration']
+    }
+  ],
+
+  validationRules: {
+    requiredFields: ['name', 'phone', 'appointmentTime'],
+    optionalFields: ['email', 'appointmentType', 'ownerName', 'appointmentDuration', 'specialInstructions'],
+    prohibitedFields: [],
+    
+    fieldValidation: {
+      name: {
+        minLength: 2,
+        maxLength: 100,
+        pattern: '^[a-zA-Z\\s\\-\\.]+$'
+      },
+      phone: {
+        required: true,
+        format: 'e164',
+        duplicateCheck: 'within_tenant'
+      },
+      appointmentType: {
+        required: false,
+        maxLength: 100,
+        suggestedTerms: ['cleaning', 'checkup', 'consultation', 'filling', 'crown', 'whitening']
+      },
+      specialInstructions: {
+        maxLength: 300,  // Longer for dental (less sensitive)
+        sanitization: 'voice_friendly'
+      }
+    }
+  }
+};
+
+/**
  * Salon/Spa Template for Enhanced Service Experience
  */
 const salonSpaTemplate: BusinessTemplate = {
@@ -327,6 +409,7 @@ export class BusinessTemplateService {
   constructor() {
     this.templates = new Map([
       ['medical', medicalPracticeTemplate],
+      ['dental', dentalPracticeTemplate],
       ['salon', salonSpaTemplate],
       ['restaurant', restaurantTemplate],
       // Add more templates as needed
@@ -513,6 +596,8 @@ export class BusinessTemplateService {
     switch (businessType) {
       case 'medical':
         return this.generateMedicalVariables(filteredContact, tenantConfig);
+      case 'dental':
+        return this.generateDentalVariables(filteredContact, tenantConfig);
       case 'salon':
         return this.generateSalonVariables(filteredContact, tenantConfig);
       case 'restaurant':
@@ -536,6 +621,24 @@ export class BusinessTemplateService {
       // NOTE: special_instructions OMITTED for HIPAA compliance (may contain PHI)
       // NOTE: appointment_type OMITTED for HIPAA compliance (may reveal medical condition)
       // NOTE: preparation_instructions REMOVED to ensure no PHI exposure
+    };
+  }
+
+  /**
+   * Dental practice variables (using standard variable names)
+   */
+  private generateDentalVariables(contact: any, tenantConfig: any): any {
+    return {
+      customer_name: contact.name || '',  // Full name okay for dental
+      customer_phone: contact.phone || '',  // Include phone for completeness
+      business_name: tenantConfig.companyName || 'our dental office',
+      provider_name: contact.ownerName || 'your dentist',
+      appointment_type: this.formatDentalProcedure(contact.appointmentType || 'appointment'),
+      appointment_date: this.formatDateForVoice(contact.appointmentTime),
+      appointment_time: this.formatTimeForVoice(contact.appointmentTime),
+      appointment_duration: this.formatDurationForVoice(contact.appointmentDuration),
+      special_instructions: this.formatDentalPrep(contact.specialInstructions || ''),
+      callback_number: tenantConfig.retellAgentNumber || ''
     };
   }
 
@@ -734,6 +837,37 @@ export class BusinessTemplateService {
     }
     
     return '';
+  }
+
+  private formatDentalProcedure(appointmentType: string): string {
+    const friendlyTerms: { [key: string]: string } = {
+      'cleaning': 'dental cleaning',
+      'checkup': 'routine checkup',
+      'consultation': 'consultation',
+      'filling': 'dental filling',
+      'crown': 'crown procedure',
+      'root canal': 'root canal treatment',
+      'extraction': 'tooth extraction',
+      'whitening': 'teeth whitening',
+      'exam': 'dental examination'
+    };
+    
+    const lowerType = appointmentType.toLowerCase();
+    return friendlyTerms[lowerType] || appointmentType;
+  }
+
+  private formatDentalPrep(instructions: string): string {
+    if (!instructions || instructions.trim().length === 0) {
+      return '';
+    }
+    
+    // Keep dental prep instructions but make them voice-friendly
+    const voiceFriendly = instructions
+      .replace(/\n/g, '. ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    return voiceFriendly.length > 200 ? voiceFriendly.substring(0, 200) + '...' : voiceFriendly;
   }
 }
 
