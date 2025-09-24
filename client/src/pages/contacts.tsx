@@ -8,6 +8,7 @@ import Header from "@/components/layout/header";
 import ContactModal from "@/components/modals/contact-modal";
 import ContactGroupsModal from "@/components/modals/contact-groups-modal";
 import ContactGroupAssignment from "@/components/contact-group-assignment";
+import BulkStatusUpdateModal from "@/components/modals/bulk-status-update-modal";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  DropdownMenuGroup,
+} from "@/components/ui/dropdown-menu";
 import { 
   Search,
   Filter,
@@ -39,7 +49,12 @@ import {
   Save,
   RefreshCw,
   Star,
-  StarOff
+  StarOff,
+  Settings,
+  ChevronDown,
+  User,
+  Globe,
+  MessageCircle
 } from "lucide-react";
 import type { Contact, ContactGroup, Location, ContactStats, GroupMembership } from "@/types";
 
@@ -128,6 +143,15 @@ export default function Contacts() {
   const [isExporting, setIsExporting] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [isGroupAssignmentOpen, setIsGroupAssignmentOpen] = useState(false);
+
+  // Bulk Operations Modal States
+  const [bulkStatusModalOpen, setBulkStatusModalOpen] = useState(false);
+  const [bulkPriorityModalOpen, setBulkPriorityModalOpen] = useState(false);
+  const [bulkOwnerModalOpen, setBulkOwnerModalOpen] = useState(false);
+  const [bulkContactMethodModalOpen, setBulkContactMethodModalOpen] = useState(false);
+  const [bulkNotesModalOpen, setBulkNotesModalOpen] = useState(false);
+  const [bulkTimezoneModalOpen, setBulkTimezoneModalOpen] = useState(false);
+  const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
 
   // Enhanced filter state
   const [filters, setFilters] = useState<ContactFilters>(initialFilters);
@@ -1043,15 +1067,113 @@ export default function Contacts() {
                       <span className="text-sm text-primary font-medium">
                         {selectedContacts.length} selected
                       </span>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setIsGroupAssignmentOpen(true)}
-                        data-testid="button-bulk-assign-groups"
-                      >
-                        <Users className="w-4 h-4 mr-1" />
-                        Assign to Groups
-                      </Button>
+                      
+                      {/* Comprehensive Bulk Actions Dropdown */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            data-testid="button-bulk-actions-menu"
+                          >
+                            <Settings className="w-4 h-4 mr-1" />
+                            Bulk Actions
+                            <ChevronDown className="w-3 h-3 ml-1" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-64">
+                          <DropdownMenuLabel className="font-medium text-foreground">
+                            Bulk Operations ({selectedContacts.length} selected)
+                          </DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          
+                          {/* Status Updates */}
+                          <DropdownMenuGroup>
+                            <DropdownMenuLabel className="text-xs text-muted-foreground font-normal px-2 py-1">
+                              STATUS & PRIORITY
+                            </DropdownMenuLabel>
+                            <DropdownMenuItem
+                              onClick={() => setBulkStatusModalOpen(true)}
+                              data-testid="bulk-action-update-status"
+                            >
+                              <CheckCircle className="w-4 h-4 mr-2" />
+                              Update Status
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setBulkPriorityModalOpen(true)}
+                              data-testid="bulk-action-update-priority"
+                            >
+                              <Star className="w-4 h-4 mr-2" />
+                              Update Priority
+                            </DropdownMenuItem>
+                          </DropdownMenuGroup>
+                          
+                          <DropdownMenuSeparator />
+                          
+                          {/* Assignment & Contact */}
+                          <DropdownMenuGroup>
+                            <DropdownMenuLabel className="text-xs text-muted-foreground font-normal px-2 py-1">
+                              ASSIGNMENT & CONTACT
+                            </DropdownMenuLabel>
+                            <DropdownMenuItem
+                              onClick={() => setBulkOwnerModalOpen(true)}
+                              data-testid="bulk-action-assign-owner"
+                            >
+                              <User className="w-4 h-4 mr-2" />
+                              Assign Owner
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setBulkContactMethodModalOpen(true)}
+                              data-testid="bulk-action-update-contact-method"
+                            >
+                              <Phone className="w-4 h-4 mr-2" />
+                              Update Contact Method
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setIsGroupAssignmentOpen(true)}
+                              data-testid="bulk-action-assign-groups"
+                            >
+                              <Users className="w-4 h-4 mr-2" />
+                              Assign to Groups
+                            </DropdownMenuItem>
+                          </DropdownMenuGroup>
+                          
+                          <DropdownMenuSeparator />
+                          
+                          {/* Notes & Settings */}
+                          <DropdownMenuGroup>
+                            <DropdownMenuLabel className="text-xs text-muted-foreground font-normal px-2 py-1">
+                              NOTES & SETTINGS
+                            </DropdownMenuLabel>
+                            <DropdownMenuItem
+                              onClick={() => setBulkNotesModalOpen(true)}
+                              data-testid="bulk-action-add-notes"
+                            >
+                              <MessageCircle className="w-4 h-4 mr-2" />
+                              Add Notes
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setBulkTimezoneModalOpen(true)}
+                              data-testid="bulk-action-update-timezone"
+                            >
+                              <Globe className="w-4 h-4 mr-2" />
+                              Update Timezone
+                            </DropdownMenuItem>
+                          </DropdownMenuGroup>
+                          
+                          <DropdownMenuSeparator />
+                          
+                          {/* Dangerous Actions */}
+                          <DropdownMenuItem
+                            onClick={() => setBulkDeleteModalOpen(true)}
+                            data-testid="bulk-action-delete"
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete Contacts
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   )}
 
@@ -1815,6 +1937,18 @@ export default function Contacts() {
               const contact = contacts.find((c: Contact) => c.id === id);
               return contact?.name || '';
             })}
+          />
+
+          {/* Bulk Status Update Modal */}
+          <BulkStatusUpdateModal
+            isOpen={bulkStatusModalOpen}
+            onClose={() => setBulkStatusModalOpen(false)}
+            selectedContactIds={selectedContacts}
+            onStatusUpdated={() => {
+              queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/contacts/stats'] });
+              setSelectedContacts([]);
+            }}
           />
         </main>
       </div>

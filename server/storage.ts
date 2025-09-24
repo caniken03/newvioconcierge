@@ -487,6 +487,70 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(contacts.createdAt));
   }
 
+  // Bulk update contact appointment status
+  async bulkUpdateContactStatus(
+    tenantId: string, 
+    contactIds: string[], 
+    appointmentStatus: 'pending' | 'confirmed' | 'cancelled' | 'rescheduled'
+  ): Promise<{ updatedCount: number; errors: any[] }> {
+    const errors: any[] = [];
+    let updatedCount = 0;
+
+    // Use transaction for data consistency
+    await db.transaction(async (tx) => {
+      for (const contactId of contactIds) {
+        try {
+          // Verify contact exists and belongs to tenant
+          const [contact] = await tx
+            .select({ id: contacts.id })
+            .from(contacts)
+            .where(and(
+              eq(contacts.id, contactId),
+              eq(contacts.tenantId, tenantId),
+              eq(contacts.isActive, true)
+            ));
+
+          if (!contact) {
+            errors.push({
+              contactId,
+              error: 'Contact not found or access denied'
+            });
+            continue;
+          }
+
+          // Update appointment status
+          const result = await tx
+            .update(contacts)
+            .set({ 
+              appointmentStatus,
+              updatedAt: new Date()
+            })
+            .where(and(
+              eq(contacts.id, contactId),
+              eq(contacts.tenantId, tenantId)
+            ))
+            .returning({ id: contacts.id });
+
+          if (result.length > 0) {
+            updatedCount++;
+          } else {
+            errors.push({
+              contactId,
+              error: 'Update failed - contact not found'
+            });
+          }
+        } catch (error) {
+          errors.push({
+            contactId,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+    });
+
+    return { updatedCount, errors };
+  }
+
   // Call session operations
   async getCallSession(id: string): Promise<CallSession | undefined> {
     const [session] = await db.select().from(callSessions).where(eq(callSessions.id, id));

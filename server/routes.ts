@@ -655,6 +655,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bulk status update endpoint
+  app.patch('/api/contacts/bulk/status', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      const { contactIds, appointmentStatus } = req.body;
+
+      // Validate required fields
+      if (!contactIds || !Array.isArray(contactIds) || contactIds.length === 0) {
+        return res.status(400).json({ message: 'Contact IDs array is required and cannot be empty' });
+      }
+
+      if (!appointmentStatus || !['pending', 'confirmed', 'cancelled', 'rescheduled'].includes(appointmentStatus)) {
+        return res.status(400).json({ message: 'Valid appointment status is required (pending, confirmed, cancelled, rescheduled)' });
+      }
+
+      // Enforce bulk operation limits for safety
+      if (contactIds.length > 500) {
+        return res.status(400).json({ message: 'Bulk operations limited to 500 contacts at once' });
+      }
+
+      const result = await storage.bulkUpdateContactStatus(
+        req.user.tenantId, 
+        contactIds, 
+        appointmentStatus
+      );
+
+      res.json({
+        message: `Successfully updated ${result.updatedCount} contacts to ${appointmentStatus}`,
+        updatedCount: result.updatedCount,
+        errors: result.errors,
+        totalRequested: contactIds.length,
+      });
+    } catch (error) {
+      console.error('Bulk status update error:', error);
+      res.status(500).json({ message: 'Failed to update contact status' });
+    }
+  });
+
   app.get('/api/contacts/export', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
     let csvFilePath: string | undefined;
     
