@@ -2,11 +2,16 @@ interface RetellCallRequest {
   from_number: string;
   to_number: string;
   agent_id: string;
+  retell_llm_dynamic_variables?: Record<string, any>;
   metadata?: {
     contactId: string;
     tenantId: string;
+    callSessionId?: string;
     appointmentTime?: string;
     appointmentType?: string;
+    contactName?: string;
+    businessType?: string;
+    variablesSent?: string[];
   };
 }
 
@@ -42,8 +47,63 @@ interface RetellWebhookPayload {
 export class RetellService {
   private baseUrl = 'https://api.retellai.com';
   
+  /**
+   * Create business-aware call with dynamic variables
+   */
+  async createBusinessCall(
+    apiKey: string, 
+    contact: any, 
+    tenantConfig: any, 
+    callSessionId: string,
+    businessTemplateService: any
+  ): Promise<RetellCallResponse> {
+    // Detect or get business type
+    const businessType = tenantConfig.businessType || 'general';
+    
+    // Generate business-specific variables for Retell AI
+    const dynamicVariables = businessTemplateService.generateRetellVariables(
+      contact, 
+      tenantConfig, 
+      businessType
+    );
+    
+    // Build call request with business intelligence and HIPAA compliance
+    const metadata: any = {
+      contactId: contact.id,
+      tenantId: tenantConfig.tenantId || contact.tenantId,
+      callSessionId,
+      businessType,
+      variablesSent: Object.keys(dynamicVariables)
+    };
+
+    // HIPAA Compliance: Only include safe metadata for medical practices
+    if (businessType === 'medical') {
+      // For medical practices, omit all PHI from metadata sent to third-party vendor
+      metadata.appointmentTime = contact.appointmentTime?.toISOString();
+      // contactName and appointmentType OMITTED for HIPAA compliance
+    } else {
+      // For non-medical businesses, include full metadata
+      metadata.appointmentTime = contact.appointmentTime?.toISOString();
+      metadata.appointmentType = contact.appointmentType;
+      metadata.contactName = contact.name;
+    }
+
+    const callRequest: RetellCallRequest = {
+      from_number: tenantConfig.retellAgentNumber,
+      to_number: contact.phone,
+      agent_id: tenantConfig.retellAgentId,
+      retell_llm_dynamic_variables: dynamicVariables,
+      metadata
+    };
+    
+    console.log(`📞 Creating business-aware call for ${businessType} with ${Object.keys(dynamicVariables).length} variables`);
+    console.log(`🎭 Variables sent: ${Object.keys(dynamicVariables).join(', ')}`);
+    
+    return this.createCall(apiKey, callRequest);
+  }
+  
   async createCall(apiKey: string, callRequest: RetellCallRequest): Promise<RetellCallResponse> {
-    const response = await fetch(`${this.baseUrl}/create-phone-call`, {
+    const response = await fetch(`${this.baseUrl}/v2/create-phone-call`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,

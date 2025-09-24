@@ -13,6 +13,7 @@ import path from "path";
 import { retellService } from "./services/retell";
 import { calComService } from "./services/cal-com";
 import { calendlyService } from "./services/calendly";
+import { businessTemplateService } from "./services/business-templates";
 
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "fallback_secret";
 
@@ -1062,23 +1063,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sessionId: `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       });
 
-      // Prepare Retell call request
-      const callRequest = {
-        from_number: tenantConfig.retellAgentNumber,
-        to_number: contact.phone,
-        agent_id: tenantConfig.retellAgentId,
-        metadata: {
-          contactId: contact.id,
-          tenantId: tenantId,
-          callSessionId: callSession.id,
-          appointmentTime: contact.appointmentTime,
-          appointmentType: contact.appointmentType,
-          contactName: contact.name,
-        }
-      };
-
-      // Trigger call via Retell AI
-      const retellResponse = await retellService.createCall(tenantConfig.retellApiKey, callRequest);
+      // Create business-aware call with dynamic variables for industry-specific voice scripts
+      const businessType = tenantConfig.businessType || 'general';
+      console.log(`🏥 Creating ${businessType} business call (contact ID: ${contact.id})`);
+      
+      // Use business template service to generate HIPAA-compliant or industry-specific call
+      const retellResponse = await retellService.createBusinessCall(
+        tenantConfig.retellApiKey,
+        contact,
+        { ...tenantConfig, tenantId },
+        callSession.id,
+        businessTemplateService
+      );
 
       // Update call session with Retell call ID
       await storage.updateCallSession(callSession.id, {
@@ -1146,8 +1142,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Return session with contact info
-      const contact = await storage.getContact(callSession.contactId);
+      // Return session with contact info  
+      const contact = callSession.contactId ? await storage.getContact(callSession.contactId) : null;
       
       res.json({
         ...callSession,
@@ -1534,8 +1530,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const events = await calendlyService.getScheduledEvents(
         tenantConfig.calendlyAccessToken,
-        tenantConfig.calendlyOrganization,
-        tenantConfig.calendlyUser
+        tenantConfig.calendlyOrganization || undefined,
+        tenantConfig.calendlyUser || undefined
       );
       
       res.json(events);
@@ -1553,8 +1549,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const eventTypes = await calendlyService.getEventTypes(
         tenantConfig.calendlyAccessToken,
-        tenantConfig.calendlyOrganization,
-        tenantConfig.calendlyUser
+        tenantConfig.calendlyOrganization || undefined,
+        tenantConfig.calendlyUser || undefined
       );
       res.json(eventTypes);
     } catch (error) {
@@ -1572,8 +1568,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Fetch all scheduled events from Calendly
       const events = await calendlyService.getScheduledEvents(
         tenantConfig.calendlyAccessToken,
-        tenantConfig.calendlyOrganization,
-        tenantConfig.calendlyUser
+        tenantConfig.calendlyOrganization || undefined,
+        tenantConfig.calendlyUser || undefined
       );
 
       let created = 0;
