@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, uuid, time, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, uuid, time, decimal, primaryKey } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -29,21 +29,68 @@ export const tenants = pgTable("tenants", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Contacts table for managing customer contacts
+// Contacts table for managing customer contacts with comprehensive PRD fields
 export const contacts = pgTable("contacts", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull(),
   name: varchar("name", { length: 255 }).notNull(),
-  phone: varchar("phone", { length: 50 }).notNull(),
+  phone: varchar("phone", { length: 50 }).notNull(), // E.164 format
   email: varchar("email", { length: 255 }),
   appointmentTime: timestamp("appointment_time"),
-  appointmentType: varchar("appointment_type", { length: 100 }),
-  appointmentDuration: integer("appointment_duration"), // in minutes
-  appointmentStatus: varchar("appointment_status", { length: 50 }).default("pending"), // pending, confirmed, cancelled, completed
+  appointmentType: varchar("appointment_type", { length: 100 }), // HIPAA: Optional for medical practices
+  appointmentDuration: integer("appointment_duration"), // in minutes (15, 30, 45, 60, 90, 120)
+  appointmentStatus: varchar("appointment_status", { length: 50 }).default("pending"), // pending, confirmed, cancelled, rescheduled
+  
+  // Enhanced PRD fields
+  timezone: varchar("timezone", { length: 100 }).default("Europe/London"),
+  callBeforeHours: integer("call_before_hours").default(24), // Hours before appointment to call
+  lastContactTime: timestamp("last_contact_time"), // Last successful contact
+  ownerName: varchar("owner_name", { length: 255 }), // Who they're meeting with
+  companyName: varchar("company_name", { length: 255 }), // Which company (for multi-client agencies)
+  bookingSource: varchar("booking_source", { length: 50 }).default("manual"), // 'manual' | 'calcom' | 'calendly'
+  locationId: uuid("location_id"), // For multi-location businesses
+  priorityLevel: varchar("priority_level", { length: 50 }).default("normal"), // 'normal' | 'high' | 'urgent'
+  preferredContactMethod: varchar("preferred_contact_method", { length: 50 }).default("voice"), // 'voice' | 'email' | 'sms'
+  
+  // Existing fields
   callAttempts: integer("call_attempts").default(0),
   lastCallOutcome: varchar("last_call_outcome", { length: 50 }),
-  notes: text("notes"),
-  specialInstructions: text("special_instructions"),
+  notes: text("notes"), // Staff-only notes (not read during calls)
+  specialInstructions: text("special_instructions"), // Up to 300 chars for voice delivery
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Contact groups for organizing contacts
+export const contactGroups = pgTable("contact_groups", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(),
+  name: varchar("name", { length: 50 }).notNull(), // e.g., "VIP Patients", "First Time Clients"
+  description: text("description"), // Group purpose and criteria
+  color: varchar("color", { length: 7 }).notNull().default("#3B82F6"), // Hex color code for visual identification
+  contactCount: integer("contact_count").default(0), // Auto-calculated member count
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Junction table for contact-group many-to-many relationship
+export const groupMembership = pgTable("group_membership", {
+  contactId: uuid("contact_id").notNull(),
+  groupId: uuid("group_id").notNull(),
+  addedAt: timestamp("added_at").defaultNow(),
+  addedBy: uuid("added_by").notNull(), // User who added contact to group
+}, (table) => ({
+  pk: primaryKey({ columns: [table.contactId, table.groupId] })
+}));
+
+// Locations for multi-location businesses
+export const locations = pgTable("locations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(),
+  name: varchar("name", { length: 255 }).notNull(), // e.g., "Main Office", "Downtown Clinic"
+  address: text("address"),
+  phone: varchar("phone", { length: 50 }),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -149,6 +196,8 @@ export const tenantsRelations = relations(tenants, ({ many, one }) => ({
   contacts: many(contacts),
   callSessions: many(callSessions),
   followUpTasks: many(followUpTasks),
+  contactGroups: many(contactGroups),
+  locations: many(locations),
   config: one(tenantConfig, {
     fields: [tenants.id],
     references: [tenantConfig.tenantId],
@@ -160,8 +209,44 @@ export const contactsRelations = relations(contacts, ({ one, many }) => ({
     fields: [contacts.tenantId],
     references: [tenants.id],
   }),
+  location: one(locations, {
+    fields: [contacts.locationId],
+    references: [locations.id],
+  }),
   callSessions: many(callSessions),
   followUpTasks: many(followUpTasks),
+  groupMemberships: many(groupMembership),
+}));
+
+export const contactGroupsRelations = relations(contactGroups, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [contactGroups.tenantId],
+    references: [tenants.id],
+  }),
+  groupMemberships: many(groupMembership),
+}));
+
+export const groupMembershipRelations = relations(groupMembership, ({ one }) => ({
+  contact: one(contacts, {
+    fields: [groupMembership.contactId],
+    references: [contacts.id],
+  }),
+  group: one(contactGroups, {
+    fields: [groupMembership.groupId],
+    references: [contactGroups.id],
+  }),
+  addedByUser: one(users, {
+    fields: [groupMembership.addedBy],
+    references: [users.id],
+  }),
+}));
+
+export const locationsRelations = relations(locations, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [locations.tenantId],
+    references: [tenants.id],
+  }),
+  contacts: many(contacts),
 }));
 
 export const callSessionsRelations = relations(callSessions, ({ one, many }) => ({
@@ -256,6 +341,23 @@ export const insertSystemSettingSchema = createInsertSchema(systemSettings).omit
   updatedAt: true,
 });
 
+export const insertContactGroupSchema = createInsertSchema(contactGroups).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  contactCount: true, // Auto-calculated field
+});
+
+export const insertGroupMembershipSchema = createInsertSchema(groupMembership).omit({
+  addedAt: true,
+});
+
+export const insertLocationSchema = createInsertSchema(locations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -280,3 +382,12 @@ export type InsertCallLog = z.infer<typeof insertCallLogSchema>;
 
 export type SystemSetting = typeof systemSettings.$inferSelect;
 export type InsertSystemSetting = z.infer<typeof insertSystemSettingSchema>;
+
+export type ContactGroup = typeof contactGroups.$inferSelect;
+export type InsertContactGroup = z.infer<typeof insertContactGroupSchema>;
+
+export type GroupMembership = typeof groupMembership.$inferSelect;
+export type InsertGroupMembership = z.infer<typeof insertGroupMembershipSchema>;
+
+export type Location = typeof locations.$inferSelect;
+export type InsertLocation = z.infer<typeof insertLocationSchema>;
