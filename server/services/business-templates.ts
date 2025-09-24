@@ -640,7 +640,7 @@ export class BusinessTemplateService {
       // NOTE: last_name OMITTED for HIPAA compliance
     };
     
-    console.log('🏥 Generated medical variables (Retell AI format):', JSON.stringify(variables, null, 2));
+    console.log('🏥 Generated medical variables for HIPAA-compliant call');
     return variables;
   }
 
