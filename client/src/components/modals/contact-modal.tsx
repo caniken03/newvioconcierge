@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -16,41 +16,29 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Separator } from "@/components/ui/separator";
 import type { Contact } from "@/types";
 
 const contactSchema = z.object({
   // Basic Contact Information
-  name: z.string().min(1, "Name is required"),
-  phone: z.string().min(1, "Phone number is required"),
-  email: z.string().email("Valid email is required").optional().or(z.literal('')),
+  name: z.string().min(1, "Client Name is required"),
+  phone: z.string().min(1, "Phone Number is required"),
+  email: z.string().optional().or(z.literal('')),
+  
+  // Call Personalization Fields
+  eventType: z.string().optional(),
+  contactPerson: z.string().optional(),
+  businessName: z.string().optional(),
+  appointmentDuration: z.number().min(1).max(999).optional(),
+  specialInstructions: z.string().max(300, "Special instructions must be under 300 characters").optional(),
   
   // Appointment Details
-  appointmentTime: z.string().optional(),
-  appointmentType: z.string().optional(),
-  appointmentDuration: z.number().min(15).max(480).default(60),
-  appointmentStatus: z.enum(['pending', 'confirmed', 'cancelled', 'rescheduled']).default('pending'),
-  
-  // Enhanced PRD Fields
-  timezone: z.string().default("Europe/London"),
-  callBeforeHours: z.number().min(1).max(168).default(24), // 1 hour to 1 week
-  ownerName: z.string().optional(),
-  companyName: z.string().optional(),
-  bookingSource: z.enum(['manual', 'calcom', 'calendly']).default('manual'),
-  priorityLevel: z.enum(['normal', 'high', 'urgent']).default('normal'),
-  preferredContactMethod: z.enum(['voice', 'email', 'sms']).default('voice'),
+  appointmentTime: z.string().min(1, "Appointment Date & Time is required"),
+  callBeforeHours: z.coerce.number().min(1).max(168).default(24),
   
   // Additional Information
   notes: z.string().optional(),
-  specialInstructions: z.string().max(300, "Special instructions must be under 300 characters").optional(),
 });
 
 type ContactForm = z.infer<typeof contactSchema>;
@@ -69,87 +57,79 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
   const form = useForm<ContactForm>({
     resolver: zodResolver(contactSchema),
     defaultValues: {
-      // Basic Contact Information
       name: contact?.name || "",
       phone: contact?.phone || "",
       email: contact?.email || "",
-      
-      // Appointment Details
+      eventType: contact?.appointmentType || "",
+      contactPerson: contact?.ownerName || "",
+      businessName: contact?.companyName || "",
+      appointmentDuration: contact?.appointmentDuration || undefined,
+      specialInstructions: contact?.specialInstructions || "",
       appointmentTime: contact?.appointmentTime ? 
         new Date(contact.appointmentTime).toISOString().slice(0, 16) : "",
-      appointmentType: contact?.appointmentType || "",
-      appointmentDuration: contact?.appointmentDuration || 60,
-      appointmentStatus: contact?.appointmentStatus || 'pending',
-      
-      // Enhanced PRD Fields
-      timezone: contact?.timezone || "Europe/London",
       callBeforeHours: contact?.callBeforeHours || 24,
-      ownerName: contact?.ownerName || "",
-      companyName: contact?.companyName || "",
-      bookingSource: contact?.bookingSource || 'manual',
-      priorityLevel: contact?.priorityLevel || 'normal',
-      preferredContactMethod: contact?.preferredContactMethod || 'voice',
-      
-      // Additional Information
       notes: contact?.notes || "",
-      specialInstructions: contact?.specialInstructions || "",
     },
   });
+  
+  // State for automatic call time calculation
+  const [calculatedCallTime, setCalculatedCallTime] = useState<string>("");
+  
+  // Watch appointment time and call before hours for automatic calculation
+  const appointmentTime = form.watch("appointmentTime");
+  const callBeforeHours = form.watch("callBeforeHours");
+  
+  // Calculate call time whenever appointment time or hours before changes
+  useEffect(() => {
+    if (appointmentTime && callBeforeHours) {
+      const appointmentDate = new Date(appointmentTime);
+      const callDate = new Date(appointmentDate.getTime() - (callBeforeHours * 60 * 60 * 1000));
+      
+      const options: Intl.DateTimeFormatOptions = {
+        weekday: 'short',
+        month: 'short', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      };
+      
+      setCalculatedCallTime(callDate.toLocaleString('en-GB', options));
+    } else {
+      setCalculatedCallTime("");
+    }
+  }, [appointmentTime, callBeforeHours]);
 
   // Reset form when contact changes
   React.useEffect(() => {
     if (contact) {
       form.reset({
-        // Basic Contact Information
         name: contact.name,
         phone: contact.phone,
         email: contact.email || "",
-        
-        // Appointment Details
+        eventType: contact.appointmentType || "",
+        contactPerson: contact.ownerName || "",
+        businessName: contact.companyName || "",
+        appointmentDuration: contact.appointmentDuration || undefined,
+        specialInstructions: contact.specialInstructions || "",
         appointmentTime: contact.appointmentTime ? 
           new Date(contact.appointmentTime).toISOString().slice(0, 16) : "",
-        appointmentType: contact.appointmentType || "",
-        appointmentDuration: contact.appointmentDuration || 60,
-        appointmentStatus: contact.appointmentStatus,
-        
-        // Enhanced PRD Fields
-        timezone: contact.timezone || "Europe/London",
         callBeforeHours: contact.callBeforeHours || 24,
-        ownerName: contact.ownerName || "",
-        companyName: contact.companyName || "",
-        bookingSource: contact.bookingSource || 'manual',
-        priorityLevel: contact.priorityLevel || 'normal',
-        preferredContactMethod: contact.preferredContactMethod || 'voice',
-        
-        // Additional Information
         notes: contact.notes || "",
-        specialInstructions: contact.specialInstructions || "",
       });
     } else {
       form.reset({
-        // Basic Contact Information
         name: "",
         phone: "",
         email: "",
-        
-        // Appointment Details
-        appointmentTime: "",
-        appointmentType: "",
-        appointmentDuration: 60,
-        appointmentStatus: 'pending',
-        
-        // Enhanced PRD Fields
-        timezone: "Europe/London",
-        callBeforeHours: 24,
-        ownerName: "",
-        companyName: "",
-        bookingSource: 'manual',
-        priorityLevel: 'normal',
-        preferredContactMethod: 'voice',
-        
-        // Additional Information
-        notes: "",
+        eventType: "",
+        contactPerson: "",
+        businessName: "",
+        appointmentDuration: undefined,
         specialInstructions: "",
+        appointmentTime: "",
+        callBeforeHours: 24,
+        notes: "",
       });
     }
   }, [contact, form]);
@@ -157,31 +137,18 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
   // Reset form when modal opens/closes
   React.useEffect(() => {
     if (isOpen && !contact) {
-      // Ensure clean form state for new contacts
       form.reset({
-        // Basic Contact Information
         name: "",
         phone: "",
         email: "",
-        
-        // Appointment Details
-        appointmentTime: "",
-        appointmentType: "",
-        appointmentDuration: 60,
-        appointmentStatus: 'pending',
-        
-        // Enhanced PRD Fields
-        timezone: "Europe/London",
-        callBeforeHours: 24,
-        ownerName: "",
-        companyName: "",
-        bookingSource: 'manual',
-        priorityLevel: 'normal',
-        preferredContactMethod: 'voice',
-        
-        // Additional Information
-        notes: "",
+        eventType: "",
+        contactPerson: "",
+        businessName: "",
+        appointmentDuration: undefined,
         specialInstructions: "",
+        appointmentTime: "",
+        callBeforeHours: 24,
+        notes: "",
       });
     }
   }, [isOpen, contact, form]);
@@ -190,12 +157,16 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
   const createContactMutation = useMutation({
     mutationFn: async (data: ContactForm) => {
       const payload = {
-        ...data,
-        appointmentTime: data.appointmentTime ? new Date(data.appointmentTime).toISOString() : undefined,
+        name: data.name,
+        phone: data.phone,
         email: data.email || undefined,
-        appointmentType: data.appointmentType || undefined,
-        ownerName: data.ownerName || undefined,
-        companyName: data.companyName || undefined,
+        appointmentTime: new Date(data.appointmentTime).toISOString(),
+        appointmentType: data.eventType || undefined,
+        appointmentDuration: data.appointmentDuration || undefined,
+        appointmentStatus: 'pending',
+        callBeforeHours: data.callBeforeHours,
+        ownerName: data.contactPerson || undefined,
+        companyName: data.businessName || undefined,
         notes: data.notes || undefined,
         specialInstructions: data.specialInstructions || undefined,
       };
@@ -227,12 +198,15 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
       if (!contact) throw new Error("No contact to update");
       
       const payload = {
-        ...data,
-        appointmentTime: data.appointmentTime ? new Date(data.appointmentTime).toISOString() : undefined,
+        name: data.name,
+        phone: data.phone,
         email: data.email || undefined,
-        appointmentType: data.appointmentType || undefined,
-        ownerName: data.ownerName || undefined,
-        companyName: data.companyName || undefined,
+        appointmentTime: new Date(data.appointmentTime).toISOString(),
+        appointmentType: data.eventType || undefined,
+        appointmentDuration: data.appointmentDuration || undefined,
+        callBeforeHours: data.callBeforeHours,
+        ownerName: data.contactPerson || undefined,
+        companyName: data.businessName || undefined,
         notes: data.notes || undefined,
         specialInstructions: data.specialInstructions || undefined,
       };
@@ -272,32 +246,108 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Edit Contact' : 'Add New Contact'}</DialogTitle>
-          <DialogDescription>
-            {isEditing ? 'Update contact information and appointment details.' : 'Add a new contact with appointment details.'}
+          <DialogTitle className="flex items-center text-blue-600">
+            <i className="fas fa-plus text-sm mr-2"></i>
+            {isEditing ? 'Edit Contact' : 'Add New Client'}
+          </DialogTitle>
+          <DialogDescription className="text-gray-500">
+            {isEditing ? 'Update client information and appointment details.' : 'Create a new client and schedule their appointment call'}
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-            <div className="space-y-6">
-              {/* Basic Contact Information */}
+            {/* Client Name and Phone Number */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm font-medium text-gray-700">Client Name *</FormLabel>
+                    <FormControl>
+                      <Input 
+                        {...field} 
+                        placeholder="Ken Barnes"
+                        className="border-gray-300 rounded-md"
+                        data-testid="input-contact-name"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm font-medium text-gray-700">Phone Number *</FormLabel>
+                    <FormControl>
+                      <Input 
+                        {...field} 
+                        placeholder="+447375100366"
+                        className="border-gray-300 rounded-md"
+                        data-testid="input-contact-phone"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            
+            {/* Email */}
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-sm font-medium text-gray-700">Email (Optional)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      {...field} 
+                      type="email"
+                      placeholder="ken@example.com"
+                      className="border-gray-300 rounded-md"
+                      data-testid="input-contact-email"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Call Personalization Section */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center mb-3">
+                <i className="fas fa-phone text-blue-600 mr-2"></i>
+                <h3 className="text-sm font-medium text-blue-700">Call Personalization</h3>
+              </div>
+              <p className="text-xs text-blue-600 mb-4">
+                These details personalize VioConcierge's conversation (leave blank for generic/HIPAA compliance)
+              </p>
+              
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-foreground border-b pb-2">Contact Information</h3>
+                {/* Event Type and Contact Person */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
-                    name="name"
+                    name="eventType"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Full Name *</FormLabel>
+                        <FormLabel className="text-sm font-medium text-gray-700">Event Type (Optional)</FormLabel>
                         <FormControl>
                           <Input 
-                            {...field} 
-                            placeholder="John Smith"
-                            data-testid="input-contact-name"
+                            {...field}
+                            value={field.value || ""}
+                            placeholder="meeting, consultation, service"
+                            className="border-gray-300 rounded-md bg-white"
+                            data-testid="input-event-type"
                           />
                         </FormControl>
+                        <p className="text-xs text-gray-500">Leave blank for medical/HIPAA compliance</p>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -305,15 +355,17 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
 
                   <FormField
                     control={form.control}
-                    name="phone"
+                    name="contactPerson"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Phone Number *</FormLabel>
+                        <FormLabel className="text-sm font-medium text-gray-700">Contact Person (Optional)</FormLabel>
                         <FormControl>
                           <Input 
-                            {...field} 
-                            placeholder="+44 7700 900123"
-                            data-testid="input-contact-phone"
+                            {...field}
+                            value={field.value || ""}
+                            placeholder="Contact Person, Manager, Representative"
+                            className="border-gray-300 rounded-md bg-white"
+                            data-testid="input-contact-person"
                           />
                         </FormControl>
                         <FormMessage />
@@ -321,332 +373,160 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
                     )}
                   />
                 </div>
-                
+
+                {/* Business Name */}
                 <FormField
                   control={form.control}
-                  name="email"
+                  name="businessName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email Address</FormLabel>
+                      <FormLabel className="text-sm font-medium text-gray-700">Business Name (Optional)</FormLabel>
                       <FormControl>
                         <Input 
-                          {...field} 
-                          type="email"
-                          placeholder="john.smith@example.com"
-                          data-testid="input-contact-email"
+                          {...field}
+                          value={field.value || ""}
+                          placeholder="Business Name, Company Name"
+                          className="border-gray-300 rounded-md bg-white"
+                          data-testid="input-business-name"
                         />
                       </FormControl>
+                      <p className="text-xs text-gray-500">For multi-client agencies - specify which company</p>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              </div>
 
-              <Separator />
-
-              {/* Appointment Details */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-foreground border-b pb-2">Appointment Details</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="appointmentTime"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Appointment Date & Time</FormLabel>
-                        <FormControl>
-                          <Input 
-                            {...field} 
-                            type="datetime-local"
-                            data-testid="input-appointment-time"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="appointmentType"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Appointment Type</FormLabel>
-                        <FormControl>
-                          <Input 
-                            {...field}
-                            value={field.value || ""} 
-                            placeholder="Consultation, Checkup, Treatment..."
-                            data-testid="input-appointment-type"
-                            autoComplete="off"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="appointmentDuration"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Duration (minutes)</FormLabel>
-                        <FormControl>
-                          <Input 
-                            {...field}
-                            type="number"
-                            min="15"
-                            max="480"
-                            onChange={(e) => field.onChange(parseInt(e.target.value) || 60)}
-                            data-testid="input-appointment-duration"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="appointmentStatus"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Status</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-appointment-status">
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="pending">Pending</SelectItem>
-                            <SelectItem value="confirmed">Confirmed</SelectItem>
-                            <SelectItem value="cancelled">Cancelled</SelectItem>
-                            <SelectItem value="rescheduled">Rescheduled</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Business & Communication Details */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-foreground border-b pb-2">Business & Communication</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="ownerName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Business Owner</FormLabel>
-                        <FormControl>
-                          <Input 
-                            {...field}
-                            value={field.value || ""}
-                            placeholder="Business owner or contact person"
-                            data-testid="input-owner-name"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="companyName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Company Name</FormLabel>
-                        <FormControl>
-                          <Input 
-                            {...field}
-                            value={field.value || ""}
-                            placeholder="Company or organization name"
-                            data-testid="input-company-name"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="timezone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Timezone</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-timezone">
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="Europe/London">London (GMT)</SelectItem>
-                            <SelectItem value="Europe/Paris">Paris (CET)</SelectItem>
-                            <SelectItem value="America/New_York">New York (EST)</SelectItem>
-                            <SelectItem value="America/Los_Angeles">Los Angeles (PST)</SelectItem>
-                            <SelectItem value="Asia/Tokyo">Tokyo (JST)</SelectItem>
-                            <SelectItem value="Australia/Sydney">Sydney (AEST)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="callBeforeHours"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Call Before Hours</FormLabel>
+                {/* Appointment Duration */}
+                <FormField
+                  control={form.control}
+                  name="appointmentDuration"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-sm font-medium text-gray-700">Appointment Duration (Optional)</FormLabel>
+                      <div className="flex items-center space-x-2">
                         <FormControl>
                           <Input 
                             {...field}
                             type="number"
                             min="1"
-                            max="168"
-                            onChange={(e) => field.onChange(parseInt(e.target.value) || 24)}
-                            data-testid="input-call-before-hours"
+                            max="999"
+                            placeholder="30"
+                            className="border-gray-300 rounded-md bg-white w-20"
+                            onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                            data-testid="input-appointment-duration"
                           />
                         </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="preferredContactMethod"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Preferred Contact Method</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-contact-method">
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="voice">Voice Call</SelectItem>
-                            <SelectItem value="email">Email</SelectItem>
-                            <SelectItem value="sms">SMS</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="bookingSource"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Booking Source</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-booking-source">
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="manual">Manual Entry</SelectItem>
-                            <SelectItem value="calcom">Cal.com</SelectItem>
-                            <SelectItem value="calendly">Calendly</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="priorityLevel"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Priority Level</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-priority-level">
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="normal">Normal</SelectItem>
-                            <SelectItem value="high">High</SelectItem>
-                            <SelectItem value="urgent">Urgent</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Additional Information */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-foreground border-b pb-2">Additional Information</h3>
-                <FormField
-                  control={form.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Notes</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          {...field}
-                          value={field.value || ""}
-                          placeholder="Any additional notes about this contact..."
-                          rows={3}
-                          data-testid="textarea-contact-notes"
-                        />
-                      </FormControl>
+                        <span className="text-sm text-gray-500">minutes</span>
+                      </div>
+                      <p className="text-xs text-gray-500">Voice agent will mention expected duration for planning</p>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
+                {/* Special Instructions */}
                 <FormField
                   control={form.control}
                   name="specialInstructions"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Special Instructions</FormLabel>
+                      <FormLabel className="text-sm font-medium text-gray-700">Special Instructions (Optional)</FormLabel>
                       <FormControl>
-                        <Textarea
+                        <Textarea 
                           {...field}
                           value={field.value || ""}
-                          placeholder="Any special instructions for the appointment reminder call (max 300 characters)..."
-                          rows={2}
-                          data-testid="textarea-special-instructions"
+                          placeholder="Please arrive 10 minutes early, bring photo ID and insurance card, use the rear entrance on Mill Street..."
+                          className="border-gray-300 rounded-md bg-white min-h-[80px] resize-none"
+                          maxLength={300}
+                          data-testid="input-special-instructions"
                         />
                       </FormControl>
+                      <div className="flex justify-between items-center mt-1">
+                        <p className="text-xs text-gray-500">Multiple instructions welcome - VioConcierge delivers them naturally with proper pacing</p>
+                        <span className="text-xs text-gray-400">{(field.value || "").length}/300</span>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
             </div>
+
+            {/* Appointment Date & Time and VioConcierge Calls Before */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="appointmentTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm font-medium text-gray-700">Appointment Date & Time *</FormLabel>
+                    <FormControl>
+                      <Input 
+                        {...field} 
+                        type="datetime-local"
+                        className="border-gray-300 rounded-md"
+                        data-testid="input-appointment-time"
+                      />
+                    </FormControl>
+                    <p className="text-xs text-gray-500">When the customer should arrive for their appointment</p>
+                    {calculatedCallTime && (
+                      <p className="text-sm font-medium text-blue-600 mt-1">
+                        VioConcierge will call: {calculatedCallTime}
+                      </p>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="callBeforeHours"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm font-medium text-gray-700">VioConcierge Calls Before (Hours)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        {...field}
+                        type="number"
+                        min="1"
+                        max="168"
+                        placeholder="24"
+                        className="border-gray-300 rounded-md"
+                        onChange={(e) => field.onChange(parseInt(e.target.value) || 24)}
+                        data-testid="input-call-before-hours"
+                      />
+                    </FormControl>
+                    <p className="text-xs text-gray-500">
+                      How many hours before the appointment VioConcierge should call<br />
+                      1 hour minimum, 168 hours (7 days) maximum
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Notes Section */}
+            <FormField
+              control={form.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-sm font-medium text-gray-700">Notes (Optional)</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      {...field}
+                      value={field.value || ""}
+                      placeholder="Additional notes about this contact..."
+                      className="border-gray-300 rounded-md min-h-[80px] resize-none"
+                      data-testid="textarea-contact-notes"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <DialogFooter className="flex justify-between">
               <Button 
