@@ -29,7 +29,7 @@ import {
   Trash2,
   Clock,
   X,
-  AddressBook,
+  Users,
   Calendar,
   CheckCircle,
   Mail,
@@ -381,7 +381,7 @@ export default function Contacts() {
                     </p>
                   </div>
                   <div className="w-10 h-10 bg-primary/10 text-primary rounded-lg flex items-center justify-center">
-                    <AddressBook className="w-5 h-5" />
+                    <Users className="w-5 h-5" />
                   </div>
                 </div>
               </CardContent>
@@ -677,7 +677,7 @@ export default function Contacts() {
                       <tr>
                         <td colSpan={8} className="px-6 py-12 text-center">
                           <div className="text-muted-foreground">
-                            <AddressBook className="w-16 h-16 mx-auto mb-4" />
+                            <Users className="w-16 h-16 mx-auto mb-4" />
                             <p className="text-lg font-medium mb-2">No contacts found</p>
                             <p className="text-sm">
                               {filters.search || Object.values(filters).some(f => f !== "all" && f !== "") 
