@@ -583,6 +583,23 @@ export class BusinessTemplateService {
   }
 
   /**
+   * Get voice script template for business type
+   */
+  getVoiceScript(businessType: string, scriptType: string = 'standard'): any {
+    const template = this.getTemplate(businessType);
+    if (!template?.voiceScriptTemplates?.length) return null;
+    
+    // For medical, prefer HIPAA compliant scripts
+    if (businessType === 'medical') {
+      return template.voiceScriptTemplates.find(s => s.id === 'hipaa_standard') 
+             || template.voiceScriptTemplates[0];
+    }
+    
+    // For other business types, use first available script
+    return template.voiceScriptTemplates[0];
+  }
+
+  /**
    * Generate voice script variables for Retell AI
    */
   generateRetellVariables(contact: any, tenantConfig: any, businessType: string): any {

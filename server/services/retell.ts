@@ -3,6 +3,11 @@ interface RetellCallRequest {
   to_number: string;
   agent_id: string;
   retell_llm_dynamic_variables?: Record<string, any>;
+  override_agent_llm_prompt?: {
+    system_prompt: string;
+    temperature?: number;
+    max_tokens?: number;
+  };
   metadata?: {
     contactId: string;
     tenantId: string;
@@ -12,6 +17,7 @@ interface RetellCallRequest {
     contactName?: string;
     businessType?: string;
     variablesSent?: string[];
+    scriptUsed?: string;
   };
 }
 
@@ -48,7 +54,7 @@ export class RetellService {
   private baseUrl = 'https://api.retellai.com';
   
   /**
-   * Create business-aware call with dynamic variables
+   * Create business-aware call with dynamic variables and personalized script
    */
   async createBusinessCall(
     apiKey: string, 
@@ -67,13 +73,17 @@ export class RetellService {
       businessType
     );
     
+    // Get personalized voice script for this business type
+    const voiceScript = businessTemplateService.getVoiceScript(businessType, 'standard');
+    
     // Build call request with business intelligence and HIPAA compliance
     const metadata: any = {
       contactId: contact.id,
       tenantId: tenantConfig.tenantId || contact.tenantId,
       callSessionId,
       businessType,
-      variablesSent: Object.keys(dynamicVariables)
+      variablesSent: Object.keys(dynamicVariables),
+      scriptUsed: voiceScript?.name || 'generic'
     };
 
     // HIPAA Compliance: Only include safe metadata for medical practices
@@ -96,8 +106,20 @@ export class RetellService {
       metadata
     };
     
+    // Add personalized script override for this call
+    if (voiceScript) {
+      (callRequest as any).override_agent_llm_prompt = {
+        system_prompt: `You are a professional appointment reminder assistant. Use the following script EXACTLY as provided, substituting the variables with the provided values:\n\n${voiceScript.script}\n\nIMPORTANT: Stick to this script precisely. Be polite, professional, and clear. Wait for user responses before proceeding to next steps.`,
+        temperature: 0.3,  // Lower temperature for more consistent script following
+        max_tokens: 500
+      };
+    }
+    
     console.log(`📞 Creating business-aware call for ${businessType} with ${Object.keys(dynamicVariables).length} variables`);
     console.log(`🎭 Variables sent: ${Object.keys(dynamicVariables).join(', ')}`);
+    if (voiceScript) {
+      console.log(`📜 Using personalized script: ${voiceScript.name}`);
+    }
     
     return this.createCall(apiKey, callRequest);
   }
@@ -121,7 +143,7 @@ export class RetellService {
   }
 
   async getCall(apiKey: string, callId: string): Promise<RetellCallResponse> {
-    const response = await fetch(`${this.baseUrl}/get-call/${callId}`, {
+    const response = await fetch(`${this.baseUrl}/v2/get-call/${callId}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
