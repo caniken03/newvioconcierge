@@ -1,0 +1,2504 @@
+# VioConcierge Business Templates & HIPAA Compliance - Technical Implementation Guide
+
+## Executive Summary
+
+VioConcierge implements **business-specific templates** and **HIPAA-compliant voice calling** to serve diverse appointment-based industries. This document provides comprehensive technical details on field management, voice script templates, compliance features, and business-specific configurations.
+
+---
+
+## 🏥 **HIPAA Compliance for Medical Practices**
+
+### **Fields Omitted from Voice Calls (Medical Practices)**
+
+```typescript
+HIPAAFieldOmission {
+  // NEVER included in voice calls for medical practices
+  strictly_prohibited_fields: [
+    'medical_record_number',      // MRN - never stored or transmitted
+    'diagnosis',                  // Medical diagnosis information
+    'treatment_details',          // Specific treatment information
+    'medication_list',            // Current medications
+    'insurance_information',      // Insurance details or policy numbers
+    'social_security_number',     // SSN or partial SSN
+    'date_of_birth',             // Full DOB (birth year acceptable)
+    'medical_history',           // Past medical procedures or conditions
+    'test_results',              // Lab results, imaging results
+    'billing_information',       // Payment or billing details
+    'emergency_contact_details', // Family member information
+    'referral_source'            // Who referred the patient
+  ]
+  
+  // Conditionally omitted based on appointment sensitivity
+  conditionally_omitted_fields: [
+    'appointment_type',          // Omitted if contains medical terms
+    'provider_full_name',        // Use first name only or title
+    'appointment_location',      // Omitted if indicates medical specialty
+    'special_instructions',      // Omitted if contains potential PHI
+    'notes',                     // Always omitted from voice calls
+    'company_name',             // Omitted if indicates medical practice type
+    'department',               // Omitted if medical department
+    'appointment_reason'        // Omitted if indicates medical condition
+  ]
+  
+  // Safe fields for medical practice voice calls
+  permitted_fields: [
+    'customer_first_name',       // First name only (no last name)
+    'appointment_date',          // Date only, no time details if sensitive
+    'appointment_time',          // Time only, no duration if procedure
+    'business_name',            // Practice name (if generic)
+    'callback_number',          // Main practice phone number
+    'general_location',         // "Main office" vs specific department
+    'generic_instructions'      // Only non-PHI instructions like "arrive early"
+  ]
+}
+```
+
+### **Medical Practice Voice Script Templates**
+
+```typescript
+MedicalVoiceScripts {
+  // Ultra-Conservative Medical Script (High Sensitivity)
+  hipaa_minimal_script: `
+    Hello, this is {business_name} calling for {customer_first_name}.
+    
+    We're calling to remind you about your upcoming appointment 
+    on {appointment_date}.
+    
+    To confirm your appointment, please press 1.
+    To reschedule, please press 2.
+    
+    If you have questions, please call us at {callback_number}.
+    
+    Thank you.
+  `,
+  
+  // Standard Medical Script (Medium Sensitivity)
+  hipaa_standard_script: `
+    Hello {customer_first_name}, this is {business_name}.
+    
+    We're calling to confirm your appointment on {appointment_date} 
+    at {appointment_time}.
+    
+    To confirm this appointment, please press 1.
+    To reschedule, please press 2.
+    To cancel, please press 3.
+    
+    Please remember to arrive 15 minutes early for check-in.
+    
+    If you have any questions, you can reach us at {callback_number}.
+    
+    Thank you, and we look forward to seeing you.
+  `,
+  
+  // Professional Medical Script (Lower Sensitivity)
+  medical_professional_script: `
+    Good {time_of_day} {customer_first_name}, this is {business_name} 
+    calling about your upcoming appointment.
+    
+    You have an appointment scheduled for {appointment_date} at {appointment_time}
+    with {provider_title} {provider_first_name}.
+    
+    To confirm this appointment, please press 1.
+    If you need to reschedule, please press 2.
+    To cancel, please press 3.
+    
+    Please arrive 15 minutes early to complete any necessary paperwork.
+    
+    If you have questions or need to speak with someone directly, 
+    please call our main number at {callback_number}.
+    
+    Thank you for choosing {business_name}.
+  `
+}
+```
+
+### **HIPAA Compliance Configuration**
+
+```typescript
+HIPAAConfiguration {
+  // Tenant-level HIPAA settings
+  tenant_hipaa_config: {
+    business_type: "medical"           // Triggers HIPAA mode
+    hipaa_compliance_level: "strict" | "standard" | "basic"
+    
+    field_restrictions: {
+      use_first_name_only: boolean     // true = first name only in calls
+      omit_appointment_type: boolean   // true = use "appointment" instead
+      omit_provider_details: boolean   // true = use "your provider" instead
+      generic_location_only: boolean   // true = use "our office" instead
+      sanitize_instructions: boolean   // true = remove potential PHI
+    }
+    
+    call_script_config: {
+      script_template: "hipaa_minimal" | "hipaa_standard" | "medical_professional"
+      custom_greeting: string         // Optional custom HIPAA-compliant greeting
+      confirmation_language: "simple" | "detailed"
+      include_preparation_reminders: boolean
+    }
+    
+    compliance_features: {
+      phi_detection_enabled: boolean   // Automatic PHI detection in text fields
+      audit_trail_enhanced: boolean   // Enhanced logging for medical compliance
+      patient_consent_tracking: boolean // Track consent for voice reminders
+      minimum_necessary_enforcement: boolean // Strict minimum necessary principle
+    }
+  }
+}
+```
+
+### **Default Behavior for Unspecified Business Types**
+
+```python
+def get_default_hipaa_behavior(tenant_config: dict) -> HIPAABehavior:
+    """
+    Determine HIPAA behavior when business type is not explicitly set
+    """
+    
+    # Analyze business indicators for automatic HIPAA detection
+    business_indicators = {
+        'name': tenant_config.get('business_name', '').lower(),
+        'company': tenant_config.get('company_name', '').lower(),
+        'domain': extract_domain_from_email(tenant_config.get('admin_email', ''))
+    }
+    
+    # Medical practice indicators
+    medical_keywords = [
+        'medical', 'clinic', 'hospital', 'healthcare', 'health',
+        'doctor', 'physician', 'dental', 'dentist', 'therapy',
+        'physical therapy', 'chiropractic', 'optometry', 'psychology',
+        'psychiatric', 'dermatology', 'cardiology', 'pediatric'
+    ]
+    
+    # Check for medical indicators
+    is_likely_medical = any(
+        keyword in indicator
+        for indicator in business_indicators.values()
+        for keyword in medical_keywords
+    )
+    
+    if is_likely_medical:
+        logger.info(f"🏥 Medical practice detected for {tenant_config.get('business_name')} - enabling HIPAA compliance")
+        return HIPAABehavior(
+            compliance_mode=True,
+            compliance_level="standard",  # Conservative default
+            auto_detected=True,
+            requires_confirmation=True    # Prompt admin to confirm medical status
+        )
+    else:
+        logger.info(f"🏢 Non-medical business detected - using standard call templates")
+        return HIPAABehavior(
+            compliance_mode=False,
+            compliance_level="none",
+            auto_detected=True,
+            requires_confirmation=False
+        )
+
+@dataclass
+class HIPAABehavior:
+    compliance_mode: bool
+    compliance_level: str
+    auto_detected: bool
+    requires_confirmation: bool
+```
+
+---
+
+## 🏢 **Business Template System Implementation**
+
+### **Business Type Templates Architecture**
+
+```typescript
+BusinessTemplates {
+  // Template Definitions
+  template_types: {
+    medical_practice: {
+      id: "medical"
+      display_name: "Medical Practice / Healthcare"
+      icon: "🏥"
+      description: "HIPAA-compliant templates for medical appointments"
+      compliance_required: true
+    }
+    
+    salon_spa: {
+      id: "salon"
+      display_name: "Salon / Spa / Beauty"
+      icon: "💅"
+      description: "Beauty and wellness appointment templates"
+      compliance_required: false
+    }
+    
+    restaurant: {
+      id: "restaurant"
+      display_name: "Restaurant / Dining"
+      icon: "🍽️"
+      description: "Restaurant reservation confirmation templates"
+      compliance_required: false
+    }
+    
+    consultant: {
+      id: "consultant"
+      display_name: "Consultant / Professional Services"
+      icon: "💼"
+      description: "Business consultation and meeting templates"
+      compliance_required: false
+    }
+    
+    general: {
+      id: "general"
+      display_name: "General Business"
+      icon: "🏢"
+      description: "Generic appointment templates for any business"
+      compliance_required: false
+    }
+  }
+}
+```
+
+### **Template-Specific Field Configurations**
+
+#### **1. Medical Practice Template**
+```typescript
+MedicalPracticeTemplate {
+  required_fields: [
+    'patient_name',              // Labeled as "Patient Name" in UI
+    'phone_number',              // Primary contact method
+    'appointment_date',          // Required for scheduling
+    'appointment_time'           // Required for scheduling
+  ]
+  
+  optional_fields: [
+    'email',                     // Secondary contact method
+    'appointment_type',          // Optional for privacy (shown as "Visit Type")
+    'provider_name',            // Doctor/practitioner (shown as "Provider")
+    'appointment_duration',      // Typical: 15, 30, 45, 60 minutes
+    'location'                  // For multi-location practices
+  ]
+  
+  restricted_fields: [
+    'diagnosis',                // Never collected
+    'medical_history',          // Never collected
+    'insurance_info',           // Never collected
+    'emergency_contact'         // Collected separately if needed
+  ]
+  
+  special_configurations: {
+    field_labels: {
+      'name': 'Patient Name',
+      'appointment_type': 'Visit Type (Optional)',
+      'owner_name': 'Provider/Doctor',
+      'special_instructions': 'Preparation Instructions (No Medical Details)'
+    }
+    
+    validation_rules: {
+      phone_required: true,
+      email_optional: true,
+      appointment_type_optional: true,  // Privacy protection
+      special_instructions_phi_screening: true
+    }
+    
+    voice_call_config: {
+      use_first_name_only: true,
+      generic_appointment_language: true,
+      omit_sensitive_details: true,
+      include_hipaa_disclaimer: true
+    }
+  }
+  
+  voice_script: `
+    Hello {patient_first_name}, this is {practice_name}.
+    
+    We're calling to remind you about your upcoming appointment 
+    on {appointment_date} at {appointment_time}.
+    
+    To confirm this appointment, please press 1.
+    To reschedule, please press 2.
+    
+    Please remember to arrive 15 minutes early for check-in.
+    
+    If you have questions, please call us at {practice_phone}.
+    
+    Thank you.
+  `
+}
+```
+
+#### **2. Salon/Spa Template**
+```typescript
+SalonSpaTemplate {
+  required_fields: [
+    'client_name',               // Labeled as "Client Name"
+    'phone_number',              // Primary contact
+    'service_date',              // Appointment date
+    'service_time'               // Appointment time
+  ]
+  
+  specialized_fields: [
+    'service_type',              // Haircut, Color, Facial, Massage, etc.
+    'service_duration',          // 30min, 60min, 90min, 2hr, 3hr+
+    'stylist_therapist_name',    // Who's providing the service
+    'service_price',             // Optional pricing information
+    'special_requests',          // Color formulas, allergies, preferences
+    'location',                  // For multi-location salons
+    'add_on_services'           // Additional services requested
+  ]
+  
+  optional_fields: [
+    'email',                     // For appointment confirmations
+    'birthday',                  // For birthday promotions
+    'preferred_stylist',         // Stylist preference
+    'color_formula',            // Hair color information
+    'allergies',                // Service-related allergies
+    'membership_status'         // VIP, regular, new client
+  ]
+  
+  field_labels: {
+    'name': 'Client Name',
+    'appointment_type': 'Service Type',
+    'appointment_duration': 'Service Duration',
+    'owner_name': 'Stylist/Therapist',
+    'special_instructions': 'Special Requests & Preferences',
+    'notes': 'Client History & Notes'
+  }
+  
+  voice_script: `
+    Hi {client_name}! This is {salon_name} calling to confirm your 
+    {service_type} appointment on {appointment_date} at {appointment_time} 
+    with {stylist_name}.
+    
+    To confirm your appointment, press 1.
+    To reschedule, press 2.
+    
+    {special_requests}
+    
+    We're looking forward to seeing you! If you need to reach us, 
+    call {salon_phone}.
+    
+    Thank you for choosing {salon_name}!
+  `
+  
+  service_duration_presets: [
+    { value: 30, label: "30 minutes - Quick Service" },
+    { value: 60, label: "1 hour - Standard Service" },
+    { value: 90, label: "1.5 hours - Extended Service" },
+    { value: 120, label: "2 hours - Full Treatment" },
+    { value: 180, label: "3 hours - Complete Package" },
+    { value: 240, label: "4+ hours - Full Day Treatment" }
+  ]
+}
+```
+
+#### **3. Restaurant Template**
+```typescript
+RestaurantTemplate {
+  required_fields: [
+    'guest_name',                // Primary guest name
+    'phone_number',              // Contact for confirmation
+    'reservation_date',          // Dining date
+    'reservation_time'           // Dining time
+  ]
+  
+  specialized_fields: [
+    'party_size',                // Number of guests (2, 4, 6, 8, 10+)
+    'table_preference',          // Window, booth, bar, patio
+    'occasion',                  // Birthday, anniversary, business, casual
+    'dietary_restrictions',      // Allergies, vegetarian, vegan, etc.
+    'special_requests',          // High chair, wheelchair access, etc.
+    'server_preference',         // Preferred server if applicable
+    'wine_pairing',             // Wine service requested
+    'private_dining'            // Private room requested
+  ]
+  
+  optional_fields: [
+    'email',                     // For confirmation emails
+    'loyalty_member_id',         // Rewards program member
+    'previous_visits',           // Visit history
+    'average_spend',            // For service level planning
+    'referral_source',          // How they heard about restaurant
+    'marketing_opt_in'          // Marketing communications consent
+  ]
+  
+  field_labels: {
+    'name': 'Guest Name',
+    'appointment_time': 'Reservation Time',
+    'appointment_type': 'Dining Experience',
+    'appointment_duration': 'Expected Duration',
+    'owner_name': 'Preferred Server',
+    'special_instructions': 'Special Requests & Dietary Needs',
+    'company_name': 'Group/Company Name'
+  }
+  
+  voice_script: `
+    Hello {guest_name}! This is {restaurant_name} calling to confirm 
+    your reservation for {party_size} guests on {reservation_date} 
+    at {reservation_time}.
+    
+    To confirm your reservation, press 1.
+    To modify your reservation, press 2.
+    To cancel, press 3.
+    
+    {special_requests}
+    
+    We're excited to welcome you to {restaurant_name}! 
+    
+    If you need to reach us directly, call {restaurant_phone}.
+    
+    Thank you for choosing {restaurant_name}!
+  `
+  
+  party_size_presets: [
+    { value: 1, label: "1 guest" },
+    { value: 2, label: "2 guests" },
+    { value: 4, label: "4 guests" },
+    { value: 6, label: "6 guests" },
+    { value: 8, label: "8 guests" },
+    { value: 10, label: "10+ guests (Large Party)" }
+  ]
+  
+  duration_presets: [
+    { value: 60, label: "1 hour - Quick Dining" },
+    { value: 90, label: "1.5 hours - Standard Dining" },
+    { value: 120, label: "2 hours - Leisurely Dining" },
+    { value: 180, label: "3 hours - Extended Experience" }
+  ]
+}
+```
+
+#### **4. Consultant Template**
+```typescript
+ConsultantTemplate {
+  required_fields: [
+    'client_name',               // Business client name
+    'phone_number',              // Primary business contact
+    'meeting_date',              // Consultation date
+    'meeting_time'               // Consultation time
+  ]
+  
+  specialized_fields: [
+    'consultation_type',         // Strategy, Financial, Legal, IT, etc.
+    'meeting_duration',          // 30min, 60min, 90min, 2hr, half-day, full-day
+    'consultant_name',           // Who's leading the consultation
+    'meeting_location',          // Office, client site, virtual
+    'project_scope',            // Brief project description
+    'preparation_required',      // Documents or materials needed
+    'attendee_count',           // Number of attendees expected
+    'meeting_format'            // Presentation, workshop, discussion
+  ]
+  
+  business_fields: [
+    'company_name',             // Client company
+    'industry',                 // Client industry type
+    'company_size',             // Employee count
+    'decision_maker_level',     // C-level, Director, Manager
+    'budget_range',             // Project budget range
+    'timeline',                 // Project timeline
+    'referral_source',          // How they found consultant
+    'previous_engagement'       // History with consultant
+  ]
+  
+  field_labels: {
+    'name': 'Client Name',
+    'appointment_time': 'Meeting Time',
+    'appointment_type': 'Consultation Type',
+    'appointment_duration': 'Meeting Duration',
+    'owner_name': 'Consultant',
+    'special_instructions': 'Meeting Preparation & Requirements',
+    'company_name': 'Client Company'
+  }
+  
+  voice_script: `
+    Good {time_of_day} {client_name}, this is {consultant_name} 
+    from {consulting_firm}.
+    
+    I'm calling to confirm our {consultation_type} consultation 
+    scheduled for {meeting_date} at {meeting_time}.
+    
+    To confirm this meeting, please press 1.
+    To reschedule, please press 2.
+    
+    {preparation_requirements}
+    
+    The meeting will be held at {meeting_location} and is expected 
+    to last approximately {meeting_duration}.
+    
+    If you have questions or need to discuss anything before our meeting, 
+    please call me directly at {consultant_phone}.
+    
+    I look forward to our consultation.
+  `
+  
+  consultation_types: [
+    "Strategy Consultation",
+    "Financial Advisory", 
+    "Legal Consultation",
+    "IT Systems Review",
+    "Marketing Strategy",
+    "Business Development",
+    "Operational Efficiency",
+    "Risk Assessment",
+    "Compliance Review",
+    "Custom Consultation"
+  ]
+}
+```
+
+#### **5. General Business Template**
+```typescript
+GeneralBusinessTemplate {
+  required_fields: [
+    'customer_name',             // Generic customer name
+    'phone_number',              // Contact number
+    'appointment_date',          // Meeting/service date
+    'appointment_time'           // Meeting/service time
+  ]
+  
+  flexible_fields: [
+    'appointment_type',          // Configurable service type
+    'appointment_duration',      // Flexible duration options
+    'service_provider',          // Staff member or representative
+    'location',                  // Service location
+    'service_details',          // What service is being provided
+    'preparation_needed',       // What customer should bring/prepare
+    'contact_preference',       // Phone, email, text preference
+    'priority_level'            // Normal, high, urgent
+  ]
+  
+  customizable_fields: [
+    'custom_field_1',           // Tenant can define purpose
+    'custom_field_2',           // Tenant can define purpose
+    'custom_field_3',           // Tenant can define purpose
+    'industry_specific_1',      // Industry-specific data
+    'industry_specific_2'       // Industry-specific data
+  ]
+  
+  field_labels: {
+    'name': 'Customer Name',
+    'appointment_time': 'Appointment Time',
+    'appointment_type': 'Service Type',
+    'appointment_duration': 'Duration',
+    'owner_name': 'Service Provider',
+    'special_instructions': 'Special Instructions & Notes',
+    'company_name': 'Company/Organization'
+  }
+  
+  voice_script: `
+    Hello {customer_name}, this is {business_name} calling to confirm 
+    your {appointment_type} appointment on {appointment_date} 
+    at {appointment_time}.
+    
+    To confirm this appointment, please press 1.
+    To reschedule, please press 2.
+    To cancel, please press 3.
+    
+    {special_instructions}
+    
+    We look forward to seeing you! If you have any questions, 
+    please call us at {business_phone}.
+    
+    Thank you for choosing {business_name}.
+  `
+}
+```
+
+---
+
+## ⚙️ **Template Configuration Management**
+
+### **Admin Template Setup Interface**
+
+```typescript
+TemplateSetupInterface {
+  // Template Selection Process
+  template_selection: {
+    step_1_business_type: {
+      title: "Select Your Business Type"
+      description: "Choose the template that best matches your business for optimized appointment management"
+      
+      options: [
+        {
+          id: "medical",
+          title: "Medical Practice / Healthcare",
+          description: "HIPAA-compliant templates with privacy protection",
+          features: ["HIPAA compliance", "Patient privacy", "Medical terminology", "Regulatory compliance"],
+          compliance_notice: "Includes automatic HIPAA compliance features"
+        },
+        {
+          id: "salon", 
+          title: "Salon / Spa / Beauty Services",
+          description: "Beauty and wellness appointment optimization",
+          features: ["Service duration tracking", "Stylist assignment", "Treatment preferences", "Client history"],
+          sample_appointments: ["Haircut", "Color Treatment", "Facial", "Massage"]
+        },
+        {
+          id: "restaurant",
+          title: "Restaurant / Dining Establishment", 
+          description: "Reservation management and guest experience",
+          features: ["Party size tracking", "Table preferences", "Dietary restrictions", "Special occasions"],
+          sample_appointments: ["Dinner Reservation", "Private Dining", "Special Event"]
+        },
+        {
+          id: "consultant",
+          title: "Consultant / Professional Services",
+          description: "Business meeting and consultation management",
+          features: ["Meeting types", "Preparation requirements", "Attendee tracking", "Project context"],
+          sample_appointments: ["Strategy Session", "Financial Review", "Legal Consultation"]
+        },
+        {
+          id: "general",
+          title: "General Business / Other",
+          description: "Flexible template for any appointment-based business",
+          features: ["Customizable fields", "Flexible terminology", "Generic voice scripts", "Universal compatibility"],
+          sample_appointments: ["Consultation", "Service Appointment", "Meeting"]
+        }
+      ]
+    }
+    
+    step_2_field_customization: {
+      title: "Customize Fields for Your Business"
+      description: "Adjust field labels and requirements to match your business terminology"
+      
+      customization_options: {
+        field_labels: {
+          editable: true,
+          examples: {
+            medical: "'Patient Name' instead of 'Customer Name'",
+            salon: "'Client Name' and 'Service Type'", 
+            restaurant: "'Guest Name' and 'Reservation Time'",
+            consultant: "'Client Name' and 'Meeting Type'"
+          }
+        }
+        
+        required_fields: {
+          configurable: true,
+          minimum_required: ['name', 'phone', 'appointment_date', 'appointment_time'],
+          business_specific: "Additional fields can be marked required based on business needs"
+        }
+        
+        field_ordering: {
+          drag_and_drop: true,
+          logical_grouping: "Group related fields together for better UX"
+        }
+      }
+    }
+    
+    step_3_voice_script_configuration: {
+      title: "Configure Voice Call Scripts"
+      description: "Customize how the AI agent speaks to your customers"
+      
+      script_options: {
+        business_tone: {
+          professional: "Formal, respectful language",
+          friendly: "Warm, conversational tone", 
+          casual: "Relaxed, informal approach",
+          medical: "HIPAA-compliant, privacy-focused"
+        }
+        
+        script_length: {
+          brief: "Essential information only (30-45 seconds)",
+          standard: "Complete details with confirmation (60-90 seconds)",
+          detailed: "Comprehensive with preparation instructions (90-120 seconds)"
+        }
+        
+        confirmation_options: {
+          simple: "Press 1 to confirm, 2 to reschedule",
+          detailed: "Multiple options with clear instructions",
+          interactive: "Natural conversation with AI responses"
+        }
+      }
+    }
+  }
+}
+```
+
+### **Template Implementation in Contact Creation**
+
+```typescript
+TemplateBasedContactCreation {
+  // Dynamic form generation based on selected template
+  form_generation: {
+    field_rendering: (template: BusinessTemplate) => {
+      return template.fields.map(field => ({
+        id: field.id,
+        label: field.label,
+        type: field.type,
+        required: field.required,
+        validation: field.validation,
+        placeholder: field.placeholder,
+        helpText: field.helpText,
+        options: field.options, // For select/radio fields
+        conditional: field.conditional // Show/hide based on other fields
+      }));
+    }
+    
+    validation_rules: (template: BusinessTemplate) => {
+      return {
+        required_fields: template.required_fields,
+        field_formats: template.validation_rules,
+        business_rules: template.business_rules,
+        compliance_checks: template.compliance_requirements
+      };
+    }
+    
+    ui_customization: (template: BusinessTemplate) => {
+      return {
+        section_headers: template.section_titles,
+        field_grouping: template.field_groups,
+        help_text: template.field_help_text,
+        placeholder_text: template.placeholder_examples
+      };
+    }
+  }
+}
+```
+
+---
+
+## 🎭 **Voice Script Template System**
+
+### **Template-Based Script Generation**
+
+```python
+class VoiceScriptTemplateEngine:
+    """
+    Generates appropriate voice scripts based on business template and appointment details
+    """
+    
+    def __init__(self):
+        self.templates = {
+            "medical": MedicalScriptTemplate(),
+            "salon": SalonScriptTemplate(), 
+            "restaurant": RestaurantScriptTemplate(),
+            "consultant": ConsultantScriptTemplate(),
+            "general": GeneralScriptTemplate()
+        }
+    
+    async def generate_call_script(self, contact: dict, tenant_config: dict) -> CallScript:
+        """
+        Generate personalized call script based on business template
+        """
+        
+        business_type = tenant_config.get("business_type", "general")
+        template = self.templates.get(business_type, self.templates["general"])
+        
+        # Build context variables
+        script_context = await self.build_script_context(contact, tenant_config, business_type)
+        
+        # Generate script with template
+        script_content = template.generate_script(script_context)
+        
+        # Apply compliance filtering if needed
+        if business_type == "medical":
+            script_content = self.apply_hipaa_filtering(script_content, script_context)
+        
+        return CallScript(
+            content=script_content,
+            estimated_duration=template.estimated_duration,
+            business_type=business_type,
+            compliance_level=template.compliance_level,
+            context_variables=script_context
+        )
+    
+    async def build_script_context(self, contact: dict, tenant_config: dict, business_type: str) -> dict:
+        """
+        Build context variables for script generation
+        """
+        
+        # Base context (common to all business types)
+        base_context = {
+            "business_name": tenant_config.get("company_name", "your service provider"),
+            "callback_number": tenant_config.get("retell_agent_number"),
+            "appointment_date": format_date_for_voice(contact.get("appointment_time")),
+            "appointment_time": format_time_for_voice(contact.get("appointment_time")),
+            "time_of_day": get_appropriate_greeting(),
+        }
+        
+        # Business-specific context
+        if business_type == "medical":
+            specific_context = {
+                "patient_first_name": extract_first_name(contact["name"]),
+                "practice_name": tenant_config.get("company_name"),
+                "appointment_type": "appointment",  # Generic for privacy
+                "provider_title": "your provider"   # Generic for privacy
+            }
+        elif business_type == "salon":
+            specific_context = {
+                "client_name": contact["name"],
+                "service_type": contact.get("appointment_type", "service"),
+                "stylist_name": contact.get("owner_name", "your stylist"),
+                "salon_name": tenant_config.get("company_name"),
+                "service_duration": f"{contact.get('appointment_duration', 60)} minutes"
+            }
+        elif business_type == "restaurant":
+            specific_context = {
+                "guest_name": contact["name"],
+                "party_size": extract_party_size(contact.get("notes", "")),
+                "restaurant_name": tenant_config.get("company_name"),
+                "reservation_type": contact.get("appointment_type", "reservation"),
+                "special_requests": format_dining_requests(contact.get("special_instructions"))
+            }
+        elif business_type == "consultant":
+            specific_context = {
+                "client_name": contact["name"],
+                "consultation_type": contact.get("appointment_type", "consultation"),
+                "consultant_name": contact.get("owner_name", "your consultant"),
+                "consulting_firm": tenant_config.get("company_name"),
+                "meeting_duration": f"{contact.get('appointment_duration', 60)} minutes",
+                "preparation_requirements": format_preparation_instructions(contact.get("special_instructions"))
+            }
+        else:  # general
+            specific_context = {
+                "customer_name": contact["name"],
+                "appointment_type": contact.get("appointment_type", "appointment"),
+                "service_provider": contact.get("owner_name", "your service provider"),
+                "special_instructions": contact.get("special_instructions", "")
+            }
+        
+        return {**base_context, **specific_context}
+
+class MedicalScriptTemplate:
+    """
+    HIPAA-compliant medical practice voice scripts
+    """
+    
+    def __init__(self):
+        self.compliance_level = "hipaa_required"
+        self.estimated_duration = 45  # Shorter for privacy
+        
+    def generate_script(self, context: dict) -> str:
+        """
+        Generate HIPAA-compliant medical script
+        """
+        
+        # Ultra-conservative medical script
+        script = f"""
+        Hello {context['patient_first_name']}, this is {context['practice_name']}.
+        
+        We're calling to remind you about your upcoming appointment 
+        on {context['appointment_date']} at {context['appointment_time']}.
+        
+        To confirm this appointment, please press 1.
+        To reschedule, please press 2.
+        
+        Please arrive 15 minutes early for check-in.
+        
+        If you have questions, please call us at {context['callback_number']}.
+        
+        Thank you.
+        """
+        
+        return script.strip()
+
+class SalonScriptTemplate:
+    """
+    Beauty and wellness appointment scripts
+    """
+    
+    def __init__(self):
+        self.compliance_level = "standard"
+        self.estimated_duration = 75
+        
+    def generate_script(self, context: dict) -> str:
+        """
+        Generate salon/spa appointment script
+        """
+        
+        script = f"""
+        Hi {context['client_name']}! This is {context['salon_name']} calling 
+        to confirm your {context['service_type']} appointment on {context['appointment_date']} 
+        at {context['appointment_time']} with {context['stylist_name']}.
+        
+        To confirm your appointment, press 1.
+        To reschedule, press 2.
+        To cancel, press 3.
+        
+        Your {context['service_type']} is scheduled for {context['service_duration']}.
+        Please arrive 10 minutes early.
+        
+        We're looking forward to seeing you! If you need to reach us, 
+        call {context['callback_number']}.
+        
+        Thank you for choosing {context['salon_name']}!
+        """
+        
+        return script.strip()
+```
+
+---
+
+## 🔧 **Template Configuration in Admin Settings**
+
+### **Business Template Setup Workflow**
+
+```typescript
+AdminTemplateConfiguration {
+  // Super Admin Template Management
+  super_admin_template_setup: {
+    template_creation: {
+      step_1: "Select base template (medical, salon, restaurant, consultant, general)"
+      step_2: "Customize field labels and requirements"
+      step_3: "Configure voice script template"
+      step_4: "Set compliance requirements"
+      step_5: "Test template with sample data"
+      step_6: "Deploy template for tenant use"
+    }
+    
+    template_customization: {
+      field_management: {
+        add_custom_fields: "Create business-specific fields"
+        modify_field_labels: "Change field names to match business terminology"
+        set_field_requirements: "Mark fields as required/optional"
+        configure_validation: "Set validation rules per field"
+      }
+      
+      voice_script_editing: {
+        script_builder: "Visual script builder with variable insertion"
+        tone_configuration: "Professional, friendly, casual, medical"
+        length_optimization: "Optimize for call duration and clarity"
+        compliance_checking: "Automatic HIPAA/compliance validation"
+      }
+    }
+  }
+  
+  // Tenant Template Selection
+  tenant_template_selection: {
+    during_tenant_creation: {
+      template_picker: "Visual template selection with previews"
+      field_preview: "Show how contact form will appear"
+      voice_script_preview: "Play sample voice script"
+      compliance_notice: "Display compliance requirements if applicable"
+    }
+    
+    post_creation_modification: {
+      template_switching: "Allow template changes with data migration"
+      field_mapping: "Map existing data to new template fields"
+      voice_script_updates: "Update call scripts for existing contacts"
+      compliance_verification: "Re-verify compliance after template changes"
+    }
+  }
+}
+```
+
+### **Template-Specific Validation Rules**
+
+```python
+class BusinessTemplateValidator:
+    """
+    Implements business-specific validation rules based on selected template
+    """
+    
+    def __init__(self):
+        self.validation_rules = {
+            "medical": self._get_medical_validation_rules(),
+            "salon": self._get_salon_validation_rules(),
+            "restaurant": self._get_restaurant_validation_rules(),
+            "consultant": self._get_consultant_validation_rules(),
+            "general": self._get_general_validation_rules()
+        }
+    
+    def _get_medical_validation_rules(self) -> dict:
+        """
+        Strict validation rules for medical practices (HIPAA compliance)
+        """
+        return {
+            "required_fields": ["name", "phone", "appointment_date", "appointment_time"],
+            "optional_fields": ["email", "appointment_type", "provider_name"],
+            "prohibited_fields": ["diagnosis", "medical_history", "insurance_info"],
+            
+            "field_validation": {
+                "name": {
+                    "min_length": 2,
+                    "max_length": 100,
+                    "pattern": r"^[a-zA-Z\s\-\.]+$",  # Only letters, spaces, hyphens, periods
+                    "phi_screening": True
+                },
+                "phone": {
+                    "required": True,
+                    "format": "uk_e164",
+                    "duplicate_check": "within_tenant"
+                },
+                "appointment_type": {
+                    "required": False,  # HIPAA: Optional for privacy
+                    "max_length": 50,
+                    "restricted_terms": ["surgery", "procedure", "test", "diagnosis"],
+                    "suggested_generic": ["consultation", "appointment", "visit"]
+                },
+                "special_instructions": {
+                    "max_length": 200,  # Shorter for medical
+                    "phi_screening": True,
+                    "prohibited_terms": ["medication", "diagnosis", "insurance", "ssn"],
+                    "sanitization": "automatic"
+                }
+            },
+            
+            "compliance_checks": {
+                "phi_detection": True,
+                "consent_verification": True,
+                "minimum_necessary": True,
+                "audit_logging": "enhanced"
+            }
+        }
+    
+    def _get_salon_validation_rules(self) -> dict:
+        """
+        Validation rules optimized for beauty and wellness services
+        """
+        return {
+            "required_fields": ["name", "phone", "appointment_date", "appointment_time", "service_type"],
+            "optional_fields": ["email", "stylist_preference", "special_requests"],
+            
+            "field_validation": {
+                "name": {
+                    "min_length": 2,
+                    "max_length": 100,
+                    "pattern": r"^[a-zA-Z\s\-\.]+$"
+                },
+                "service_type": {
+                    "required": True,
+                    "predefined_options": [
+                        "Haircut", "Hair Color", "Highlights", "Perm", "Straightening",
+                        "Facial", "Massage", "Manicure", "Pedicure", "Eyebrow Shaping",
+                        "Makeup Application", "Skin Treatment", "Waxing", "Other"
+                    ],
+                    "custom_allowed": True
+                },
+                "appointment_duration": {
+                    "presets": [30, 60, 90, 120, 180, 240],  # 30 minutes to 4 hours
+                    "default": 60,
+                    "custom_allowed": True,
+                    "max_duration": 480  # 8 hours maximum
+                },
+                "special_requests": {
+                    "max_length": 500,
+                    "examples": ["Color formula: L'Oreal 7.1", "Allergic to sulfates", "Prefers quiet environment"]
+                }
+            }
+        }
+    
+    def _get_restaurant_validation_rules(self) -> dict:
+        """
+        Validation rules for restaurant reservations
+        """
+        return {
+            "required_fields": ["name", "phone", "reservation_date", "reservation_time", "party_size"],
+            "optional_fields": ["email", "special_occasion", "dietary_restrictions"],
+            
+            "field_validation": {
+                "party_size": {
+                    "required": True,
+                    "min_value": 1,
+                    "max_value": 20,
+                    "presets": [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20],
+                    "large_party_notice": "Parties over 8 require special arrangements"
+                },
+                "reservation_time": {
+                    "business_hours_only": True,
+                    "time_slots": "15_minute_increments",
+                    "advance_booking": {
+                        "min_hours": 2,      # Minimum 2 hours advance notice
+                        "max_days": 60       # Maximum 60 days in advance
+                    }
+                },
+                "dietary_restrictions": {
+                    "predefined_options": [
+                        "Vegetarian", "Vegan", "Gluten-Free", "Dairy-Free", 
+                        "Nut Allergy", "Shellfish Allergy", "Other Allergies"
+                    ],
+                    "custom_text": True,
+                    "max_length": 300
+                },
+                "special_occasion": {
+                    "predefined_options": [
+                        "Birthday", "Anniversary", "Business Meeting", 
+                        "Date Night", "Family Gathering", "Celebration"
+                    ],
+                    "affects_service": True  # May trigger special service protocols
+                }
+            }
+        }
+    
+    def _get_consultant_validation_rules(self) -> dict:
+        """
+        Validation rules for professional consulting services
+        """
+        return {
+            "required_fields": ["name", "phone", "meeting_date", "meeting_time", "consultation_type"],
+            "optional_fields": ["email", "company_name", "project_scope"],
+            
+            "field_validation": {
+                "consultation_type": {
+                    "required": True,
+                    "predefined_options": [
+                        "Strategy Consultation", "Financial Advisory", "Legal Consultation",
+                        "IT Systems Review", "Marketing Strategy", "Business Development",
+                        "Operational Efficiency", "Risk Assessment", "Compliance Review"
+                    ],
+                    "custom_allowed": True
+                },
+                "meeting_duration": {
+                    "presets": [30, 60, 90, 120, 180, 240, 360, 480],  # 30 minutes to 8 hours
+                    "default": 60,
+                    "business_hours_validation": True
+                },
+                "attendee_count": {
+                    "min_value": 1,
+                    "max_value": 20,
+                    "affects_meeting_room": True
+                },
+                "preparation_required": {
+                    "boolean_field": True,
+                    "conditional_text": "preparation_instructions",
+                    "max_length": 500
+                }
+            }
+        }
+```
+
+### **Dynamic Script Variable Replacement**
+
+```python
+async def replace_script_variables(script_template: str, context: dict, business_type: str) -> str:
+    """
+    Replace script variables with actual appointment data
+    Implements business-specific formatting and compliance rules
+    """
+    
+    # Standard variable replacements
+    replacements = {}
+    
+    # Business-type specific variable handling
+    if business_type == "medical":
+        # HIPAA-compliant replacements
+        replacements.update({
+            "{patient_first_name}": extract_first_name(context.get("customer_name", "")),
+            "{practice_name}": context.get("business_name", "your healthcare provider"),
+            "{appointment_date}": format_date_generic(context.get("appointment_time")),
+            "{appointment_time}": format_time_generic(context.get("appointment_time")),
+            "{provider_title}": "your provider",  # Generic for privacy
+            "{practice_phone}": context.get("callback_number", "")
+        })
+    
+    elif business_type == "salon":
+        # Beauty service specific replacements
+        replacements.update({
+            "{client_name}": context.get("customer_name", ""),
+            "{service_type}": context.get("appointment_type", "service"),
+            "{stylist_name}": context.get("owner_name", "your stylist"),
+            "{salon_name}": context.get("business_name", ""),
+            "{service_duration}": f"{context.get('appointment_duration', 60)} minutes",
+            "{salon_phone}": context.get("callback_number", ""),
+            "{special_requests}": format_beauty_requests(context.get("special_instructions", ""))
+        })
+    
+    elif business_type == "restaurant":
+        # Restaurant specific replacements
+        party_size = extract_party_size_from_context(context)
+        replacements.update({
+            "{guest_name}": context.get("customer_name", ""),
+            "{party_size}": f"{party_size} guest{'s' if party_size != 1 else ''}",
+            "{restaurant_name}": context.get("business_name", ""),
+            "{reservation_date}": context.get("appointment_date", ""),
+            "{reservation_time}": context.get("appointment_time", ""),
+            "{restaurant_phone}": context.get("callback_number", ""),
+            "{special_requests}": format_dining_requests(context.get("special_instructions", ""))
+        })
+    
+    elif business_type == "consultant":
+        # Professional consulting replacements  
+        replacements.update({
+            "{client_name}": context.get("customer_name", ""),
+            "{consultation_type}": context.get("appointment_type", "consultation"),
+            "{consultant_name}": context.get("owner_name", "your consultant"),
+            "{consulting_firm}": context.get("business_name", ""),
+            "{meeting_date}": context.get("appointment_date", ""),
+            "{meeting_time}": context.get("appointment_time", ""),
+            "{meeting_duration}": f"{context.get('appointment_duration', 60)} minutes",
+            "{consultant_phone}": context.get("callback_number", ""),
+            "{preparation_requirements}": format_preparation_instructions(context.get("special_instructions", ""))
+        })
+    
+    # Apply all replacements
+    final_script = script_template
+    for variable, value in replacements.items():
+        final_script = final_script.replace(variable, str(value) if value else "")
+    
+    # Clean up any remaining unreplaced variables
+    final_script = re.sub(r'\{[^}]+\}', '', final_script)
+    
+    # Normalize whitespace and formatting
+    final_script = re.sub(r'\n\s*\n', '\n\n', final_script)  # Remove excessive line breaks
+    final_script = final_script.strip()
+    
+    return final_script
+
+def format_beauty_requests(instructions: str) -> str:
+    """
+    Format special requests for beauty services
+    """
+    if not instructions:
+        return ""
+    
+    # Common beauty service formatting
+    formatted = instructions.replace("color formula:", "using color formula")
+    formatted = formatted.replace("allergic to", "please note allergy to")
+    
+    return f"Special notes: {formatted}"
+
+def format_dining_requests(instructions: str) -> str:
+    """
+    Format special requests for restaurant reservations
+    """
+    if not instructions:
+        return ""
+    
+    # Common dining request formatting
+    dietary_terms = ["vegetarian", "vegan", "gluten-free", "dairy-free", "nut allergy"]
+    
+    for term in dietary_terms:
+        if term.lower() in instructions.lower():
+            instructions = f"Please note: {instructions}"
+            break
+    
+    return instructions
+
+def format_preparation_instructions(instructions: str) -> str:
+    """
+    Format preparation requirements for consulting meetings
+    """
+    if not instructions:
+        return ""
+    
+    # Professional formatting for consulting prep
+    if "bring" in instructions.lower() or "prepare" in instructions.lower():
+        return f"Please {instructions.lower()}"
+    else:
+        return f"Please prepare: {instructions}"
+```
+
+---
+
+## 🎛️ **Admin Configuration Interface**
+
+### **Business Template Selection UI**
+
+```typescript
+BusinessTemplateSetupUI {
+  // Template Selection Interface
+  template_selection_modal: {
+    title: "Choose Business Template"
+    subtitle: "Select the template that best matches your business for optimized appointment management"
+    
+    template_cards: [
+      {
+        id: "medical",
+        title: "🏥 Medical Practice",
+        description: "HIPAA-compliant appointment management for healthcare providers",
+        features: [
+          "✅ HIPAA compliance built-in",
+          "✅ Patient privacy protection", 
+          "✅ Medical terminology optimization",
+          "✅ Regulatory audit trail",
+          "✅ PHI detection and prevention"
+        ],
+        compliance_badge: "HIPAA Compliant",
+        sample_contact: {
+          name: "John D.", // Privacy: Last initial only
+          appointment_type: "Appointment", // Generic
+          voice_preview: "HIPAA-compliant voice script"
+        }
+      },
+      
+      {
+        id: "salon",
+        title: "💅 Salon / Spa",
+        description: "Beauty and wellness service appointment optimization",
+        features: [
+          "✅ Service type customization",
+          "✅ Stylist/therapist assignment",
+          "✅ Treatment duration tracking",
+          "✅ Client preference management",
+          "✅ Beauty-specific terminology"
+        ],
+        sample_contact: {
+          name: "Sarah Johnson",
+          appointment_type: "Hair Color & Cut",
+          stylist: "Maria",
+          duration: "2 hours"
+        }
+      },
+      
+      {
+        id: "restaurant", 
+        title: "🍽️ Restaurant",
+        description: "Restaurant reservation and guest experience management",
+        features: [
+          "✅ Party size management",
+          "✅ Table preference tracking",
+          "✅ Dietary restriction handling",
+          "✅ Special occasion recognition",
+          "✅ Guest experience optimization"
+        ],
+        sample_contact: {
+          name: "Mike & Lisa Thompson",
+          party_size: "4 guests",
+          occasion: "Anniversary Dinner",
+          dietary: "Gluten-free options needed"
+        }
+      },
+      
+      {
+        id: "consultant",
+        title: "💼 Consultant",
+        description: "Professional consulting and business meeting management", 
+        features: [
+          "✅ Meeting type categorization",
+          "✅ Preparation requirement tracking",
+          "✅ Professional terminology",
+          "✅ Client company management",
+          "✅ Project context integration"
+        ],
+        sample_contact: {
+          name: "Robert Chen",
+          meeting_type: "Strategy Consultation",
+          company: "TechStart Inc",
+          duration: "90 minutes"
+        }
+      },
+      
+      {
+        id: "general",
+        title: "🏢 General Business",
+        description: "Flexible template for any appointment-based business",
+        features: [
+          "✅ Fully customizable fields",
+          "✅ Generic terminology",
+          "✅ Universal compatibility",
+          "✅ Custom field creation",
+          "✅ Flexible voice scripts"
+        ],
+        sample_contact: {
+          name: "Jennifer Wilson",
+          appointment_type: "Service Appointment",
+          provider: "Service Representative",
+          notes: "Custom business requirements"
+        }
+      }
+    ]
+  }
+  
+  // Template Customization Interface
+  template_customization: {
+    field_configuration: {
+      title: "Customize Contact Fields"
+      description: "Adjust field labels, requirements, and validation to match your business"
+      
+      field_editor: {
+        standard_fields: {
+          editable_labels: true,
+          required_toggles: true,
+          validation_rules: "business_type_appropriate",
+          help_text_customization: true
+        }
+        
+        business_specific_fields: {
+          add_custom_fields: true,
+          field_types: ["text", "number", "select", "multi_select", "date", "time", "boolean"],
+          conditional_logic: "show_hide_based_on_other_fields",
+          integration_mapping: "map_to_calendar_systems"
+        }
+      }
+    }
+    
+    voice_script_configuration: {
+      title: "Voice Call Script Setup"
+      description: "Configure how the AI agent speaks to your customers"
+      
+      script_builder: {
+        template_base: "business_type_specific_starting_point",
+        variable_insertion: "drag_drop_appointment_variables",
+        tone_selection: ["professional", "friendly", "casual", "medical"],
+        length_optimization: "target_60_90_seconds",
+        compliance_validation: "automatic_hipaa_checking_if_medical"
+      }
+      
+      voice_preview: {
+        text_to_speech: "hear_how_script_sounds",
+        variable_simulation: "test_with_sample_appointment_data",
+        duration_estimation: "estimated_call_length",
+        compliance_check: "hipaa_validation_for_medical"
+      }
+    }
+  }
+}
+```
+
+### **Template Application During Contact Creation**
+
+```typescript
+TemplateBasedContactForm {
+  // Dynamic form generation based on business template
+  form_structure: (businessType: string) => {
+    const template = getBusinessTemplate(businessType);
+    
+    return {
+      sections: [
+        {
+          id: "basic_info",
+          title: template.sections.basic_info.title, // e.g., "Patient Information" for medical
+          fields: template.sections.basic_info.fields.map(field => ({
+            id: field.id,
+            label: field.label,                      // e.g., "Patient Name" for medical
+            type: field.type,
+            required: field.required,
+            placeholder: field.placeholder,          // e.g., "Enter patient's full name"
+            validation: field.validation,
+            helpText: field.helpText,
+            compliance: field.compliance             // HIPAA notices if applicable
+          }))
+        },
+        
+        {
+          id: "appointment_details", 
+          title: template.sections.appointment_details.title, // e.g., "Visit Details" for medical
+          fields: template.sections.appointment_details.fields
+        },
+        
+        {
+          id: "business_specific",
+          title: template.sections.business_specific.title, // e.g., "Service Details" for salon
+          fields: template.sections.business_specific.fields
+        },
+        
+        {
+          id: "compliance",
+          title: template.sections.compliance?.title,      // Only for medical practices
+          fields: template.sections.compliance?.fields,
+          show: businessType === "medical"
+        }
+      ],
+      
+      validation: template.validation_rules,
+      voice_script: template.voice_script_template,
+      compliance_requirements: template.compliance_requirements
+    };
+  }
+}
+```
+
+---
+
+## 🏥 **Medical Practice Specific Implementation**
+
+### **HIPAA Compliance Configuration**
+
+```python
+class MedicalPracticeHIPAAConfig:
+    """
+    HIPAA compliance configuration for medical practices
+    """
+    
+    def __init__(self):
+        self.compliance_levels = {
+            "strict": {
+                "use_first_name_only": True,
+                "omit_appointment_type": True,
+                "omit_provider_details": True,
+                "generic_location_only": True,
+                "sanitize_all_instructions": True,
+                "enhanced_audit_logging": True,
+                "patient_consent_required": True
+            },
+            "standard": {
+                "use_first_name_only": True,
+                "omit_appointment_type": False,     # Can include if generic
+                "omit_provider_details": False,    # Can include provider first name
+                "generic_location_only": True,
+                "sanitize_all_instructions": True,
+                "enhanced_audit_logging": True,
+                "patient_consent_required": True
+            },
+            "basic": {
+                "use_first_name_only": False,      # Can use full name
+                "omit_appointment_type": False,
+                "omit_provider_details": False,
+                "generic_location_only": False,
+                "sanitize_all_instructions": True,  # Always sanitize
+                "enhanced_audit_logging": True,     # Always enhanced for medical
+                "patient_consent_required": True    # Always require consent
+            }
+        }
+    
+    async def configure_medical_practice(self, tenant_id: str, config_data: dict) -> HIPAASetupResult:
+        """
+        Configure HIPAA compliance for medical practice tenant
+        """
+        
+        # Determine compliance level based on practice type
+        practice_type = config_data.get("practice_type", "general_medical")
+        compliance_level = self.determine_compliance_level(practice_type)
+        
+        # Apply HIPAA-specific configuration
+        hipaa_config = {
+            "business_type": "medical",
+            "hipaa_compliance_level": compliance_level,
+            "practice_type": practice_type,
+            
+            # Voice call restrictions
+            "voice_call_restrictions": self.compliance_levels[compliance_level],
+            
+            # Field configuration
+            "contact_field_config": {
+                "appointment_type_label": "Visit Type (Optional)",
+                "appointment_type_required": False,  # HIPAA: Always optional
+                "provider_name_label": "Provider/Doctor",
+                "special_instructions_label": "Preparation Instructions (No Medical Details)",
+                "notes_label": "Administrative Notes (Staff Only)"
+            },
+            
+            # Automatic PHI screening
+            "phi_screening": {
+                "enabled": True,
+                "screening_fields": ["special_instructions", "notes", "appointment_type"],
+                "prohibited_terms": self.get_phi_prohibited_terms(),
+                "action_on_detection": "warn_and_sanitize"
+            },
+            
+            # Enhanced security
+            "enhanced_security": {
+                "audit_all_contact_access": True,
+                "log_voice_call_details": True,
+                "patient_consent_tracking": True,
+                "data_retention_policy": "7_years_medical_records"
+            }
+        }
+        
+        # Save HIPAA configuration
+        await db.tenant_config.update_one(
+            {"tenant_id": tenant_id},
+            {"$set": hipaa_config}
+        )
+        
+        return HIPAASetupResult(
+            success=True,
+            compliance_level=compliance_level,
+            restrictions_applied=list(self.compliance_levels[compliance_level].keys()),
+            additional_requirements=self.get_additional_requirements(practice_type)
+        )
+    
+    def determine_compliance_level(self, practice_type: str) -> str:
+        """
+        Determine appropriate HIPAA compliance level based on practice type
+        """
+        
+        high_sensitivity_practices = [
+            "psychiatry", "psychology", "mental_health", "substance_abuse",
+            "reproductive_health", "oncology", "pediatrics"
+        ]
+        
+        standard_practices = [
+            "family_medicine", "internal_medicine", "dermatology", 
+            "orthopedics", "cardiology", "general_practice"
+        ]
+        
+        if practice_type in high_sensitivity_practices:
+            return "strict"
+        elif practice_type in standard_practices:
+            return "standard"
+        else:
+            return "basic"  # Conservative default
+    
+    def get_phi_prohibited_terms(self) -> List[str]:
+        """
+        Get list of terms that indicate potential PHI
+        """
+        return [
+            # Medical conditions
+            'diabetes', 'cancer', 'depression', 'anxiety', 'hypertension',
+            'arthritis', 'asthma', 'copd', 'heart disease', 'stroke',
+            
+            # Medical procedures
+            'surgery', 'operation', 'procedure', 'biopsy', 'colonoscopy',
+            'endoscopy', 'mri', 'ct scan', 'x-ray', 'ultrasound',
+            
+            # Medical terms
+            'diagnosis', 'prognosis', 'symptoms', 'treatment', 'therapy',
+            'medication', 'prescription', 'dosage', 'side effects',
+            
+            # Personal identifiers
+            'ssn', 'social security', 'medicare', 'medicaid', 'insurance',
+            'policy number', 'member id', 'medical record', 'patient id',
+            
+            # Sensitive information
+            'mental health', 'psychiatric', 'addiction', 'substance abuse',
+            'pregnancy', 'fertility', 'reproductive', 'genetic'
+        ]
+
+@dataclass
+class HIPAASetupResult:
+    success: bool
+    compliance_level: str
+    restrictions_applied: List[str]
+    additional_requirements: List[str]
+```
+
+---
+
+## 🎨 **Template-Specific UI Configurations**
+
+### **Contact Form Adaptations by Business Type**
+
+```typescript
+BusinessTemplateUI {
+  // Medical Practice Contact Form
+  medical_contact_form: {
+    section_titles: {
+      basic_info: "Patient Information",
+      appointment_details: "Visit Details", 
+      provider_info: "Provider Information",
+      compliance: "HIPAA Compliance"
+    }
+    
+    field_customizations: {
+      name_field: {
+        label: "Patient Name",
+        placeholder: "Enter patient's full name",
+        help_text: "Full legal name for appointment verification",
+        hipaa_notice: "Only first name will be used in voice calls for privacy"
+      },
+      
+      appointment_type_field: {
+        label: "Visit Type (Optional)",
+        placeholder: "e.g., Consultation, Follow-up",
+        help_text: "General visit type - avoid specific medical terms",
+        options: [
+          "Consultation", "Follow-up", "Check-up", "Visit", 
+          "Appointment", "Evaluation", "Review"
+        ],
+        phi_warning: "Do not include specific medical procedures or diagnoses"
+      },
+      
+      provider_field: {
+        label: "Provider/Doctor",
+        placeholder: "Dr. Smith",
+        help_text: "Attending physician or healthcare provider"
+      },
+      
+      special_instructions_field: {
+        label: "Preparation Instructions",
+        placeholder: "Arrive 15 minutes early, bring photo ID",
+        help_text: "Non-medical preparation instructions only",
+        max_length: 200,
+        phi_screening: true,
+        examples: [
+          "Arrive 15 minutes early for check-in",
+          "Bring photo ID and insurance card", 
+          "No food or drink 2 hours before visit",
+          "Wear comfortable clothing"
+        ]
+      }
+    }
+    
+    hipaa_compliance_section: {
+      patient_consent: {
+        checkbox: "Patient has consented to voice appointment reminders",
+        required: true,
+        compliance_text: "HIPAA requires patient consent for voice communications"
+      },
+      
+      phi_acknowledgment: {
+        checkbox: "I confirm no Protected Health Information (PHI) is included in this contact record",
+        required: true,
+        phi_examples: "PHI includes: medical conditions, treatments, test results, insurance information"
+      },
+      
+      minimum_necessary: {
+        checkbox: "I have limited information to the minimum necessary for appointment reminders",
+        required: true,
+        explanation: "Only include information essential for appointment confirmation"
+      }
+    }
+  }
+  
+  // Salon/Spa Contact Form
+  salon_contact_form: {
+    section_titles: {
+      basic_info: "Client Information",
+      service_details: "Service Details",
+      preferences: "Client Preferences",
+      special_requests: "Special Requests"
+    }
+    
+    field_customizations: {
+      name_field: {
+        label: "Client Name",
+        placeholder: "Enter client's full name"
+      },
+      
+      service_type_field: {
+        label: "Service Type",
+        type: "select",
+        options: [
+          // Hair Services
+          "Haircut", "Hair Color", "Highlights", "Lowlights", "Balayage",
+          "Perm", "Relaxer", "Hair Treatment", "Blowout", "Updo",
+          
+          // Nail Services  
+          "Manicure", "Pedicure", "Gel Nails", "Acrylic Nails", "Nail Art",
+          
+          // Facial Services
+          "Classic Facial", "Deep Cleansing Facial", "Anti-Aging Facial", 
+          "Acne Treatment", "Chemical Peel", "Microdermabrasion",
+          
+          // Body Services
+          "Full Body Massage", "Deep Tissue Massage", "Hot Stone Massage",
+          "Body Wrap", "Exfoliation", "Waxing",
+          
+          // Combination Services
+          "Hair & Makeup", "Bridal Package", "Spa Package", "Custom Service"
+        ],
+        custom_option: "Other (specify)"
+      },
+      
+      duration_field: {
+        label: "Service Duration",
+        type: "select",
+        options: [
+          { value: 30, label: "30 minutes - Express Service" },
+          { value: 60, label: "1 hour - Standard Service" },
+          { value: 90, label: "1.5 hours - Extended Service" },
+          { value: 120, label: "2 hours - Premium Treatment" },
+          { value: 180, label: "3 hours - Spa Package" },
+          { value: 240, label: "4+ hours - Full Day Experience" }
+        ]
+      },
+      
+      stylist_field: {
+        label: "Preferred Stylist/Therapist",
+        type: "select",
+        options: "dynamic_staff_list", // Populated from staff directory
+        allow_no_preference: true
+      }
+    }
+  }
+  
+  // Restaurant Contact Form
+  restaurant_contact_form: {
+    section_titles: {
+      basic_info: "Guest Information",
+      reservation_details: "Reservation Details",
+      dining_preferences: "Dining Preferences",
+      special_requirements: "Special Requirements"
+    }
+    
+    field_customizations: {
+      party_size_field: {
+        label: "Party Size",
+        type: "number",
+        min: 1,
+        max: 20,
+        quick_select: [1, 2, 3, 4, 5, 6, 7, 8],
+        large_party_notice: "Parties over 8 require advance planning"
+      },
+      
+      occasion_field: {
+        label: "Special Occasion",
+        type: "select",
+        options: [
+          "Birthday", "Anniversary", "Date Night", "Business Meeting",
+          "Family Gathering", "Celebration", "Casual Dining", "Other"
+        ],
+        affects_service: true // Triggers special service protocols
+      },
+      
+      dietary_restrictions_field: {
+        label: "Dietary Restrictions",
+        type: "multi_select",
+        options: [
+          "Vegetarian", "Vegan", "Gluten-Free", "Dairy-Free",
+          "Nut Allergy", "Shellfish Allergy", "Other Food Allergies",
+          "Low Sodium", "Diabetic Friendly", "Keto", "Other"
+        ],
+        custom_text: true,
+        kitchen_notification: true
+      }
+    }
+  }
+  
+  // Consultant Contact Form
+  consultant_contact_form: {
+    section_titles: {
+      basic_info: "Client Information", 
+      meeting_details: "Consultation Details",
+      business_context: "Business Context",
+      preparation: "Meeting Preparation"
+    }
+    
+    field_customizations: {
+      consultation_type_field: {
+        label: "Consultation Type",
+        type: "select",
+        options: [
+          "Strategy Consultation", "Financial Advisory", "Legal Consultation",
+          "IT Systems Review", "Marketing Strategy", "Business Development", 
+          "Operational Efficiency", "Risk Assessment", "Compliance Review",
+          "Executive Coaching", "Change Management", "Project Planning"
+        ],
+        custom_option: "Custom Consultation"
+      },
+      
+      company_info_field: {
+        label: "Client Company",
+        type: "text",
+        additional_fields: {
+          industry: "select",
+          company_size: "select", 
+          decision_maker_level: "select"
+        }
+      },
+      
+      preparation_field: {
+        label: "Meeting Preparation Requirements",
+        type: "textarea",
+        placeholder: "Documents to bring, information to prepare, agenda items",
+        examples: [
+          "Please bring: Current financial statements, organizational chart",
+          "Prepare: List of current challenges, goals for next quarter",
+          "Review: Previous consultation notes, action items status"
+        ]
+      }
+    }
+  }
+}
+```
+
+---
+
+## 🔧 **Template Configuration Storage & Management**
+
+### **Database Schema for Business Templates**
+
+```sql
+-- Business Template Configuration Table
+CREATE TABLE business_templates (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  template_type TEXT NOT NULL,           -- medical, salon, restaurant, consultant, general
+  template_name TEXT NOT NULL,
+  description TEXT,
+  
+  -- Field Configuration
+  field_configuration JSONB NOT NULL,   -- Dynamic field definitions
+  validation_rules JSONB NOT NULL,      -- Business-specific validation
+  ui_configuration JSONB NOT NULL,      -- UI layout and labels
+  
+  -- Voice Script Configuration
+  voice_script_template TEXT NOT NULL,
+  voice_variables JSONB NOT NULL,       -- Available script variables
+  estimated_call_duration INTEGER,      -- Estimated seconds
+  
+  -- Compliance Configuration
+  compliance_requirements JSONB,        -- HIPAA, industry-specific
+  compliance_level TEXT,               -- strict, standard, basic
+  
+  -- Metadata
+  created_by UUID,                      -- Super admin who created template
+  is_system_template BOOLEAN DEFAULT true, -- System vs custom template
+  is_active BOOLEAN DEFAULT true,
+  
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Tenant Template Assignment
+CREATE TABLE tenant_template_assignments (
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  template_id UUID NOT NULL REFERENCES business_templates(id),
+  
+  -- Template Customizations
+  custom_field_labels JSONB,           -- Tenant-specific field label overrides
+  custom_validation_rules JSONB,       -- Additional validation rules
+  custom_voice_script TEXT,            -- Customized voice script
+  
+  -- Configuration
+  is_primary_template BOOLEAN DEFAULT true,
+  assigned_by UUID,                    -- Super admin who assigned template
+  assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  PRIMARY KEY (tenant_id, template_id)
+);
+
+-- Template Usage Analytics
+CREATE TABLE template_usage_analytics (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  template_id UUID NOT NULL REFERENCES business_templates(id),
+  tenant_id UUID NOT NULL REFERENCES tenants(id),
+  
+  -- Usage Metrics
+  contacts_created INTEGER DEFAULT 0,
+  calls_made INTEGER DEFAULT 0,
+  success_rate DECIMAL(5,2),
+  average_call_duration INTEGER,
+  
+  -- Performance Data
+  confirmation_rate DECIMAL(5,2),
+  customer_satisfaction_score DECIMAL(3,2),
+  
+  -- Time Period
+  period_start TIMESTAMPTZ NOT NULL,
+  period_end TIMESTAMPTZ NOT NULL,
+  
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+### **Template Management API Endpoints**
+
+```python
+# Super Admin Template Management
+@api_router.get("/admin/templates")
+async def list_business_templates(current_user: dict = Depends(get_current_user)):
+    """List all available business templates"""
+    require_super_admin(current_user)
+    
+    templates = await db.business_templates.find({"is_active": True}).to_list(100)
+    return templates
+
+@api_router.post("/admin/templates")
+async def create_business_template(
+    template_data: BusinessTemplateCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create new business template"""
+    require_super_admin(current_user)
+    
+    # Validate template configuration
+    validation_result = await validate_template_configuration(template_data)
+    if not validation_result.valid:
+        raise HTTPException(status_code=422, detail=validation_result.errors)
+    
+    # Create template
+    template_doc = {
+        "id": str(uuid.uuid4()),
+        "template_type": template_data.template_type,
+        "template_name": template_data.template_name,
+        "description": template_data.description,
+        "field_configuration": template_data.field_configuration,
+        "validation_rules": template_data.validation_rules,
+        "ui_configuration": template_data.ui_configuration,
+        "voice_script_template": template_data.voice_script_template,
+        "voice_variables": template_data.voice_variables,
+        "estimated_call_duration": template_data.estimated_call_duration,
+        "compliance_requirements": template_data.compliance_requirements,
+        "compliance_level": template_data.compliance_level,
+        "created_by": current_user["id"],
+        "is_system_template": False,  # Custom template
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    result = await db.business_templates.insert_one(template_doc)
+    return {"message": "Template created successfully", "template_id": template_doc["id"]}
+
+# Tenant Template Assignment
+@api_router.post("/tenant/template")
+async def assign_business_template(
+    assignment: TenantTemplateAssignment,
+    current_user: dict = Depends(get_current_user)
+):
+    """Assign business template to tenant"""
+    require_admin_or_above(current_user)
+    
+    # Get template details
+    template = await db.business_templates.find_one({"id": assignment.template_id})
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    
+    # Apply template to tenant
+    assignment_doc = {
+        "tenant_id": current_user["tenant_id"],
+        "template_id": assignment.template_id,
+        "custom_field_labels": assignment.custom_field_labels,
+        "custom_validation_rules": assignment.custom_validation_rules,
+        "custom_voice_script": assignment.custom_voice_script,
+        "assigned_by": current_user["id"],
+        "assigned_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Upsert assignment (replace existing)
+    await db.tenant_template_assignments.update_one(
+        {"tenant_id": current_user["tenant_id"]},
+        {"$set": assignment_doc},
+        upsert=True
+    )
+    
+    # Update tenant configuration with template-specific settings
+    template_config = extract_template_configuration(template)
+    await db.tenant_config.update_one(
+        {"tenant_id": current_user["tenant_id"]},
+        {"$set": template_config}
+    )
+    
+    return {"message": "Business template assigned successfully"}
+```
+
+---
+
+## 🎯 **Template-Based Field Validation**
+
+### **Business-Specific Validation Implementation**
+
+```python
+class BusinessTemplateValidator:
+    """
+    Implements business-specific validation rules
+    """
+    
+    def __init__(self):
+        self.validators = {
+            "medical": MedicalFieldValidator(),
+            "salon": SalonFieldValidator(),
+            "restaurant": RestaurantFieldValidator(), 
+            "consultant": ConsultantFieldValidator(),
+            "general": GeneralFieldValidator()
+        }
+    
+    async def validate_contact_data(self, contact_data: dict, business_type: str) -> ValidationResult:
+        """
+        Validate contact data based on business template requirements
+        """
+        
+        validator = self.validators.get(business_type, self.validators["general"])
+        return await validator.validate(contact_data)
+
+class MedicalFieldValidator:
+    """
+    HIPAA-compliant validation for medical practice contacts
+    """
+    
+    async def validate(self, contact_data: dict) -> ValidationResult:
+        """
+        Validate medical practice contact with HIPAA requirements
+        """
+        
+        errors = []
+        warnings = []
+        
+        # Required field validation
+        required_fields = ["name", "phone", "appointment_date", "appointment_time"]
+        for field in required_fields:
+            if not contact_data.get(field):
+                errors.append(f"{field} is required for medical appointments")
+        
+        # PHI screening for text fields
+        text_fields = ["notes", "special_instructions", "appointment_type"]
+        for field in text_fields:
+            if contact_data.get(field):
+                phi_check = self.screen_for_phi(contact_data[field])
+                if phi_check.phi_detected:
+                    errors.append(f"Potential PHI detected in {field}: {phi_check.detected_terms}")
+        
+        # Phone number validation (stricter for medical)
+        phone = contact_data.get("phone")
+        if phone and not self.is_valid_medical_phone(phone):
+            errors.append("Invalid phone number format for medical practice")
+        
+        # Appointment type validation (must be generic)
+        appointment_type = contact_data.get("appointment_type", "")
+        if appointment_type:
+            restricted_terms = self.get_restricted_medical_terms()
+            for term in restricted_terms:
+                if term.lower() in appointment_type.lower():
+                    warnings.append(f"Consider using more generic term instead of '{term}' for privacy")
+        
+        return ValidationResult(
+            is_valid=len(errors) == 0,
+            errors=errors,
+            warnings=warnings,
+            compliance_status="hipaa_checked"
+        )
+    
+    def screen_for_phi(self, text: str) -> PHIScreeningResult:
+        """
+        Screen text for potential Protected Health Information
+        """
+        
+        phi_indicators = [
+            # Medical conditions
+            r'\b(diabetes|cancer|depression|anxiety|hypertension)\b',
+            r'\b(arthritis|asthma|copd|heart disease|stroke)\b',
+            
+            # Medical procedures
+            r'\b(surgery|operation|procedure|biopsy)\b',
+            r'\b(mri|ct scan|x-ray|ultrasound|endoscopy)\b',
+            
+            # Medical terms
+            r'\b(diagnosis|prognosis|symptoms|treatment)\b',
+            r'\b(medication|prescription|dosage)\b',
+            
+            # Personal identifiers
+            r'\b(ssn|social security|medicare|medicaid)\b',
+            r'\b\d{3}-\d{2}-\d{4}\b',  # SSN pattern
+            r'\b\d{3}-\d{3}-\d{4}\b',  # Phone pattern in sensitive context
+        ]
+        
+        detected_terms = []
+        for pattern in phi_indicators:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            detected_terms.extend(matches)
+        
+        return PHIScreeningResult(
+            phi_detected=len(detected_terms) > 0,
+            detected_terms=detected_terms,
+            sanitized_text=self.sanitize_phi(text) if detected_terms else text
+        )
+    
+    def sanitize_phi(self, text: str) -> str:
+        """
+        Remove or replace potential PHI with generic terms
+        """
+        
+        # Replace specific medical terms with generic equivalents
+        sanitization_map = {
+            r'\b(diabetes|cancer|depression|anxiety|hypertension|arthritis|asthma|copd|heart disease|stroke)\b': 'medical condition',
+            r'\b(surgery|operation|procedure|biopsy)\b': 'medical procedure',
+            r'\b(mri|ct scan|x-ray|ultrasound|endoscopy)\b': 'medical test',
+            r'\b(diagnosis|prognosis)\b': 'medical assessment',
+            r'\b(medication|prescription)\b': 'treatment',
+            r'\b\d{3}-\d{2}-\d{4}\b': '[REDACTED]',  # SSN
+            r'\b\d{3}-\d{3}-\d{4}\b': '[PHONE REDACTED]'  # Phone numbers
+        }
+        
+        sanitized = text
+        for pattern, replacement in sanitization_map.items():
+            sanitized = re.sub(pattern, replacement, sanitized, flags=re.IGNORECASE)
+        
+        return sanitized
+
+@dataclass
+class PHIScreeningResult:
+    phi_detected: bool
+    detected_terms: List[str]
+    sanitized_text: str
+
+@dataclass
+class ValidationResult:
+    is_valid: bool
+    errors: List[str]
+    warnings: List[str]
+    compliance_status: str
+```
+
+---
+
+## 📊 **Template Performance Analytics**
+
+### **Template-Specific Metrics**
+
+```typescript
+TemplateAnalytics {
+  // Medical Practice Metrics
+  medical_metrics: {
+    patient_confirmation_rate: percentage,
+    hipaa_compliance_score: percentage,
+    average_call_duration: number,       // Typically shorter for privacy
+    phi_incidents_prevented: number,     // Automatic PHI detection saves
+    patient_satisfaction: percentage,    // Based on call sentiment
+    
+    medical_specific: {
+      appointment_type_usage: Map<string, number>,  // Which visit types are most common
+      provider_popularity: Map<string, number>,     // Which providers have most appointments
+      preparation_compliance: percentage,           // Patients following prep instructions
+      no_show_reduction: percentage                 // Improvement in no-show rates
+    }
+  }
+  
+  // Salon/Spa Metrics
+  salon_metrics: {
+    client_retention_rate: percentage,
+    service_completion_rate: percentage,
+    average_service_duration: number,
+    client_satisfaction: percentage,
+    
+    salon_specific: {
+      popular_services: Map<string, number>,        // Most requested services
+      stylist_performance: Map<string, percentage>, // Success rates by stylist
+      seasonal_trends: Map<string, number>,         // Service demand by season
+      client_loyalty_score: percentage              // Repeat client percentage
+    }
+  }
+  
+  // Restaurant Metrics  
+  restaurant_metrics: {
+    reservation_confirmation_rate: percentage,
+    no_show_rate: percentage,
+    average_party_size: number,
+    guest_satisfaction: percentage,
+    
+    restaurant_specific: {
+      popular_dining_times: Map<string, number>,    // Peak reservation times
+      occasion_distribution: Map<string, number>,   // Birthday, anniversary, etc.
+      dietary_restriction_trends: Map<string, number>, // Dietary needs frequency
+      repeat_guest_rate: percentage                 // Customer retention
+    }
+  }
+  
+  // Consultant Metrics
+  consultant_metrics: {
+    meeting_confirmation_rate: percentage,
+    consultation_completion_rate: percentage,
+    client_engagement_score: percentage,
+    project_conversion_rate: percentage,
+    
+    consultant_specific: {
+      consultation_type_demand: Map<string, number>, // Most requested consultations
+      client_industry_distribution: Map<string, number>, // Industry breakdown
+      meeting_duration_effectiveness: Map<number, percentage>, // Optimal meeting lengths
+      preparation_compliance: percentage            // Clients coming prepared
+    }
+  }
+}
+```
+
+### **Template Optimization Recommendations**
+
+```python
+class TemplateOptimizer:
+    """
+    Analyzes template performance and provides optimization recommendations
+    """
+    
+    async def analyze_template_performance(self, tenant_id: str, days: int = 30) -> TemplateOptimizationReport:
+        """
+        Analyze template performance and generate recommendations
+        """
+        
+        # Get tenant template configuration
+        template_assignment = await db.tenant_template_assignments.find_one({"tenant_id": tenant_id})
+        if not template_assignment:
+            return TemplateOptimizationReport(error="No template assigned")
+        
+        template = await db.business_templates.find_one({"id": template_assignment["template_id"]})
+        business_type = template["template_type"]
+        
+        # Analyze performance data
+        performance_data = await self.get_template_performance_data(tenant_id, days)
+        
+        # Generate business-specific recommendations
+        recommendations = await self.generate_business_recommendations(business_type, performance_data)
+        
+        return TemplateOptimizationReport(
+            business_type=business_type,
+            analysis_period=days,
+            performance_summary=performance_data,
+            recommendations=recommendations,
+            optimization_score=self.calculate_optimization_score(performance_data)
+        )
+    
+    async def generate_business_recommendations(self, business_type: str, data: dict) -> List[Recommendation]:
+        """
+        Generate business-specific optimization recommendations
+        """
+        
+        recommendations = []
+        
+        if business_type == "medical":
+            # Medical practice recommendations
+            if data["confirmation_rate"] < 0.8:
+                recommendations.append(Recommendation(
+                    type="call_timing",
+                    priority="high",
+                    title="Optimize Call Timing",
+                    description="Consider calling 2-4 hours before appointments for medical practices",
+                    implementation="Adjust default call timing in tenant configuration"
+                ))
+            
+            if data.get("call_duration_avg", 0) > 60:
+                recommendations.append(Recommendation(
+                    type="script_optimization",
+                    priority="medium", 
+                    title="Simplify Voice Script",
+                    description="Medical calls should be brief and focused for patient privacy",
+                    implementation="Use shorter, more direct script template"
+                ))
+        
+        elif business_type == "salon":
+            # Beauty service recommendations
+            if data.get("no_show_rate", 0) > 0.15:
+                recommendations.append(Recommendation(
+                    type="service_reminders",
+                    priority="high",
+                    title="Add Service Preparation Reminders",
+                    description="Include preparation instructions to reduce no-shows",
+                    implementation="Add service-specific preparation instructions to call script"
+                ))
+        
+        elif business_type == "restaurant":
+            # Restaurant recommendations
+            if data.get("large_party_issues", 0) > 0.1:
+                recommendations.append(Recommendation(
+                    type="party_size_handling", 
+                    priority="medium",
+                    title="Improve Large Party Management",
+                    description="Large parties (8+) may need special handling",
+                    implementation="Add specific instructions for large party confirmations"
+                ))
+        
+        return recommendations
+
+@dataclass
+class TemplateOptimizationReport:
+    business_type: str
+    analysis_period: int
+    performance_summary: dict
+    recommendations: List['Recommendation']
+    optimization_score: float
+    error: Optional[str] = None
+
+@dataclass  
+class Recommendation:
+    type: str
+    priority: str
+    title: str
+    description: str
+    implementation: str
+```
+
+---
+
+## 🔒 **Compliance & Security by Business Type**
+
+### **Industry-Specific Compliance Requirements**
+
+```typescript
+ComplianceByIndustry {
+  medical_compliance: {
+    required_regulations: ["HIPAA", "HITECH", "State Medical Privacy Laws"],
+    
+    implementation: {
+      data_encryption: "AES-256 encryption for all patient data",
+      access_controls: "Role-based access with audit trails",
+      consent_management: "Explicit consent for voice communications",
+      data_retention: "Configurable retention periods (default 7 years)",
+      audit_logging: "Enhanced logging for all patient data access",
+      phi_protection: "Automatic PHI detection and sanitization"
+    },
+    
+    voice_call_restrictions: {
+      information_limits: "First name and appointment time only",
+      location_generic: "Main office location only",
+      provider_reference: "Generic provider title only",
+      no_medical_details: "No specific medical procedures or conditions"
+    }
+  }
+  
+  salon_compliance: {
+    required_regulations: ["Data Protection (GDPR)", "Consumer Privacy"],
+    
+    implementation: {
+      client_preferences: "Secure storage of beauty preferences and allergies",
+      service_history: "Encrypted service history and notes",
+      marketing_consent: "Opt-in consent for promotional communications",
+      data_portability: "Export client data upon request"
+    }
+  }
+  
+  restaurant_compliance: {
+    required_regulations: ["Food Safety Communication", "Consumer Privacy"],
+    
+    implementation: {
+      dietary_restrictions: "Secure handling of allergy information",
+      guest_preferences: "Privacy protection for dining preferences",
+      special_occasions: "Discreet handling of personal celebrations"
+    }
+  }
+  
+  consultant_compliance: {
+    required_regulations: ["Business Confidentiality", "Professional Privacy"],
+    
+    implementation: {
+      client_confidentiality: "Secure handling of business information",
+      project_privacy: "Protected storage of strategic information",
+      intellectual_property: "Secure handling of proprietary information"
+    }
+  }
+}
+```
+
+---
+
+## 🚀 **Implementation Summary**
+
+### **Complete Business Template System**
+
+| Business Type | Template Status | Key Features | Compliance Level |
+|---------------|----------------|--------------|------------------|
+| **Medical Practice** | ✅ Complete | HIPAA compliance, PHI protection, minimal information calls | Strict HIPAA |
+| **Salon/Spa** | ✅ Complete | Service tracking, stylist assignment, beauty terminology | Standard Privacy |
+| **Restaurant** | ✅ Complete | Party size management, dietary tracking, occasion handling | Basic Privacy |
+| **Consultant** | ✅ Complete | Meeting types, preparation tracking, business context | Professional Confidentiality |
+| **General Business** | ✅ Complete | Flexible configuration, custom fields, universal compatibility | Configurable |
+
+### **Voice Script Templates**
+
+| Template | Call Duration | Compliance Features | Customization Level |
+|----------|---------------|-------------------|-------------------|
+| **Medical** | 30-45 seconds | HIPAA-compliant, first name only, generic terms | Limited (compliance-focused) |
+| **Salon** | 60-90 seconds | Service-specific, stylist names, beauty terminology | High customization |
+| **Restaurant** | 45-75 seconds | Party size, occasion-aware, dietary considerations | Medium customization |  
+| **Consultant** | 75-120 seconds | Professional tone, preparation instructions, business context | High customization |
+| **General** | 60-90 seconds | Fully customizable, universal terminology | Maximum customization |
+
+### **Retell AI Integration Performance**
+
+```typescript
+SystemPerformance {
+  call_initiation: "<30 seconds from trigger to Retell API call",
+  template_processing: "<5 seconds to generate personalized script",
+  compliance_validation: "<2 seconds for HIPAA screening",
+  retry_scheduling: "<10 seconds to schedule follow-up call",
+  
+  scalability: {
+    templates_supported: "Unlimited custom templates",
+    concurrent_calls: "100+ per tenant with template processing",
+    script_generation: "1000+ personalized scripts per minute",
+    compliance_checking: "Real-time PHI detection and sanitization"
+  }
+}
+```
+
+**The VioConcierge Business Template System provides industry-specific, compliance-aware appointment management with intelligent voice calling tailored to each business type's unique requirements and regulatory environment.** 🎯
+
+---
+
+## 🔍 **Developer Implementation Checklist**
+
+### **Required Configuration Steps**
+
+```bash
+# 1. Configure Retell AI Integration
+RETELL_API_KEY=key_your_api_key_here
+RETELL_AGENT_ID=agent_your_agent_id_here  
+RETELL_PHONE_NUMBER=+447403305280
+
+# 2. Set Business Template Defaults
+DEFAULT_BUSINESS_TYPE=general
+ENABLE_HIPAA_MODE=auto_detect
+PHI_SCREENING_ENABLED=true
+
+# 3. Configure Call Timing
+DEFAULT_CALL_HOURS_BEFORE=24
+BUSINESS_HOURS_START=08:00
+BUSINESS_HOURS_END=20:00
+DEFAULT_TIMEZONE=Europe/London
+
+# 4. Set Retry Configuration
+MAX_RETRY_ATTEMPTS=2
+RETRY_DELAY_NO_ANSWER=2
+RETRY_DELAY_VOICEMAIL=8
+RETRY_DELAY_BUSY=1
+RETRY_DELAY_FAILED=4
+
+# 5. Enable Abuse Protection
+MAX_CALLS_PER_15MIN=25
+MAX_CALLS_PER_DAY=300
+ENABLE_AUTO_PAUSE=true
+ENABLE_QUALITY_MONITORING=true
+```
+
+**The system is production-ready with comprehensive business template support, HIPAA compliance, and intelligent Retell AI integration for appointment reminder automation.** 🚀
