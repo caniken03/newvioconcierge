@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
@@ -35,9 +35,49 @@ import {
   Calendar,
   CheckCircle,
   Mail,
-  MessageSquare
+  MessageSquare,
+  Save,
+  RefreshCw,
+  Star,
+  StarOff
 } from "lucide-react";
 import type { Contact, ContactGroup, Location, ContactStats, GroupMembership } from "@/types";
+
+// Helper functions for date filtering
+const getWeekStart = () => {
+  const now = new Date();
+  const firstDayOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
+  firstDayOfWeek.setHours(0, 0, 0, 0);
+  return firstDayOfWeek.toISOString().split('T')[0];
+};
+
+const getWeekEnd = () => {
+  const now = new Date();
+  const lastDayOfWeek = new Date(now.setDate(now.getDate() - now.getDay() + 6));
+  lastDayOfWeek.setHours(23, 59, 59, 999);
+  return lastDayOfWeek.toISOString().split('T')[0];
+};
+
+// Initial filters constant
+const initialFilters: ContactFilters = {
+  search: "",
+  status: "all",
+  groupId: "all",
+  priorityLevel: "all",
+  locationId: "all",
+  bookingSource: "all",
+  preferredContactMethod: "all",
+  appointmentDateFrom: "",
+  appointmentDateTo: "",
+  createdDateFrom: "",
+  createdDateTo: "",
+  searchFields: ['name', 'phone', 'email'],
+  searchOperator: 'any',
+  hasEmail: "all",
+  hasNotes: "all", 
+  callAttempts: "all",
+  timezone: "all"
+};
 
 // Enhanced filter interfaces
 interface ContactFilters {
@@ -48,6 +88,29 @@ interface ContactFilters {
   locationId: string;
   bookingSource: string;
   preferredContactMethod: string;
+  // Advanced date filtering
+  appointmentDateFrom: string;
+  appointmentDateTo: string;
+  createdDateFrom: string;
+  createdDateTo: string;
+  // Advanced search options
+  searchFields: string[]; // Which fields to search in
+  searchOperator: 'any' | 'all'; // AND/OR search
+  // Additional filters
+  hasEmail: 'all' | 'yes' | 'no';
+  hasNotes: 'all' | 'yes' | 'no';
+  callAttempts: 'all' | '0' | '1-3' | '4+';
+  timezone: string;
+}
+
+// Saved filter preset interface
+interface FilterPreset {
+  id: string;
+  name: string;
+  description?: string;
+  filters: ContactFilters;
+  isDefault?: boolean;
+  createdAt: string;
 }
 
 export default function Contacts() {
@@ -67,23 +130,105 @@ export default function Contacts() {
   const [isGroupAssignmentOpen, setIsGroupAssignmentOpen] = useState(false);
 
   // Enhanced filter state
-  const [filters, setFilters] = useState<ContactFilters>({
-    search: "",
-    status: "all",
-    groupId: "all",
-    priorityLevel: "all",
-    locationId: "all",
-    bookingSource: "all",
-    preferredContactMethod: "all"
-  });
+  const [filters, setFilters] = useState<ContactFilters>(initialFilters);
+
+  // Default presets
+  const getDefaultPresets = (): FilterPreset[] => [
+    {
+      id: 'high-priority-pending',
+      name: 'High Priority Pending',
+      description: 'High/urgent priority contacts with pending appointments',
+      filters: { ...initialFilters, priorityLevel: 'high', status: 'pending' },
+      isDefault: true,
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: 'this-week-appointments',
+      name: "This Week's Appointments",
+      description: 'Appointments scheduled for this week',
+      filters: { ...initialFilters, appointmentDateFrom: getWeekStart(), appointmentDateTo: getWeekEnd() },
+      isDefault: true,
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: 'no-email-contacts',
+      name: 'Missing Email Contacts',
+      description: 'Contacts without email addresses',
+      filters: { ...initialFilters, hasEmail: 'no' },
+      isDefault: true,
+      createdAt: new Date().toISOString()
+    }
+  ];
+
+  // Load presets from localStorage with defaults
+  const loadPresets = (): FilterPreset[] => {
+    try {
+      const stored = localStorage.getItem(`vioconcierge-filter-presets-${user?.tenantId}`);
+      if (stored) {
+        const parsed = JSON.parse(stored) as FilterPreset[];
+        // Merge with defaults, keeping defaults if not already present
+        const defaultPresets = getDefaultPresets();
+        const existingIds = parsed.map(p => p.id);
+        const missingDefaults = defaultPresets.filter(def => !existingIds.includes(def.id));
+        return [...parsed, ...missingDefaults];
+      }
+    } catch (error) {
+      console.error('Error loading filter presets:', error);
+    }
+    return getDefaultPresets();
+  };
+
+  // Save presets to localStorage
+  const savePresets = (presets: FilterPreset[]) => {
+    try {
+      localStorage.setItem(`vioconcierge-filter-presets-${user?.tenantId}`, JSON.stringify(presets));
+    } catch (error) {
+      console.error('Error saving filter presets:', error);
+    }
+  };
+
+  // Load active preset from localStorage
+  const loadActivePreset = (): string | null => {
+    try {
+      return localStorage.getItem(`vioconcierge-active-preset-${user?.tenantId}`);
+    } catch (error) {
+      console.error('Error loading active preset:', error);
+      return null;
+    }
+  };
+
+  // Save active preset to localStorage
+  const saveActivePreset = (presetId: string | null) => {
+    try {
+      if (presetId) {
+        localStorage.setItem(`vioconcierge-active-preset-${user?.tenantId}`, presetId);
+      } else {
+        localStorage.removeItem(`vioconcierge-active-preset-${user?.tenantId}`);
+      }
+    } catch (error) {
+      console.error('Error saving active preset:', error);
+    }
+  };
+
+  // Persistent saved filter presets state
+  const [savedPresets, setSavedPresets] = useState<FilterPreset[]>([]);
+  const [activePreset, setActivePreset] = useState<string | null>(null);
+
+  // Load presets on component mount and user change
+  useEffect(() => {
+    if (user) {
+      setSavedPresets(loadPresets());
+      setActivePreset(loadActivePreset());
+    }
+  }, [user]);
 
   // Legacy compatibility
   const searchQuery = filters.search;
   const statusFilter = filters.status;
 
-  // Fetch contacts with enhanced filtering
+  // Fetch contacts with stable query key (filtering is client-side)
   const { data: contacts = [], isLoading: contactsLoading } = useQuery({
-    queryKey: ['/api/contacts', filters, currentPage],
+    queryKey: ['/api/contacts', currentPage],
     enabled: !!user,
   }) as { data: Contact[], isLoading: boolean };
 
@@ -390,22 +535,76 @@ export default function Contacts() {
     enabled: !!user && contactGroups.length > 0,
   }) as { data: GroupMembership[] };
 
-  // Enhanced filtering logic
+  // Comprehensive Enhanced filtering logic
   const filteredContacts = contacts.filter((contact: Contact) => {
-    // Search filter - search across multiple fields
+    // Advanced Search Filter with field selection and operators
     if (filters.search.trim()) {
       const searchLower = filters.search.toLowerCase();
-      const matchesSearch = [
-        contact.name,
-        contact.email,
-        contact.phone, 
-        contact.companyName,
-        contact.ownerName,
-        contact.notes,
-        contact.appointmentType
-      ].some(field => field?.toLowerCase().includes(searchLower));
+      const searchTerms = searchLower.split(' ').filter(term => term.length > 0);
+      
+      // Get searchable field values based on selected search fields
+      const getFieldValue = (fieldName: string) => {
+        switch (fieldName) {
+          case 'name': return contact.name?.toLowerCase() || '';
+          case 'email': return contact.email?.toLowerCase() || '';
+          case 'phone': return contact.phone?.toLowerCase() || '';
+          case 'company': return contact.companyName?.toLowerCase() || '';
+          case 'owner': return contact.ownerName?.toLowerCase() || '';
+          case 'notes': return contact.notes?.toLowerCase() || '';
+          case 'appointmentType': return contact.appointmentType?.toLowerCase() || '';
+          default: return '';
+        }
+      };
+      
+      // Get all searchable content based on selected fields
+      const searchableContent = filters.searchFields.map(field => getFieldValue(field)).join(' ');
+      
+      // Apply AND/OR operator logic
+      const matchesSearch = filters.searchOperator === 'all' 
+        ? searchTerms.every(term => searchableContent.includes(term))
+        : searchTerms.some(term => searchableContent.includes(term));
       
       if (!matchesSearch) return false;
+    }
+
+    // Date Range Filters - Exclude contacts missing dates when date filters are active
+    const hasAppointmentDateFilter = filters.appointmentDateFrom || filters.appointmentDateTo;
+    const hasCreatedDateFilter = filters.createdDateFrom || filters.createdDateTo;
+    
+    // If appointment date filter is active, exclude contacts without appointment time
+    if (hasAppointmentDateFilter && !contact.appointmentTime) {
+      return false;
+    }
+    
+    // If created date filter is active, exclude contacts without creation date
+    if (hasCreatedDateFilter && !contact.createdAt) {
+      return false;
+    }
+    
+    // Apply appointment date range filtering
+    if (filters.appointmentDateFrom && contact.appointmentTime) {
+      const appointmentDate = new Date(contact.appointmentTime);
+      const fromDate = new Date(filters.appointmentDateFrom);
+      if (appointmentDate < fromDate) return false;
+    }
+    
+    if (filters.appointmentDateTo && contact.appointmentTime) {
+      const appointmentDate = new Date(contact.appointmentTime);
+      const toDate = new Date(filters.appointmentDateTo + 'T23:59:59');
+      if (appointmentDate > toDate) return false;
+    }
+    
+    // Apply created date range filtering
+    if (filters.createdDateFrom && contact.createdAt) {
+      const createdDate = new Date(contact.createdAt);
+      const fromDate = new Date(filters.createdDateFrom);
+      if (createdDate < fromDate) return false;
+    }
+    
+    if (filters.createdDateTo && contact.createdAt) {
+      const createdDate = new Date(contact.createdAt);
+      const toDate = new Date(filters.createdDateTo + 'T23:59:59');
+      if (createdDate > toDate) return false;
     }
 
     // Status filter
@@ -439,12 +638,151 @@ export default function Contacts() {
       return false;
     }
 
+    // Additional Advanced Filters
+    
+    // Has Email filter
+    if (filters.hasEmail === "yes" && !contact.email) return false;
+    if (filters.hasEmail === "no" && contact.email) return false;
+    
+    // Has Notes filter
+    if (filters.hasNotes === "yes" && !contact.notes) return false;
+    if (filters.hasNotes === "no" && contact.notes) return false;
+    
+    // Call Attempts filter
+    if (filters.callAttempts !== "all") {
+      const attempts = contact.callAttempts || 0;
+      switch (filters.callAttempts) {
+        case "0":
+          if (attempts !== 0) return false;
+          break;
+        case "1-3":
+          if (attempts < 1 || attempts > 3) return false;
+          break;
+        case "4+":
+          if (attempts < 4) return false;
+          break;
+      }
+    }
+    
+    // Timezone filter
+    if (filters.timezone !== "all" && contact.timezone !== filters.timezone) {
+      return false;
+    }
+
     return true;
   });
 
   // Filter update functions
-  const updateFilter = (key: keyof ContactFilters, value: string) => {
+  const updateFilter = (key: keyof ContactFilters, value: string | string[]) => {
     setFilters(prev => ({ ...prev, [key]: value }));
+    setActivePreset(null); // Clear active preset when manually changing filters
+    saveActivePreset(null); // Also clear from localStorage
+  };
+
+  // Advanced filter management functions with persistence
+  const applyPreset = (preset: FilterPreset) => {
+    setFilters(preset.filters);
+    setActivePreset(preset.id);
+    saveActivePreset(preset.id);
+    toast({
+      title: "Filter preset applied",
+      description: `Applied "${preset.name}" filter preset`,
+    });
+  };
+
+  const saveCurrentFiltersAsPreset = (name: string, description?: string) => {
+    const newPreset: FilterPreset = {
+      id: `custom-${Date.now()}`,
+      name,
+      description,
+      filters: { ...filters },
+      isDefault: false,
+      createdAt: new Date().toISOString()
+    };
+    
+    const updatedPresets = [...savedPresets, newPreset];
+    setSavedPresets(updatedPresets);
+    savePresets(updatedPresets);
+    setActivePreset(newPreset.id);
+    saveActivePreset(newPreset.id);
+    
+    toast({
+      title: "Filter preset saved",
+      description: `Saved "${name}" filter preset successfully`,
+    });
+  };
+
+  const deletePreset = (presetId: string) => {
+    const updatedPresets = savedPresets.filter(preset => preset.id !== presetId);
+    setSavedPresets(updatedPresets);
+    savePresets(updatedPresets);
+    
+    if (activePreset === presetId) {
+      setActivePreset(null);
+      saveActivePreset(null);
+    }
+    
+    toast({
+      title: "Filter preset deleted",
+      description: "Filter preset has been removed",
+    });
+  };
+
+  // Quick filter shortcuts
+  const applyQuickFilter = (filterType: string) => {
+    const today = new Date();
+    const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay()));
+    const endOfWeek = new Date(today.setDate(today.getDate() - today.getDay() + 6));
+    
+    switch (filterType) {
+      case 'high-priority':
+        setFilters({ ...initialFilters, priorityLevel: 'high' });
+        break;
+      case 'urgent-pending':
+        setFilters({ ...initialFilters, priorityLevel: 'urgent', status: 'pending' });
+        break;
+      case 'this-week':
+        setFilters({ 
+          ...initialFilters, 
+          appointmentDateFrom: startOfWeek.toISOString().split('T')[0],
+          appointmentDateTo: endOfWeek.toISOString().split('T')[0]
+        });
+        break;
+      case 'no-email':
+        setFilters({ ...initialFilters, hasEmail: 'no' });
+        break;
+      case 'never-called':
+        setFilters({ ...initialFilters, callAttempts: '0' });
+        break;
+      case 'multiple-attempts':
+        setFilters({ ...initialFilters, callAttempts: '4+' });
+        break;
+      default:
+        break;
+    }
+    setActivePreset(null);
+    saveActivePreset(null); // Clear active preset from localStorage
+  };
+
+  // Get active filter count (excluding search and default "all" values)
+  const getActiveFilterCount = () => {
+    let count = 0;
+    if (filters.search.trim()) count++;
+    if (filters.status !== "all") count++;
+    if (filters.groupId !== "all") count++;
+    if (filters.priorityLevel !== "all") count++;
+    if (filters.locationId !== "all") count++;
+    if (filters.bookingSource !== "all") count++;
+    if (filters.preferredContactMethod !== "all") count++;
+    if (filters.appointmentDateFrom) count++;
+    if (filters.appointmentDateTo) count++;
+    if (filters.createdDateFrom) count++;
+    if (filters.createdDateTo) count++;
+    if (filters.hasEmail !== "all") count++;
+    if (filters.hasNotes !== "all") count++;
+    if (filters.callAttempts !== "all") count++;
+    if (filters.timezone !== "all") count++;
+    return count;
   };
 
   if (!user) return null;
@@ -687,15 +1025,16 @@ export default function Contacts() {
                     </SelectContent>
                   </Select>
 
-                  {/* Advanced Filters Toggle */}
+                  {/* Advanced Filters Toggle with Active Count */}
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
                     data-testid="button-toggle-advanced-filters"
+                    className={showAdvancedFilters || getActiveFilterCount() > 0 ? 'border-primary text-primary' : ''}
                   >
-                    <Filter className={`w-4 h-4 mr-2 ${showAdvancedFilters ? 'text-primary' : ''}`} />
-                    Advanced
+                    <Filter className={`w-4 h-4 mr-2 ${showAdvancedFilters || getActiveFilterCount() > 0 ? 'text-primary' : ''}`} />
+                    Advanced {getActiveFilterCount() > 0 && `(${getActiveFilterCount()})`}
                   </Button>
 
                   {/* Bulk Actions */}
@@ -750,117 +1089,401 @@ export default function Contacts() {
                 </div>
               </div>
 
-              {/* Advanced Filters Panel */}
+              {/* Comprehensive Advanced Filters Panel */}
               {showAdvancedFilters && (
-                <div className="mt-4 pt-4 border-t border-border">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {/* Contact Groups Filter */}
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Contact Group</label>
-                      <Select value={filters.groupId} onValueChange={(value) => updateFilter('groupId', value)}>
-                        <SelectTrigger data-testid="select-group-filter">
-                          <SelectValue placeholder="All Groups" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Groups</SelectItem>
-                          {contactGroups.map((group) => (
-                            <SelectItem key={group.id} value={group.id}>
-                              {group.name} ({group.contactCount || 0})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Priority Level Filter */}
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Priority Level</label>
-                      <Select value={filters.priorityLevel} onValueChange={(value) => updateFilter('priorityLevel', value)}>
-                        <SelectTrigger data-testid="select-priority-filter">
-                          <SelectValue placeholder="All Priorities" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Priorities</SelectItem>
-                          <SelectItem value="normal">Normal</SelectItem>
-                          <SelectItem value="high">High</SelectItem>
-                          <SelectItem value="urgent">Urgent</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Location Filter */}
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Location</label>
-                      <Select value={filters.locationId} onValueChange={(value) => updateFilter('locationId', value)}>
-                        <SelectTrigger data-testid="select-location-filter">
-                          <SelectValue placeholder="All Locations" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Locations</SelectItem>
-                          {locations.map((location) => (
-                            <SelectItem key={location.id} value={location.id}>
-                              {location.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Booking Source Filter */}
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Booking Source</label>
-                      <Select value={filters.bookingSource} onValueChange={(value) => updateFilter('bookingSource', value)}>
-                        <SelectTrigger data-testid="select-booking-source-filter">
-                          <SelectValue placeholder="All Sources" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Sources</SelectItem>
-                          <SelectItem value="manual">Manual</SelectItem>
-                          <SelectItem value="calcom">Cal.com</SelectItem>
-                          <SelectItem value="calendly">Calendly</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                    {/* Preferred Contact Method Filter */}
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Preferred Contact Method</label>
-                      <Select value={filters.preferredContactMethod} onValueChange={(value) => updateFilter('preferredContactMethod', value)}>
-                        <SelectTrigger data-testid="select-contact-method-filter">
-                          <SelectValue placeholder="All Methods" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Methods</SelectItem>
-                          <SelectItem value="voice">Voice</SelectItem>
-                          <SelectItem value="email">Email</SelectItem>
-                          <SelectItem value="sms">SMS</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Clear Filters */}
-                    <div className="flex items-end">
+                <div className="mt-4 pt-4 border-t border-border space-y-6">
+                  
+                  {/* Quick Filter Buttons */}
+                  <div>
+                    <h4 className="text-sm font-medium text-foreground mb-3">Quick Filters</h4>
+                    <div className="flex flex-wrap gap-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setFilters({
-                          search: "",
-                          status: "all",
-                          groupId: "all",
-                          priorityLevel: "all",
-                          locationId: "all",
-                          bookingSource: "all",
-                          preferredContactMethod: "all"
-                        })}
-                        data-testid="button-clear-filters"
+                        onClick={() => applyQuickFilter('high-priority')}
+                        data-testid="quick-filter-high-priority"
+                        className="h-8 text-xs"
                       >
-                        <X className="w-4 h-4 mr-2" />
-                        Clear All Filters
+                        <Star className="w-3 h-3 mr-1" />
+                        High Priority
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => applyQuickFilter('urgent-pending')}
+                        data-testid="quick-filter-urgent-pending"
+                        className="h-8 text-xs"
+                      >
+                        🚨 Urgent Pending
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => applyQuickFilter('this-week')}
+                        data-testid="quick-filter-this-week"
+                        className="h-8 text-xs"
+                      >
+                        <Calendar className="w-3 h-3 mr-1" />
+                        This Week
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => applyQuickFilter('no-email')}
+                        data-testid="quick-filter-no-email"
+                        className="h-8 text-xs"
+                      >
+                        <Mail className="w-3 h-3 mr-1" />
+                        Missing Email
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => applyQuickFilter('never-called')}
+                        data-testid="quick-filter-never-called"
+                        className="h-8 text-xs"
+                      >
+                        <Phone className="w-3 h-3 mr-1" />
+                        Never Called
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => applyQuickFilter('multiple-attempts')}
+                        data-testid="quick-filter-multiple-attempts"
+                        className="h-8 text-xs"
+                      >
+                        📞 4+ Attempts
                       </Button>
                     </div>
                   </div>
+
+                  {/* Saved Presets */}
+                  {savedPresets.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium text-foreground mb-3">Saved Presets</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {savedPresets.map((preset) => (
+                          <Button
+                            key={preset.id}
+                            variant={activePreset === preset.id ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => applyPreset(preset)}
+                            data-testid={`preset-${preset.id}`}
+                            className="h-8 text-xs"
+                          >
+                            {activePreset === preset.id && <Star className="w-3 h-3 mr-1" />}
+                            {preset.name}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Enhanced Search Configuration */}
+                  <div className="bg-muted/30 p-4 rounded-lg">
+                    <h4 className="text-sm font-medium text-foreground mb-3">Advanced Search Settings</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-2 block">Search In Fields</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { id: 'name', label: 'Name' },
+                            { id: 'email', label: 'Email' },
+                            { id: 'phone', label: 'Phone' },
+                            { id: 'company', label: 'Company' },
+                            { id: 'owner', label: 'Owner' },
+                            { id: 'notes', label: 'Notes' }
+                          ].map(field => (
+                            <div key={field.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`search-${field.id}`}
+                                checked={filters.searchFields.includes(field.id)}
+                                onCheckedChange={(checked) => {
+                                  const newFields = checked 
+                                    ? [...filters.searchFields, field.id]
+                                    : filters.searchFields.filter(f => f !== field.id);
+                                  updateFilter('searchFields', newFields);
+                                }}
+                                data-testid={`checkbox-search-${field.id}`}
+                              />
+                              <label 
+                                htmlFor={`search-${field.id}`} 
+                                className="text-xs text-muted-foreground cursor-pointer"
+                              >
+                                {field.label}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-2 block">Search Operator</label>
+                        <Select value={filters.searchOperator} onValueChange={(value: 'any' | 'all') => updateFilter('searchOperator', value)}>
+                          <SelectTrigger data-testid="select-search-operator" className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="any">Match ANY word (OR)</SelectItem>
+                            <SelectItem value="all">Match ALL words (AND)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Date Range Filters */}
+                  <div>
+                    <h4 className="text-sm font-medium text-foreground mb-3">Date Filters</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Appointment From</label>
+                        <Input
+                          type="date"
+                          value={filters.appointmentDateFrom}
+                          onChange={(e) => updateFilter('appointmentDateFrom', e.target.value)}
+                          data-testid="input-appointment-date-from"
+                          className="h-9"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Appointment To</label>
+                        <Input
+                          type="date"
+                          value={filters.appointmentDateTo}
+                          onChange={(e) => updateFilter('appointmentDateTo', e.target.value)}
+                          data-testid="input-appointment-date-to"
+                          className="h-9"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Created From</label>
+                        <Input
+                          type="date"
+                          value={filters.createdDateFrom}
+                          onChange={(e) => updateFilter('createdDateFrom', e.target.value)}
+                          data-testid="input-created-date-from"
+                          className="h-9"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Created To</label>
+                        <Input
+                          type="date"
+                          value={filters.createdDateTo}
+                          onChange={(e) => updateFilter('createdDateTo', e.target.value)}
+                          data-testid="input-created-date-to"
+                          className="h-9"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Standard Filters - Better organized */}
+                  <div>
+                    <h4 className="text-sm font-medium text-foreground mb-3">Standard Filters</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {/* Contact Groups Filter */}
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Contact Group</label>
+                        <Select value={filters.groupId} onValueChange={(value) => updateFilter('groupId', value)}>
+                          <SelectTrigger data-testid="select-group-filter" className="h-9">
+                            <SelectValue placeholder="All Groups" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Groups</SelectItem>
+                            {contactGroups.map((group) => (
+                              <SelectItem key={group.id} value={group.id}>
+                                {group.name} ({group.contactCount || 0})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Priority Level Filter */}
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Priority Level</label>
+                        <Select value={filters.priorityLevel} onValueChange={(value) => updateFilter('priorityLevel', value)}>
+                          <SelectTrigger data-testid="select-priority-filter" className="h-9">
+                            <SelectValue placeholder="All Priorities" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Priorities</SelectItem>
+                            <SelectItem value="normal">Normal</SelectItem>
+                            <SelectItem value="high">High</SelectItem>
+                            <SelectItem value="urgent">Urgent</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Location Filter */}
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Location</label>
+                        <Select value={filters.locationId} onValueChange={(value) => updateFilter('locationId', value)}>
+                          <SelectTrigger data-testid="select-location-filter" className="h-9">
+                            <SelectValue placeholder="All Locations" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Locations</SelectItem>
+                            {locations.map((location) => (
+                              <SelectItem key={location.id} value={location.id}>
+                                {location.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Booking Source Filter */}
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Booking Source</label>
+                        <Select value={filters.bookingSource} onValueChange={(value) => updateFilter('bookingSource', value)}>
+                          <SelectTrigger data-testid="select-booking-source-filter" className="h-9">
+                            <SelectValue placeholder="All Sources" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Sources</SelectItem>
+                            <SelectItem value="manual">Manual</SelectItem>
+                            <SelectItem value="calcom">Cal.com</SelectItem>
+                            <SelectItem value="calendly">Calendly</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Additional Advanced Filters */}
+                  <div>
+                    <h4 className="text-sm font-medium text-foreground mb-3">Additional Filters</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                      {/* Preferred Contact Method Filter */}
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Contact Method</label>
+                        <Select value={filters.preferredContactMethod} onValueChange={(value) => updateFilter('preferredContactMethod', value)}>
+                          <SelectTrigger data-testid="select-contact-method-filter" className="h-9">
+                            <SelectValue placeholder="All Methods" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Methods</SelectItem>
+                            <SelectItem value="voice">Voice</SelectItem>
+                            <SelectItem value="email">Email</SelectItem>
+                            <SelectItem value="sms">SMS</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Has Email Filter */}
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Has Email</label>
+                        <Select value={filters.hasEmail} onValueChange={(value) => updateFilter('hasEmail', value)}>
+                          <SelectTrigger data-testid="select-has-email-filter" className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Contacts</SelectItem>
+                            <SelectItem value="yes">With Email</SelectItem>
+                            <SelectItem value="no">Without Email</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Has Notes Filter */}
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Has Notes</label>
+                        <Select value={filters.hasNotes} onValueChange={(value) => updateFilter('hasNotes', value)}>
+                          <SelectTrigger data-testid="select-has-notes-filter" className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Contacts</SelectItem>
+                            <SelectItem value="yes">With Notes</SelectItem>
+                            <SelectItem value="no">Without Notes</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Call Attempts Filter */}
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Call Attempts</label>
+                        <Select value={filters.callAttempts} onValueChange={(value) => updateFilter('callAttempts', value)}>
+                          <SelectTrigger data-testid="select-call-attempts-filter" className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Attempts</SelectItem>
+                            <SelectItem value="0">Never Called (0)</SelectItem>
+                            <SelectItem value="1-3">Few Attempts (1-3)</SelectItem>
+                            <SelectItem value="4+">Many Attempts (4+)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Timezone Filter */}
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Timezone</label>
+                        <Select value={filters.timezone} onValueChange={(value) => updateFilter('timezone', value)}>
+                          <SelectTrigger data-testid="select-timezone-filter" className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Timezones</SelectItem>
+                            <SelectItem value="Europe/London">Europe/London</SelectItem>
+                            <SelectItem value="America/New_York">America/New_York</SelectItem>
+                            <SelectItem value="America/Chicago">America/Chicago</SelectItem>
+                            <SelectItem value="America/Denver">America/Denver</SelectItem>
+                            <SelectItem value="America/Los_Angeles">America/Los_Angeles</SelectItem>
+                            <SelectItem value="Europe/Paris">Europe/Paris</SelectItem>
+                            <SelectItem value="Asia/Tokyo">Asia/Tokyo</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Filter Management Actions */}
+                  <div className="flex items-center justify-between pt-4 border-t border-border">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setFilters(initialFilters);
+                          setActivePreset(null);
+                        }}
+                        data-testid="button-clear-filters"
+                        className="h-8"
+                      >
+                        <RefreshCw className="w-3 h-3 mr-1" />
+                        Clear All
+                      </Button>
+                      {getActiveFilterCount() > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          {getActiveFilterCount()} filter{getActiveFilterCount() > 1 ? 's' : ''} active
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {getActiveFilterCount() > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const presetName = prompt("Enter a name for this filter preset:");
+                            if (presetName?.trim()) {
+                              saveCurrentFiltersAsPreset(presetName.trim());
+                            }
+                          }}
+                          data-testid="button-save-preset"
+                          className="h-8"
+                        >
+                          <Save className="w-3 h-3 mr-1" />
+                          Save as Preset
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
                 </div>
               )}
 

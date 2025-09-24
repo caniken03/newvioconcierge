@@ -134,6 +134,9 @@ export interface GroupMembership {
   groupId: string;
   addedAt: string;
   addedBy: string;
+  // Optional display properties for UI purposes
+  groupName?: string;
+  groupColor?: string;
 }
 
 export interface Location {
