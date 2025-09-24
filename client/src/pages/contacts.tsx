@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import Sidebar from "@/components/layout/sidebar";
 import Header from "@/components/layout/header";
 import ContactModal from "@/components/modals/contact-modal";
+import ContactGroupsModal from "@/components/modals/contact-groups-modal";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +56,9 @@ export default function Contacts() {
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [isGroupsModalOpen, setIsGroupsModalOpen] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<ContactGroup | null>(null);
+  const [activeTab, setActiveTab] = useState<'contacts' | 'groups'>('contacts');
   const [currentPage, setCurrentPage] = useState(1);
   const [isImporting, setIsImporting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -208,6 +212,58 @@ export default function Contacts() {
 
   const handleTriggerCall = (contactId: string) => {
     triggerCallMutation.mutate(contactId);
+  };
+
+  // Delete contact group mutation
+  const deleteGroupMutation = useMutation({
+    mutationFn: async (groupId: string) => {
+      return await apiRequest('DELETE', `/api/contact-groups/${groupId}`);
+    },
+    onSuccess: (_, deletedGroupId) => {
+      // Invalidate related queries
+      queryClient.invalidateQueries({ queryKey: ['/api/contact-groups'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/contacts/stats'] });
+      
+      // Reset group filter if deleted group was selected
+      if (filters.groupId === deletedGroupId) {
+        setFilters(prev => ({ ...prev, groupId: "all" }));
+      }
+      
+      toast({
+        title: "Group deleted",
+        description: "Contact group has been deleted successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to delete group",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Group management handlers
+  const handleCreateGroup = () => {
+    setEditingGroup(null);
+    setIsGroupsModalOpen(true);
+  };
+
+  const handleEditGroup = (group: ContactGroup) => {
+    setEditingGroup(group);
+    setIsGroupsModalOpen(true);
+  };
+
+  const handleDeleteGroup = (groupId: string, groupName: string) => {
+    if (confirm(`Are you sure you want to delete the group "${groupName}"? This will remove all contacts from this group but not delete the contacts themselves.`)) {
+      deleteGroupMutation.mutate(groupId);
+    }
+  };
+
+  const handleCloseGroupsModal = () => {
+    setIsGroupsModalOpen(false);
+    setEditingGroup(null);
   };
 
   const handleSelectContact = (contactId: string, checked: boolean) => {
@@ -420,7 +476,147 @@ export default function Contacts() {
             </Card>
           </div>
 
+          {/* Tab Navigation */}
+          <div className="mb-6">
+            <div className="border-b border-border">
+              <nav className="-mb-px flex space-x-8">
+                <button
+                  className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    activeTab === 'contacts'
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300'
+                  }`}
+                  onClick={() => setActiveTab('contacts')}
+                  data-testid="tab-contacts"
+                >
+                  Contacts ({filteredContacts.length})
+                </button>
+                <button
+                  className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    activeTab === 'groups'
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300'
+                  }`}
+                  onClick={() => setActiveTab('groups')}
+                  data-testid="tab-groups"
+                >
+                  Groups ({contactGroups.length})
+                </button>
+              </nav>
+            </div>
+          </div>
+
+          {/* Contact Groups Management */}
+          {activeTab === 'groups' && (
+            <div className="space-y-6">
+              {/* Groups Header */}
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-xl font-semibold text-foreground">Contact Groups</h2>
+                  <p className="text-muted-foreground text-sm">Organize your contacts into groups for better management</p>
+                </div>
+                <Button
+                  onClick={handleCreateGroup}
+                  data-testid="button-create-group"
+                  className="flex items-center space-x-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Create Group</span>
+                </Button>
+              </div>
+
+              {/* Groups Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {contactGroups.length === 0 ? (
+                  <div className="col-span-full">
+                    <Card className="border-2 border-dashed border-muted-foreground/25">
+                      <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                        <Users className="w-12 h-12 text-muted-foreground mb-4" />
+                        <h3 className="text-lg font-semibold text-foreground mb-2">No contact groups</h3>
+                        <p className="text-muted-foreground mb-4 max-w-md">
+                          Create your first contact group to organize your contacts by category, priority, or any criteria that makes sense for your business.
+                        </p>
+                        <Button onClick={handleCreateGroup} data-testid="button-create-first-group">
+                          <Plus className="w-4 h-4 mr-2" />
+                          Create Your First Group
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </div>
+                ) : (
+                  contactGroups.map((group) => (
+                    <Card key={group.id} className="hover:shadow-lg transition-shadow">
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between mb-4">
+                          <div 
+                            className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-sm"
+                            style={{ backgroundColor: group.color }}
+                          >
+                            {group.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex space-x-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditGroup(group)}
+                              data-testid={`button-edit-group-${group.id}`}
+                              title="Edit group"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteGroup(group.id, group.name)}
+                              data-testid={`button-delete-group-${group.id}`}
+                              title="Delete group"
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        <h3 className="text-lg font-semibold text-foreground mb-2" data-testid={`text-group-name-${group.id}`}>
+                          {group.name}
+                        </h3>
+                        
+                        {group.description && (
+                          <p className="text-sm text-muted-foreground mb-3 line-clamp-2" data-testid={`text-group-description-${group.id}`}>
+                            {group.description}
+                          </p>
+                        )}
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                            <Users className="w-4 h-4" />
+                            <span data-testid={`text-group-count-${group.id}`}>
+                              {group.contactCount} {group.contactCount === 1 ? 'contact' : 'contacts'}
+                            </span>
+                          </div>
+                          
+                          <Badge 
+                            variant="outline" 
+                            className="text-xs"
+                            style={{ 
+                              borderColor: group.color, 
+                              color: group.color,
+                              backgroundColor: `${group.color}10`
+                            }}
+                          >
+                            {group.name}
+                          </Badge>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Contacts Table */}
+          {activeTab === 'contacts' && (
           <Card>
             <div className="px-6 py-4 border-b border-border">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -892,6 +1088,7 @@ export default function Contacts() {
               </div>
             )}
           </Card>
+          )}
 
           {/* Contact Modal */}
           <ContactModal
@@ -901,6 +1098,13 @@ export default function Contacts() {
               setEditingContact(null);
             }}
             contact={editingContact}
+          />
+
+          {/* Contact Groups Modal */}
+          <ContactGroupsModal
+            isOpen={isGroupsModalOpen}
+            onClose={handleCloseGroupsModal}
+            editingGroup={editingGroup}
           />
         </main>
       </div>
