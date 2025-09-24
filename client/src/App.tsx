@@ -10,6 +10,7 @@ import Dashboard from "@/pages/dashboard";
 import SuperAdminDashboard from "@/pages/super-admin-dashboard";
 import ClientAdminDashboard from "@/pages/client-admin-dashboard";
 import Contacts from "@/pages/contacts";
+import ContactAnalytics from "@/pages/contact-analytics";
 import TenantManagement from "@/pages/tenant-management";
 import SystemSettings from "@/pages/system-settings";
 
@@ -37,6 +38,7 @@ function Router() {
       <Route path="/super-admin" component={SuperAdminDashboard} />
       <Route path="/client-admin" component={ClientAdminDashboard} />
       <Route path="/contacts" component={Contacts} />
+      <Route path="/analytics" component={ContactAnalytics} />
       <Route path="/tenants" component={TenantManagement} />
       <Route path="/system" component={SystemSettings} />
       <Route component={NotFound} />

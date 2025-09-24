@@ -1010,6 +1010,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Enhanced contact analytics endpoint
+  app.get('/api/contacts/analytics', authenticateJWT, async (req: any, res) => {
+    try {
+      const analytics = await storage.getContactAnalytics(req.user.tenantId);
+      res.json(analytics);
+    } catch (error) {
+      console.error('Contact analytics error:', error);
+      res.status(500).json({ message: 'Failed to fetch contact analytics' });
+    }
+  });
+
   app.get('/api/admin/dashboard/analytics', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
     try {
       const analytics = await storage.getPlatformAnalytics();

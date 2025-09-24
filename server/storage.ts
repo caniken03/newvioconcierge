@@ -551,6 +551,195 @@ export class DatabaseStorage implements IStorage {
     return { updatedCount, errors };
   }
 
+  // Enhanced contact analytics
+  async getContactAnalytics(tenantId: string): Promise<{
+    overview: {
+      totalContacts: number;
+      activeContacts: number;
+      totalGroups: number;
+      averageGroupSize: number;
+    };
+    statusDistribution: Array<{ status: string; count: number; percentage: number }>;
+    priorityBreakdown: Array<{ priority: string; count: number; percentage: number }>;
+    contactMethodAnalysis: Array<{ method: string; count: number; percentage: number }>;
+    groupPerformance: Array<{ 
+      groupName: string; 
+      memberCount: number; 
+      confirmedRate: number;
+      color: string;
+    }>;
+    temporalTrends: Array<{
+      date: string;
+      contactsAdded: number;
+      appointmentsConfirmed: number;
+      callsSuccessful: number;
+    }>;
+    bookingSourceAnalysis: Array<{ source: string; count: number; percentage: number }>;
+  }> {
+    // Overview metrics
+    const [contactStats] = await db
+      .select({ 
+        total: count(),
+        active: sql<number>`COUNT(CASE WHEN ${contacts.isActive} = true THEN 1 END)`
+      })
+      .from(contacts)
+      .where(eq(contacts.tenantId, tenantId));
+
+    const [groupStats] = await db
+      .select({ 
+        count: count(),
+        avgSize: sql<number>`AVG(${contactGroups.contactCount})`
+      })
+      .from(contactGroups)
+      .where(eq(contactGroups.tenantId, tenantId));
+
+    // Status distribution
+    const statusData = await db
+      .select({
+        status: contacts.appointmentStatus,
+        count: count()
+      })
+      .from(contacts)
+      .where(and(eq(contacts.tenantId, tenantId), eq(contacts.isActive, true)))
+      .groupBy(contacts.appointmentStatus);
+
+    const totalActive = contactStats.active || 0;
+    const statusDistribution = statusData.map(item => ({
+      status: item.status || 'unknown',
+      count: item.count,
+      percentage: totalActive > 0 ? Math.round((item.count / totalActive) * 100) : 0
+    }));
+
+    // Priority breakdown
+    const priorityData = await db
+      .select({
+        priority: contacts.priorityLevel,
+        count: count()
+      })
+      .from(contacts)
+      .where(and(eq(contacts.tenantId, tenantId), eq(contacts.isActive, true)))
+      .groupBy(contacts.priorityLevel);
+
+    const priorityBreakdown = priorityData.map(item => ({
+      priority: item.priority || 'normal',
+      count: item.count,
+      percentage: totalActive > 0 ? Math.round((item.count / totalActive) * 100) : 0
+    }));
+
+    // Contact method analysis
+    const methodData = await db
+      .select({
+        method: contacts.preferredContactMethod,
+        count: count()
+      })
+      .from(contacts)
+      .where(and(eq(contacts.tenantId, tenantId), eq(contacts.isActive, true)))
+      .groupBy(contacts.preferredContactMethod);
+
+    const contactMethodAnalysis = methodData.map(item => ({
+      method: item.method || 'voice',
+      count: item.count,
+      percentage: totalActive > 0 ? Math.round((item.count / totalActive) * 100) : 0
+    }));
+
+    // Group performance
+    const groupPerformanceData = await db
+      .select({
+        groupName: contactGroups.name,
+        memberCount: contactGroups.contactCount,
+        color: contactGroups.color,
+        confirmedCount: sql<number>`COUNT(CASE WHEN ${contacts.appointmentStatus} = 'confirmed' THEN 1 END)`
+      })
+      .from(contactGroups)
+      .leftJoin(groupMembership, eq(contactGroups.id, groupMembership.groupId))
+      .leftJoin(contacts, and(
+        eq(groupMembership.contactId, contacts.id),
+        eq(contacts.tenantId, tenantId), // Critical: tenant isolation
+        eq(contacts.isActive, true)
+      ))
+      .where(eq(contactGroups.tenantId, tenantId))
+      .groupBy(contactGroups.id, contactGroups.name, contactGroups.contactCount, contactGroups.color);
+
+    const groupPerformance = groupPerformanceData.map(item => ({
+      groupName: item.groupName,
+      memberCount: item.memberCount || 0,
+      confirmedRate: item.memberCount > 0 ? Math.round(((item.confirmedCount || 0) / item.memberCount) * 100) : 0,
+      color: item.color
+    }));
+
+    // Temporal trends (last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const temporalData = await db
+      .select({
+        date: sql<string>`DATE(${contacts.createdAt})`,
+        contactsAdded: count(),
+        confirmedCount: sql<number>`COUNT(CASE WHEN ${contacts.appointmentStatus} = 'confirmed' THEN 1 END)`
+      })
+      .from(contacts)
+      .where(and(
+        eq(contacts.tenantId, tenantId),
+        sql`${contacts.createdAt} >= ${sevenDaysAgo}`
+      ))
+      .groupBy(sql`DATE(${contacts.createdAt})`)
+      .orderBy(sql`DATE(${contacts.createdAt})`);
+
+    // Get call success data for the same period
+    const callData = await db
+      .select({
+        date: sql<string>`DATE(${callSessions.createdAt})`,
+        successfulCalls: sql<number>`COUNT(CASE WHEN ${callSessions.callOutcome} = 'confirmed' THEN 1 END)`
+      })
+      .from(callSessions)
+      .where(and(
+        eq(callSessions.tenantId, tenantId),
+        sql`${callSessions.createdAt} >= ${sevenDaysAgo}`
+      ))
+      .groupBy(sql`DATE(${callSessions.createdAt})`)
+      .orderBy(sql`DATE(${callSessions.createdAt})`);
+
+    // Merge temporal data
+    const callMap = new Map(callData.map(item => [item.date, item.successfulCalls]));
+    const temporalTrends = temporalData.map(item => ({
+      date: item.date,
+      contactsAdded: item.contactsAdded,
+      appointmentsConfirmed: item.confirmedCount || 0,
+      callsSuccessful: callMap.get(item.date) || 0
+    }));
+
+    // Booking source analysis
+    const sourceData = await db
+      .select({
+        source: contacts.bookingSource,
+        count: count()
+      })
+      .from(contacts)
+      .where(and(eq(contacts.tenantId, tenantId), eq(contacts.isActive, true)))
+      .groupBy(contacts.bookingSource);
+
+    const bookingSourceAnalysis = sourceData.map(item => ({
+      source: item.source || 'manual',
+      count: item.count,
+      percentage: totalActive > 0 ? Math.round((item.count / totalActive) * 100) : 0
+    }));
+
+    return {
+      overview: {
+        totalContacts: contactStats.total || 0,
+        activeContacts: totalActive,
+        totalGroups: groupStats.count || 0,
+        averageGroupSize: Math.round(groupStats.avgSize || 0)
+      },
+      statusDistribution,
+      priorityBreakdown,
+      contactMethodAnalysis,
+      groupPerformance,
+      temporalTrends,
+      bookingSourceAnalysis
+    };
+  }
+
   // Call session operations
   async getCallSession(id: string): Promise<CallSession | undefined> {
     const [session] = await db.select().from(callSessions).where(eq(callSessions.id, id));
