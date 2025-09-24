@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,13 +19,12 @@ import {
   Users, 
   Shield, 
   Database,
-  MapPin,
-  Clock,
   Bell,
   Key,
   Globe,
   Mail,
-  Smartphone
+  Smartphone,
+  ArrowLeft
 } from "lucide-react";
 
 export default function Profile() {
@@ -94,11 +94,21 @@ export default function Profile() {
   return (
     <div className="container mx-auto py-6 space-y-6" data-testid="profile-page">
       {/* Page Header */}
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold text-foreground">Profile Settings</h1>
-        <p className="text-muted-foreground">
-          Manage your account settings, business information, and system preferences
-        </p>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold text-foreground">Profile Settings</h1>
+            <p className="text-muted-foreground">
+              Manage your account settings, business information, and system preferences
+            </p>
+          </div>
+          <Button asChild variant="outline" className="flex items-center gap-2" data-testid="button-back-to-dashboard">
+            <Link href="/">
+              <ArrowLeft className="w-4 h-4" />
+              Back to Dashboard
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
