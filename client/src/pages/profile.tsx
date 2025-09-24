@@ -268,15 +268,6 @@ export default function Profile() {
                       data-testid="input-job-title"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="personal-phone">Personal Phone</Label>
-                    <Input 
-                      id="personal-phone"
-                      type="tel"
-                      placeholder="+44 7123 456789"
-                      data-testid="input-personal-phone"
-                    />
-                  </div>
                 </div>
               </div>
 
@@ -400,7 +391,7 @@ export default function Profile() {
                 <h3 className="text-lg font-medium">Default Call Timing</h3>
                 <div className="space-y-2">
                   <Label htmlFor="default-call-timing">Default Hours Before Appointment</Label>
-                  <Select defaultValue="24" data-testid="select-default-call-timing">
+                  <Select defaultValue="36" data-testid="select-default-call-timing">
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -408,7 +399,8 @@ export default function Profile() {
                       <SelectItem value="1">1 hour before (Same-day reminders)</SelectItem>
                       <SelectItem value="2">2 hours before (Short-notice appointments)</SelectItem>
                       <SelectItem value="6">6 hours before (Professional services)</SelectItem>
-                      <SelectItem value="24">24 hours before (Recommended)</SelectItem>
+                      <SelectItem value="36">36 hours before (Recommended)</SelectItem>
+                      <SelectItem value="24">24 hours before</SelectItem>
                       <SelectItem value="48">48 hours before (Important meetings)</SelectItem>
                       <SelectItem value="168">1 week before (Major procedures)</SelectItem>
                     </SelectContent>
@@ -419,48 +411,6 @@ export default function Profile() {
                 </div>
               </div>
 
-              <Separator />
-
-              {/* Call Hours */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium">Call Hours</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="call-start-time">Call Start Time</Label>
-                    <Input 
-                      id="call-start-time"
-                      type="time"
-                      defaultValue="08:00"
-                      data-testid="input-call-start-time"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="call-end-time">Call End Time</Label>
-                    <Input 
-                      id="call-end-time"
-                      type="time"
-                      defaultValue="20:00"
-                      data-testid="input-call-end-time"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">Allow Weekend Calling</p>
-                      <p className="text-xs text-muted-foreground">Make calls on Saturday and Sunday</p>
-                    </div>
-                    <Switch data-testid="switch-weekend-calling" />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">Allow Holiday Calling</p>
-                      <p className="text-xs text-muted-foreground">Make calls on bank holidays</p>
-                    </div>
-                    <Switch data-testid="switch-holiday-calling" />
-                  </div>
-                </div>
-              </div>
 
               <div className="flex justify-end pt-4">
                 <Button data-testid="button-save-call-preferences">
