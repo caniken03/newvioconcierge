@@ -13,6 +13,7 @@ import Contacts from "@/pages/contacts";
 import ContactAnalytics from "@/pages/contact-analytics";
 import TenantManagement from "@/pages/tenant-management";
 import SystemSettings from "@/pages/system-settings";
+import Profile from "@/pages/profile";
 
 function Router() {
   const { user, isLoading } = useAuth();
@@ -41,6 +42,7 @@ function Router() {
       <Route path="/analytics" component={ContactAnalytics} />
       <Route path="/tenants" component={TenantManagement} />
       <Route path="/system" component={SystemSettings} />
+      <Route path="/profile" component={Profile} />
       <Route component={NotFound} />
     </Switch>
   );

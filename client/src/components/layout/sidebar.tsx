@@ -138,7 +138,10 @@ export default function Sidebar() {
       </nav>
 
       {/* Bottom Actions */}
-      <div className="p-4 border-t border-border">
+      <div className="p-4 border-t border-border space-y-2">
+        <NavLink href="/profile" icon="fas fa-user-cog" testId="nav-profile">
+          Profile Settings
+        </NavLink>
         <button 
           onClick={logout}
           className="w-full flex items-center justify-center space-x-2 px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"

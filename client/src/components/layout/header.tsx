@@ -67,6 +67,11 @@ const getPageConfig = (location: string, userRole: string): PageConfig => {
         title: 'System Settings',
         description: 'Platform-wide configuration and maintenance',
       };
+    case '/profile':
+      return {
+        title: 'Profile Settings',
+        description: 'Manage your account settings and business information',
+      };
     default:
       return {
         title: 'Dashboard',

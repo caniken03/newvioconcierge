@@ -1,0 +1,2543 @@
+# VioConcierge Profile Management System - Detailed Product Requirements Document
+
+## Executive Summary
+
+The **VioConcierge Profile Section** provides comprehensive account management and business configuration capabilities for client administrators. This system enables tenants to manage their business information, user preferences, team settings, integration configurations, and privacy controls through an intuitive, self-service interface.
+
+---
+
+## 🎯 **Profile Section Architecture**
+
+### **Profile Management Core Components**
+
+```typescript
+ProfileSectionStructure {
+  main_sections: {
+    business_profile: {
+      title: "Business Information",
+      description: "Manage your business details and branding",
+      icon: "🏢",
+      access_level: "client_admin_only"
+    },
+    
+    user_account: {
+      title: "User Account Settings", 
+      description: "Personal account preferences and security",
+      icon: "👤",
+      access_level: "all_users"
+    },
+    
+    call_preferences: {
+      title: "Call Settings & Preferences",
+      description: "Configure voice calling behavior and timing",
+      icon: "📞",
+      access_level: "client_admin_only"
+    },
+    
+    integration_management: {
+      title: "Calendar & Integration Settings",
+      description: "Manage Cal.com, Calendly, and other integrations",
+      icon: "🔗",
+      access_level: "client_admin_only"
+    },
+    
+    team_management: {
+      title: "Team & User Management",
+      description: "Manage staff access and permissions",
+      icon: "👥",
+      access_level: "client_admin_only"
+    },
+    
+    privacy_compliance: {
+      title: "Privacy & Compliance",
+      description: "HIPAA settings, data retention, and privacy controls",
+      icon: "🔒",
+      access_level: "client_admin_only"
+    },
+    
+    data_management: {
+      title: "Data & Export Controls",
+      description: "Export data, backup settings, and data portability",
+      icon: "📋",
+      access_level: "client_admin_only"
+    }
+  }
+}
+```
+
+---
+
+## 🏢 **1. Business Profile Management**
+
+### **Business Information Configuration**
+
+```typescript
+BusinessProfileSection {
+  // Primary Business Details
+  business_information: {
+    company_legal_name: {
+      label: "Legal Business Name",
+      type: "text",
+      required: true,
+      max_length: 255,
+      help_text: "Official legal name of your business",
+      validation: "unique_within_platform",
+      editable_by: "client_admin",
+      affects: ["voice_calls", "legal_documents", "billing"]
+    },
+    
+    business_trading_name: {
+      label: "Trading Name / DBA",
+      type: "text", 
+      required: false,
+      max_length: 255,
+      help_text: "Name used for day-to-day business (if different from legal name)",
+      affects: ["voice_calls", "customer_communications"]
+    },
+    
+    business_type: {
+      label: "Business Type",
+      type: "select",
+      required: true,
+      options: [
+        { value: "medical", label: "Medical Practice / Healthcare", compliance: "HIPAA Required" },
+        { value: "salon", label: "Salon / Spa / Beauty Services" },
+        { value: "restaurant", label: "Restaurant / Dining Establishment" },
+        { value: "consultant", label: "Consultant / Professional Services" },
+        { value: "general", label: "General Business / Other" }
+      ],
+      affects: ["voice_scripts", "compliance_requirements", "field_templates", "validation_rules"],
+      change_warning: "Changing business type will update voice scripts and compliance settings"
+    },
+    
+    industry_category: {
+      label: "Industry Category",
+      type: "select",
+      conditional: "business_type_selected",
+      options: "dynamic_based_on_business_type",
+      affects: ["analytics_benchmarks", "industry_reports"]
+    }
+  }
+  
+  // Contact Information
+  business_contact: {
+    primary_phone: {
+      label: "Primary Business Phone",
+      type: "phone",
+      required: true,
+      format: "uk_e164",
+      help_text: "Main business contact number (displayed to customers)",
+      affects: ["customer_communications", "emergency_contact"]
+    },
+    
+    business_email: {
+      label: "Business Email Address",
+      type: "email", 
+      required: true,
+      validation: "business_email_format",
+      help_text: "Primary business email for important notifications",
+      affects: ["system_notifications", "support_communications"]
+    },
+    
+    website_url: {
+      label: "Business Website",
+      type: "url",
+      required: false,
+      validation: "valid_url_format",
+      help_text: "Your business website (optional)",
+      affects: ["customer_information", "integration_verification"]
+    }
+  }
+  
+  // Physical Business Location
+  business_location: {
+    street_address: {
+      label: "Street Address",
+      type: "text",
+      required: true,
+      max_length: 255,
+      help_text: "Primary business location address"
+    },
+    
+    city: {
+      label: "City",
+      type: "text", 
+      required: true,
+      max_length: 100
+    },
+    
+    county_state: {
+      label: "County/State",
+      type: "text",
+      required: true,
+      max_length: 100
+    },
+    
+    postal_code: {
+      label: "Postal Code",
+      type: "text",
+      required: true,
+      pattern: "uk_postal_code",
+      validation: "valid_uk_postcode"
+    },
+    
+    country: {
+      label: "Country",
+      type: "select",
+      default: "United Kingdom",
+      affects: ["timezone_defaults", "phone_validation", "compliance_requirements"]
+    },
+    
+    timezone: {
+      label: "Business Timezone",
+      type: "select", 
+      default: "Europe/London",
+      required: true,
+      affects: ["call_scheduling", "business_hours", "appointment_display"],
+      help_text: "Timezone for call scheduling and appointment display"
+    }
+  }
+  
+  // Business Hours Configuration
+  business_hours: {
+    operating_schedule: {
+      monday: { open: "09:00", close: "17:00", closed: false },
+      tuesday: { open: "09:00", close: "17:00", closed: false },
+      wednesday: { open: "09:00", close: "17:00", closed: false },
+      thursday: { open: "09:00", close: "17:00", closed: false },
+      friday: { open: "09:00", close: "17:00", closed: false },
+      saturday: { open: "09:00", close: "15:00", closed: false },
+      sunday: { open: "10:00", close: "16:00", closed: true }
+    },
+    
+    call_hours: {
+      label: "Voice Call Hours",
+      description: "When the system can make appointment reminder calls",
+      start_time: { default: "08:00", validation: "before_end_time" },
+      end_time: { default: "20:00", validation: "after_start_time" },
+      weekend_calling: { default: false, label: "Allow weekend calling" },
+      holiday_calling: { default: false, label: "Allow holiday calling" }
+    },
+    
+    holiday_calendar: {
+      uk_bank_holidays: { enabled: true, label: "UK Bank Holidays" },
+      custom_holidays: { 
+        type: "date_list",
+        max_entries: 50,
+        label: "Custom Business Holidays",
+        help_text: "Add dates when your business is closed"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 👤 **2. User Account Settings**
+
+### **Personal Account Management**
+
+```typescript
+UserAccountSection {
+  // Personal Information
+  personal_details: {
+    full_name: {
+      label: "Full Name",
+      type: "text",
+      required: true,
+      max_length: 100,
+      affects: ["system_notifications", "audit_logs", "user_display"]
+    },
+    
+    email_address: {
+      label: "Email Address",
+      type: "email",
+      required: true,
+      unique: true,
+      affects: ["login_credentials", "notifications", "password_reset"],
+      change_verification: "email_confirmation_required"
+    },
+    
+    job_title: {
+      label: "Job Title / Role",
+      type: "text",
+      required: false,
+      max_length: 100,
+      examples: ["Practice Manager", "Salon Owner", "Restaurant Manager", "Senior Consultant"]
+    },
+    
+    phone_number: {
+      label: "Personal Phone Number",
+      type: "phone",
+      required: false,
+      format: "uk_e164",
+      help_text: "For urgent system notifications (optional)"
+    }
+  }
+  
+  // Account Security
+  security_settings: {
+    password_management: {
+      current_password: {
+        label: "Current Password",
+        type: "password",
+        required_for_changes: true
+      },
+      
+      new_password: {
+        label: "New Password",
+        type: "password",
+        validation: {
+          min_length: 8,
+          require_uppercase: true,
+          require_lowercase: true, 
+          require_numbers: true,
+          require_special_chars: true,
+          no_common_passwords: true
+        },
+        strength_indicator: "real_time_password_strength"
+      },
+      
+      confirm_password: {
+        label: "Confirm New Password",
+        type: "password",
+        validation: "must_match_new_password"
+      }
+    },
+    
+    two_factor_authentication: {
+      enable_2fa: {
+        label: "Enable Two-Factor Authentication",
+        type: "boolean",
+        default: false,
+        recommended: true,
+        help_text: "Add extra security to your account with 2FA"
+      },
+      
+      backup_codes: {
+        generate_codes: "button_to_generate_backup_codes",
+        download_codes: "download_backup_codes_securely",
+        help_text: "Store backup codes securely in case you lose access to your 2FA device"
+      }
+    },
+    
+    session_management: {
+      active_sessions: {
+        type: "list",
+        display: "table_of_active_login_sessions",
+        fields: ["device", "location", "last_active", "ip_address"],
+        actions: ["revoke_session", "revoke_all_other_sessions"]
+      },
+      
+      session_timeout: {
+        label: "Automatic Logout",
+        type: "select",
+        options: [
+          { value: 2, label: "2 hours" },
+          { value: 4, label: "4 hours" },
+          { value: 8, label: "8 hours (Default)" },
+          { value: 12, label: "12 hours" },
+          { value: 24, label: "24 hours" }
+        ],
+        default: 8,
+        help_text: "Automatically log out inactive sessions for security"
+      }
+    }
+  }
+  
+  // Notification Preferences
+  notification_settings: {
+    email_notifications: {
+      system_updates: {
+        label: "System Updates & Maintenance",
+        default: true,
+        description: "Important system notifications and scheduled maintenance"
+      },
+      
+      call_outcomes: {
+        label: "Call Outcome Notifications", 
+        default: true,
+        description: "Email notifications when calls are completed"
+      },
+      
+      daily_summaries: {
+        label: "Daily Activity Summaries",
+        default: false,
+        description: "Daily email summary of call activity and confirmations"
+      },
+      
+      weekly_reports: {
+        label: "Weekly Performance Reports",
+        default: false,
+        description: "Weekly email reports with analytics and insights"
+      },
+      
+      security_alerts: {
+        label: "Security & Login Alerts",
+        default: true,
+        description: "Notifications about login attempts and security events"
+      }
+    },
+    
+    sms_notifications: {
+      urgent_alerts: {
+        label: "Urgent System Alerts",
+        default: false,
+        description: "SMS for critical system issues (requires phone number)",
+        conditional: "phone_number_provided"
+      },
+      
+      call_failures: {
+        label: "Call Failure Alerts",
+        default: false, 
+        description: "SMS when multiple calls fail (system issues)"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 📞 **3. Call Settings & Preferences**
+
+### **Call Behavior Configuration**
+
+```typescript
+CallPreferencesSection {
+  // Default Call Timing
+  default_call_timing: {
+    hours_before_appointment: {
+      label: "Default Call Timing",
+      type: "select",
+      options: [
+        { value: 1, label: "1 hour before appointment", use_case: "Same-day reminders" },
+        { value: 2, label: "2 hours before appointment", use_case: "Short-notice appointments" },
+        { value: 6, label: "6 hours before appointment", use_case: "Professional services" },
+        { value: 24, label: "24 hours before appointment", use_case: "Standard business (Recommended)" },
+        { value: 48, label: "48 hours before appointment", use_case: "Important meetings" },
+        { value: 168, label: "1 week before appointment", use_case: "Major procedures" }
+      ],
+      default: 24,
+      affects: ["new_contact_default", "automated_scheduling"],
+      help_text: "Default timing for new contacts (can be customized per contact)"
+    },
+    
+    custom_timing_allowed: {
+      label: "Allow Custom Call Timing",
+      type: "boolean",
+      default: true,
+      description: "Allow staff to set custom call timing for individual contacts",
+      affects: ["contact_creation_form", "contact_editing"]
+    }
+  }
+  
+  // Call Retry Configuration
+  retry_settings: {
+    enable_automatic_retries: {
+      label: "Enable Automatic Retries",
+      type: "boolean",
+      default: true,
+      description: "Automatically retry calls if customer doesn't answer",
+      affects: ["follow_up_scheduling", "call_automation"]
+    },
+    
+    maximum_retry_attempts: {
+      label: "Maximum Retry Attempts",
+      type: "select",
+      options: [
+        { value: 0, label: "No retries" },
+        { value: 1, label: "1 retry attempt" },
+        { value: 2, label: "2 retry attempts (Recommended)" },
+        { value: 3, label: "3 retry attempts" }
+      ],
+      default: 2,
+      conditional: "enable_automatic_retries",
+      help_text: "How many times to retry if customer doesn't answer"
+    },
+    
+    retry_timing_configuration: {
+      no_answer_delay: {
+        label: "No Answer Retry Delay",
+        type: "select",
+        options: [
+          { value: 1, label: "1 hour" },
+          { value: 2, label: "2 hours (Recommended)" },
+          { value: 4, label: "4 hours" },
+          { value: 8, label: "8 hours" }
+        ],
+        default: 2,
+        help_text: "How long to wait before retrying if no answer"
+      },
+      
+      voicemail_delay: {
+        label: "Voicemail Retry Delay",
+        type: "select",
+        options: [
+          { value: 4, label: "4 hours" },
+          { value: 8, label: "8 hours (Recommended)" },
+          { value: 12, label: "12 hours" },
+          { value: 24, label: "24 hours" }
+        ],
+        default: 8,
+        help_text: "How long to wait before retrying after leaving voicemail"
+      },
+      
+      busy_signal_delay: {
+        label: "Busy Signal Retry Delay",
+        type: "select",
+        options: [
+          { value: 0.5, label: "30 minutes" },
+          { value: 1, label: "1 hour (Recommended)" },
+          { value: 2, label: "2 hours" }
+        ],
+        default: 1,
+        help_text: "How long to wait before retrying if phone is busy"
+      }
+    }
+  }
+  
+  // Call Quality & Monitoring
+  call_quality_settings: {
+    call_monitoring: {
+      label: "Enable Call Quality Monitoring",
+      type: "boolean",
+      default: true,
+      description: "Monitor call quality and success rates for optimization",
+      affects: ["analytics_reporting", "performance_insights"]
+    },
+    
+    call_recording: {
+      label: "Enable Call Recording",
+      type: "boolean", 
+      default: false,
+      description: "Record calls for quality assurance (additional privacy considerations)",
+      compliance_warning: "Medical practices must ensure HIPAA compliance for recordings",
+      affects: ["storage_costs", "compliance_requirements"]
+    },
+    
+    customer_feedback: {
+      label: "Collect Customer Feedback",
+      type: "boolean",
+      default: false,
+      description: "Ask customers for feedback about call experience (extends call duration)",
+      affects: ["call_duration", "customer_satisfaction_metrics"]
+    }
+  }
+  
+  // Voice & Script Preferences
+  voice_preferences: {
+    voice_tone: {
+      label: "Voice Call Tone",
+      type: "select",
+      options: [
+        { value: "professional", label: "Professional & Formal" },
+        { value: "friendly", label: "Friendly & Warm" },
+        { value: "casual", label: "Casual & Relaxed" },
+        { value: "medical", label: "Medical & Respectful (HIPAA Compliant)" }
+      ],
+      default_by_business_type: {
+        medical: "medical",
+        salon: "friendly", 
+        restaurant: "friendly",
+        consultant: "professional",
+        general: "professional"
+      },
+      affects: ["voice_script_generation", "customer_experience"]
+    },
+    
+    call_script_length: {
+      label: "Preferred Call Length",
+      type: "select",
+      options: [
+        { value: "brief", label: "Brief (30-45 seconds)", description: "Essential information only" },
+        { value: "standard", label: "Standard (60-90 seconds)", description: "Complete details with confirmation" },
+        { value: "detailed", label: "Detailed (90-120 seconds)", description: "Comprehensive with instructions" }
+      ],
+      default: "standard",
+      affects: ["call_duration", "information_delivery", "customer_satisfaction"]
+    },
+    
+    personalization_level: {
+      label: "Call Personalization Level",
+      type: "select",
+      options: [
+        { value: "minimal", label: "Minimal (Name and appointment time only)" },
+        { value: "standard", label: "Standard (Include appointment type and provider)" },
+        { value: "enhanced", label: "Enhanced (Include all relevant details)" }
+      ],
+      default_by_business_type: {
+        medical: "minimal",     # HIPAA compliance
+        salon: "enhanced",      # Better service experience
+        restaurant: "enhanced", # Better guest experience
+        consultant: "standard", # Professional balance
+        general: "standard"
+      },
+      affects: ["voice_script_content", "privacy_compliance"]
+    }
+  }
+}
+```
+
+---
+
+## 🔗 **4. Integration Management**
+
+### **Calendar Integration Settings**
+
+```typescript
+IntegrationSection {
+  // Cal.com Integration
+  calcom_integration: {
+    enable_calcom: {
+      label: "Enable Cal.com Integration",
+      type: "boolean",
+      default: false,
+      description: "Automatically create contacts from Cal.com bookings"
+    },
+    
+    calcom_configuration: {
+      api_key: {
+        label: "Cal.com API Key",
+        type: "password",
+        required_if: "enable_calcom",
+        placeholder: "cal_live_xxxxxxxxxxxxxx",
+        validation: "starts_with_cal_live",
+        help_text: "Your Cal.com API key from account settings",
+        security: "encrypted_storage"
+      },
+      
+      event_type_id: {
+        label: "Event Type ID",
+        type: "number",
+        required_if: "enable_calcom",
+        placeholder: "1234567",
+        help_text: "Specific Cal.com event type to sync (leave blank for all events)",
+        validation: "positive_integer"
+      },
+      
+      organizer_email: {
+        label: "Organizer Email",
+        type: "email",
+        required_if: "enable_calcom",
+        help_text: "Cal.com account email to identify your bookings",
+        validation: "valid_email_format"
+      },
+      
+      default_call_hours: {
+        label: "Default Call Timing for Cal.com Appointments",
+        type: "select",
+        options: "same_as_general_call_timing",
+        default: 24,
+        help_text: "How many hours before Cal.com appointments to make reminder calls"
+      }
+    },
+    
+    calcom_field_mapping: {
+      title: "Cal.com Field Mapping",
+      description: "Map Cal.com booking fields to VioConcierge contact fields",
+      
+      field_mappings: {
+        name_field: {
+          calcom_source: "invitee.name",
+          vioconcierge_target: "name",
+          required: true
+        },
+        
+        email_field: {
+          calcom_source: "invitee.email", 
+          vioconcierge_target: "email",
+          required: true
+        },
+        
+        phone_field: {
+          calcom_source: "responses.phone" | "responses.phoneNumber",
+          vioconcierge_target: "phone",
+          required: true,
+          validation: "extract_from_responses_array"
+        },
+        
+        appointment_type_field: {
+          calcom_source: "eventType.title",
+          vioconcierge_target: "appointment_type",
+          required: false
+        },
+        
+        notes_field: {
+          calcom_source: "responses.additionalNotes",
+          vioconcierge_target: "special_instructions", 
+          required: false,
+          compliance_filtering: "apply_if_medical_practice"
+        }
+      }
+    }
+  }
+  
+  // Calendly Integration
+  calendly_integration: {
+    enable_calendly: {
+      label: "Enable Calendly Integration",
+      type: "boolean",
+      default: false,
+      description: "Automatically create contacts from Calendly bookings"
+    },
+    
+    calendly_configuration: {
+      api_key: {
+        label: "Calendly API Key",
+        type: "password",
+        required_if: "enable_calendly",
+        placeholder: "calendly_api_key_xxxxxx",
+        help_text: "Your Calendly Personal Access Token",
+        security: "encrypted_storage"
+      },
+      
+      organizer_email: {
+        label: "Calendly Account Email",
+        type: "email",
+        required_if: "enable_calendly", 
+        help_text: "Email address of your Calendly account",
+        validation: "calendly_account_verification"
+      },
+      
+      webhook_url: {
+        label: "Webhook URL",
+        type: "text",
+        readonly: true,
+        auto_generated: true,
+        value: "https://your-domain.com/api/webhook/calendly-booking",
+        help_text: "Add this URL to your Calendly webhook settings"
+      },
+      
+      event_filtering: {
+        label: "Event Type Filtering",
+        type: "multi_select",
+        options: "dynamic_from_calendly_account",
+        help_text: "Select which Calendly event types to sync (leave blank for all)"
+      }
+    }
+  }
+  
+  // Integration Status & Testing
+  integration_status: {
+    connection_testing: {
+      test_calcom_connection: {
+        button: "Test Cal.com Connection",
+        action: "verify_api_key_and_fetch_sample_events",
+        success_message: "✅ Cal.com integration working correctly",
+        error_handling: "display_specific_connection_errors"
+      },
+      
+      test_calendly_connection: {
+        button: "Test Calendly Connection", 
+        action: "verify_api_key_and_webhook_setup",
+        success_message: "✅ Calendly integration working correctly",
+        error_handling: "display_specific_connection_errors"
+      }
+    },
+    
+    sync_status: {
+      last_sync: {
+        display: "timestamp_of_last_successful_sync",
+        format: "relative_time_with_absolute_timestamp"
+      },
+      
+      sync_statistics: {
+        contacts_imported_today: "number",
+        contacts_imported_total: "number", 
+        failed_imports: "number_with_error_details",
+        next_sync: "timestamp_of_next_scheduled_sync"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 👥 **5. Team & User Management**
+
+### **Staff Account Management**
+
+```typescript
+TeamManagementSection {
+  // Team Overview
+  team_overview: {
+    current_team_size: {
+      display: "total_active_users",
+      breakdown: {
+        admins: "count_of_client_admin_users",
+        staff: "count_of_client_user_users",
+        inactive: "count_of_inactive_users"
+      }
+    },
+    
+    user_activity: {
+      active_today: "users_who_logged_in_today",
+      active_this_week: "users_active_in_last_7_days",
+      never_logged_in: "users_who_never_logged_in"
+    }
+  }
+  
+  // User Management
+  user_management: {
+    add_team_member: {
+      modal_form: {
+        full_name: {
+          label: "Full Name",
+          type: "text",
+          required: true,
+          max_length: 100
+        },
+        
+        email: {
+          label: "Email Address",
+          type: "email",
+          required: true,
+          unique: true,
+          validation: "business_email_preferred"
+        },
+        
+        role: {
+          label: "User Role",
+          type: "select",
+          required: true,
+          options: [
+            { 
+              value: "client_admin", 
+              label: "Administrator",
+              description: "Full access to all features and settings",
+              permissions: ["manage_contacts", "manage_settings", "manage_team", "view_analytics"]
+            },
+            {
+              value: "client_user",
+              label: "Staff Member", 
+              description: "Standard access to contacts and basic features",
+              permissions: ["view_contacts", "create_contacts", "trigger_calls", "view_basic_analytics"]
+            }
+          ],
+          affects: ["user_permissions", "feature_access"]
+        },
+        
+        job_title: {
+          label: "Job Title",
+          type: "text",
+          required: false,
+          examples: ["Receptionist", "Practice Manager", "Senior Stylist", "Server"]
+        },
+        
+        send_welcome_email: {
+          label: "Send Welcome Email",
+          type: "boolean",
+          default: true,
+          description: "Send account setup instructions to new team member"
+        }
+      }
+    },
+    
+    team_member_list: {
+      display_format: "table_with_actions",
+      columns: [
+        { field: "name", label: "Name", sortable: true },
+        { field: "email", label: "Email", sortable: true },
+        { field: "role", label: "Role", filterable: true },
+        { field: "job_title", label: "Job Title" },
+        { field: "last_login", label: "Last Login", sortable: true },
+        { field: "status", label: "Status", filterable: true },
+        { field: "actions", label: "Actions" }
+      ],
+      
+      row_actions: [
+        {
+          action: "edit_user",
+          label: "Edit",
+          icon: "✏️",
+          permission: "manage_team"
+        },
+        {
+          action: "reset_password", 
+          label: "Reset Password",
+          icon: "🔑",
+          permission: "manage_team",
+          confirmation_required: true
+        },
+        {
+          action: "deactivate_user",
+          label: "Deactivate",
+          icon: "⏸️", 
+          permission: "manage_team",
+          confirmation_required: true
+        },
+        {
+          action: "delete_user",
+          label: "Delete",
+          icon: "🗑️",
+          permission: "manage_team", 
+          confirmation_required: true,
+          warning: "This action cannot be undone"
+        }
+      ]
+    }
+  }
+  
+  // Permission Management
+  permission_configuration: {
+    role_definitions: {
+      client_admin: {
+        inherits: "client_user",
+        additional_permissions: [
+          "manage_team_members",
+          "configure_integrations", 
+          "manage_business_settings",
+          "view_all_analytics",
+          "export_data",
+          "manage_compliance_settings",
+          "configure_call_settings"
+        ]
+      },
+      
+      client_user: {
+        base_permissions: [
+          "view_contacts",
+          "create_contacts",
+          "edit_own_contacts", 
+          "trigger_manual_calls",
+          "view_call_results",
+          "view_basic_analytics",
+          "update_own_profile"
+        ]
+      }
+    },
+    
+    custom_permissions: {
+      granular_contact_access: {
+        view_all_contacts: "boolean",
+        edit_all_contacts: "boolean", 
+        delete_contacts: "boolean",
+        export_contacts: "boolean"
+      },
+      
+      call_management_access: {
+        trigger_immediate_calls: "boolean",
+        modify_call_schedules: "boolean",
+        view_call_analytics: "boolean",
+        manage_retry_settings: "boolean"
+      },
+      
+      administrative_access: {
+        manage_integrations: "boolean",
+        configure_business_settings: "boolean",
+        manage_team_members: "boolean",
+        view_system_analytics: "boolean"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 🔒 **6. Privacy & Compliance Settings**
+
+### **HIPAA Compliance Configuration**
+
+```typescript
+PrivacyComplianceSection {
+  // HIPAA Settings (Medical Practices)
+  hipaa_configuration: {
+    enable_hipaa_mode: {
+      label: "Enable HIPAA Compliance Mode",
+      type: "boolean",
+      default: false,
+      auto_enabled_for: "business_type_medical",
+      description: "Enable enhanced privacy protections for healthcare practices",
+      affects: ["voice_scripts", "field_restrictions", "audit_logging", "data_handling"]
+    },
+    
+    hipaa_compliance_level: {
+      label: "HIPAA Compliance Level",
+      type: "select",
+      conditional: "enable_hipaa_mode",
+      options: [
+        {
+          value: "strict",
+          label: "Strict Compliance",
+          description: "Maximum privacy protection, minimal information in calls",
+          restrictions: ["first_name_only", "no_appointment_details", "no_provider_names"]
+        },
+        {
+          value: "standard", 
+          label: "Standard Compliance",
+          description: "Balanced privacy with useful appointment information",
+          restrictions: ["first_name_only", "generic_appointment_types", "provider_first_name_only"]
+        },
+        {
+          value: "basic",
+          label: "Basic Compliance",
+          description: "Minimum HIPAA requirements with full appointment details",
+          restrictions: ["phi_screening_only", "enhanced_audit_logging"]
+        }
+      ],
+      default: "standard",
+      affects: ["voice_script_generation", "field_omission_rules"]
+    },
+    
+    patient_consent_management: {
+      require_voice_consent: {
+        label: "Require Voice Call Consent",
+        type: "boolean",
+        default: true,
+        description: "Require explicit patient consent for voice appointment reminders",
+        affects: ["contact_creation_workflow", "compliance_documentation"]
+      },
+      
+      consent_documentation: {
+        label: "Document Consent Method",
+        type: "select",
+        options: [
+          { value: "verbal", label: "Verbal consent (documented in notes)" },
+          { value: "written", label: "Written consent form" },
+          { value: "electronic", label: "Electronic consent (checkbox)" },
+          { value: "implied", label: "Implied consent (appointment booking)" }
+        ],
+        default: "electronic",
+        affects: ["audit_requirements", "compliance_reporting"]
+      }
+    },
+    
+    phi_protection: {
+      automatic_phi_detection: {
+        label: "Automatic PHI Detection",
+        type: "boolean", 
+        default: true,
+        description: "Automatically detect and prevent PHI in text fields",
+        affects: ["data_validation", "voice_script_sanitization"]
+      },
+      
+      phi_sanitization_level: {
+        label: "PHI Sanitization Level",
+        type: "select",
+        conditional: "automatic_phi_detection",
+        options: [
+          { value: "strict", label: "Strict - Remove any potential PHI" },
+          { value: "moderate", label: "Moderate - Remove obvious PHI only" },
+          { value: "minimal", label: "Minimal - Remove only critical PHI" }
+        ],
+        default: "moderate",
+        affects: ["special_instructions_filtering", "notes_sanitization"]
+      }
+    }
+  }
+  
+  // General Privacy Settings
+  privacy_controls: {
+    data_retention: {
+      contact_retention_period: {
+        label: "Contact Data Retention Period",
+        type: "select",
+        options: [
+          { value: 12, label: "1 year" },
+          { value: 24, label: "2 years" },
+          { value: 36, label: "3 years" },
+          { value: 60, label: "5 years" },
+          { value: 84, label: "7 years (Medical Records Default)" },
+          { value: -1, label: "Indefinite (Manual deletion only)" }
+        ],
+        default_by_business_type: {
+          medical: 84,      # 7 years for medical records
+          salon: 36,        # 3 years for beauty services
+          restaurant: 24,   # 2 years for dining history
+          consultant: 60,   # 5 years for business records
+          general: 36       # 3 years general business
+        },
+        affects: ["automatic_data_deletion", "compliance_reporting"]
+      },
+      
+      call_log_retention: {
+        label: "Call Log Retention Period",
+        type: "select",
+        options: [
+          { value: 6, label: "6 months" },
+          { value: 12, label: "1 year (Recommended)" },
+          { value: 24, label: "2 years" },
+          { value: 36, label: "3 years" }
+        ],
+        default: 12,
+        affects: ["call_analytics_history", "performance_reporting"]
+      }
+    },
+    
+    data_sharing: {
+      analytics_participation: {
+        label: "Participate in Anonymous Analytics",
+        type: "boolean",
+        default: true,
+        description: "Share anonymous usage data to improve platform performance",
+        privacy_notice: "No personal or business identifiable information is shared"
+      },
+      
+      benchmark_participation: {
+        label: "Include in Industry Benchmarks",
+        type: "boolean",
+        default: false,
+        description: "Include your performance data in anonymous industry benchmarks",
+        privacy_notice: "Data is aggregated and anonymized before inclusion"
+      }
+    }
+  }
+  
+  // Compliance Reporting
+  compliance_reporting: {
+    audit_log_access: {
+      label: "Enable Audit Log Access",
+      type: "boolean",
+      default: true,
+      description: "Allow viewing of detailed audit logs for compliance purposes",
+      affects: ["audit_log_visibility", "compliance_dashboard"]
+    },
+    
+    compliance_reports: {
+      monthly_compliance_report: {
+        label: "Monthly Compliance Reports",
+        type: "boolean",
+        default: false,
+        description: "Generate monthly compliance reports",
+        conditional: "hipaa_mode_enabled"
+      },
+      
+      data_access_reports: {
+        label: "Data Access Reports",
+        type: "boolean",
+        default: false,
+        description: "Track and report who accessed what patient/customer data",
+        conditional: "enhanced_compliance_required"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 📊 **7. Analytics & Reporting Preferences**
+
+### **Dashboard Customization**
+
+```typescript
+AnalyticsPreferencesSection {
+  // Dashboard Configuration
+  dashboard_settings: {
+    default_dashboard_view: {
+      label: "Default Dashboard View",
+      type: "select",
+      options: [
+        { value: "overview", label: "Overview - Key metrics and recent activity" },
+        { value: "contacts", label: "Contacts - Contact management focus" },
+        { value: "analytics", label: "Analytics - Performance metrics focus" },
+        { value: "calls", label: "Call Activity - Call management focus" }
+      ],
+      default: "overview",
+      affects: ["login_redirect", "primary_navigation"]
+    },
+    
+    dashboard_refresh_rate: {
+      label: "Dashboard Refresh Rate",
+      type: "select",
+      options: [
+        { value: 30, label: "30 seconds (Real-time)" },
+        { value: 60, label: "1 minute" },
+        { value: 300, label: "5 minutes (Recommended)" },
+        { value: 900, label: "15 minutes" },
+        { value: 0, label: "Manual refresh only" }
+      ],
+      default: 300,
+      affects: ["browser_performance", "server_load", "data_freshness"]
+    }
+  }
+  
+  // Analytics Preferences
+  analytics_configuration: {
+    metrics_visibility: {
+      show_call_success_rates: {
+        label: "Show Call Success Rates",
+        type: "boolean",
+        default: true,
+        description: "Display call confirmation and success percentages"
+      },
+      
+      show_appointment_trends: {
+        label: "Show Appointment Trends",
+        type: "boolean",
+        default: true,
+        description: "Display appointment booking and confirmation trends"
+      },
+      
+      show_contact_growth: {
+        label: "Show Contact Growth Metrics",
+        type: "boolean", 
+        default: true,
+        description: "Display contact database growth and activity"
+      },
+      
+      show_revenue_impact: {
+        label: "Show Revenue Impact Estimates",
+        type: "boolean",
+        default: false,
+        description: "Estimate revenue impact from reduced no-shows (requires average appointment value)"
+      }
+    },
+    
+    time_period_defaults: {
+      default_analytics_period: {
+        label: "Default Analytics Time Period",
+        type: "select",
+        options: [
+          { value: 7, label: "Last 7 days" },
+          { value: 30, label: "Last 30 days (Recommended)" },
+          { value: 90, label: "Last 3 months" },
+          { value: 365, label: "Last year" }
+        ],
+        default: 30,
+        affects: ["dashboard_charts", "report_generation"]
+      },
+      
+      comparison_period: {
+        label: "Comparison Period",
+        type: "select", 
+        options: [
+          { value: "previous_period", label: "Previous period (e.g., last 30 vs previous 30 days)" },
+          { value: "same_period_last_year", label: "Same period last year" },
+          { value: "none", label: "No comparison" }
+        ],
+        default: "previous_period",
+        affects: ["trend_analysis", "performance_comparisons"]
+      }
+    }
+  }
+  
+  // Report Configuration
+  report_settings: {
+    automated_reports: {
+      daily_summary: {
+        label: "Daily Activity Summary",
+        type: "boolean",
+        default: false,
+        email_time: "09:00",
+        description: "Email summary of yesterday's call activity",
+        conditional: "email_notifications_enabled"
+      },
+      
+      weekly_performance: {
+        label: "Weekly Performance Report",
+        type: "boolean",
+        default: false,
+        email_day: "monday", 
+        email_time: "09:00",
+        description: "Comprehensive weekly performance and analytics report"
+      },
+      
+      monthly_business_review: {
+        label: "Monthly Business Review",
+        type: "boolean",
+        default: false,
+        description: "Detailed monthly report with insights and recommendations"
+      }
+    },
+    
+    custom_reports: {
+      report_builder_access: {
+        label: "Enable Custom Report Builder",
+        type: "boolean",
+        default: false,
+        description: "Access to advanced report building tools",
+        permission_required: "client_admin"
+      },
+      
+      data_export_formats: {
+        label: "Available Export Formats",
+        type: "multi_select",
+        options: [
+          { value: "csv", label: "CSV (Excel compatible)" },
+          { value: "pdf", label: "PDF Reports" },
+          { value: "json", label: "JSON Data" }
+        ],
+        default: ["csv"],
+        affects: ["export_functionality", "data_portability"]
+      }
+    }
+  }
+}
+```
+
+---
+
+## 💳 **8. Billing & Subscription Management**
+
+### **Account & Usage Information**
+
+```typescript
+BillingSubscriptionSection {
+  // Current Plan Information
+  subscription_details: {
+    current_plan: {
+      plan_name: {
+        display: "current_subscription_plan_name",
+        examples: ["Starter", "Professional", "Enterprise", "Custom"]
+      },
+      
+      plan_features: {
+        monthly_call_limit: "number_of_calls_included_in_plan",
+        contact_limit: "maximum_contacts_allowed",
+        team_member_limit: "maximum_team_members",
+        integration_access: "available_integrations",
+        support_level: "support_tier_included"
+      },
+      
+      billing_cycle: {
+        cycle_type: "monthly" | "annual",
+        next_billing_date: "timestamp",
+        auto_renewal: "boolean"
+      }
+    }
+  }
+  
+  // Usage Monitoring
+  usage_tracking: {
+    current_month_usage: {
+      calls_made: {
+        current: "number_of_calls_this_month",
+        limit: "monthly_call_limit",
+        percentage: "usage_percentage",
+        projection: "projected_end_of_month_usage"
+      },
+      
+      contacts_stored: {
+        current: "number_of_active_contacts",
+        limit: "contact_storage_limit",
+        percentage: "storage_percentage"
+      },
+      
+      team_members: {
+        current: "number_of_active_team_members",
+        limit: "team_member_limit",
+        available_slots: "remaining_team_slots"
+      }
+    },
+    
+    usage_alerts: {
+      call_limit_warning: {
+        label: "Call Limit Warnings",
+        type: "select",
+        options: [
+          { value: 50, label: "At 50% of monthly limit" },
+          { value: 75, label: "At 75% of monthly limit" },
+          { value: 90, label: "At 90% of monthly limit" },
+          { value: 95, label: "At 95% of monthly limit" }
+        ],
+        default: 75,
+        description: "Get notified when approaching monthly call limit"
+      },
+      
+      overage_notifications: {
+        label: "Overage Notifications",
+        type: "boolean",
+        default: true,
+        description: "Notify when usage exceeds plan limits"
+      }
+    }
+  }
+  
+  // Billing Information
+  billing_management: {
+    payment_method: {
+      card_information: {
+        display: "masked_card_details",
+        last_four: "display_last_four_digits",
+        expiry: "display_expiry_month_year",
+        update_card: "secure_card_update_flow"
+      },
+      
+      billing_address: {
+        same_as_business: "checkbox_to_use_business_address",
+        custom_billing_address: "separate_billing_address_fields"
+      }
+    },
+    
+    billing_history: {
+      invoice_list: {
+        display: "table_of_recent_invoices",
+        columns: ["date", "amount", "status", "download"],
+        pagination: "show_last_12_months_by_default"
+      },
+      
+      usage_history: {
+        monthly_usage_chart: "visual_chart_of_monthly_usage",
+        usage_trends: "identify_usage_patterns_and_trends"
+      }
+    }
+  }
+  
+  // Plan Management
+  plan_management: {
+    upgrade_downgrade: {
+      available_plans: "display_available_plan_options",
+      plan_comparison: "feature_comparison_table",
+      change_effective_date: "immediate_or_next_billing_cycle",
+      prorated_billing: "calculate_prorated_charges"
+    },
+    
+    add_ons: {
+      additional_calls: {
+        label: "Additional Monthly Calls",
+        type: "number",
+        increments: 100,
+        price_per_100: "display_per_unit_pricing"
+      },
+      
+      additional_contacts: {
+        label: "Additional Contact Storage",
+        type: "number", 
+        increments: 1000,
+        price_per_1000: "display_storage_pricing"
+      },
+      
+      premium_integrations: {
+        label: "Premium Integration Access",
+        type: "boolean",
+        description: "Access to advanced integration features"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 📱 **9. Notification & Communication Preferences**
+
+### **Communication Settings**
+
+```typescript
+CommunicationPreferences {
+  // Email Notification Settings
+  email_notifications: {
+    system_communications: {
+      account_updates: {
+        label: "Account & Security Updates",
+        type: "boolean",
+        default: true,
+        description: "Important account changes, security alerts, login notifications",
+        cannot_disable: true,  // Required for security
+        examples: ["Password changes", "New device logins", "Security alerts"]
+      },
+      
+      system_maintenance: {
+        label: "System Maintenance Notifications",
+        type: "boolean",
+        default: true,
+        description: "Scheduled maintenance, system updates, service disruptions",
+        recommended: true
+      },
+      
+      feature_announcements: {
+        label: "New Feature Announcements",
+        type: "boolean",
+        default: true,
+        description: "New features, improvements, and platform updates"
+      }
+    },
+    
+    business_operations: {
+      call_completion_notifications: {
+        label: "Call Completion Notifications",
+        type: "select",
+        options: [
+          { value: "none", label: "No notifications" },
+          { value: "failed_only", label: "Failed calls only" },
+          { value: "all_outcomes", label: "All call outcomes" },
+          { value: "summary_only", label: "Daily summary only" }
+        ],
+        default: "failed_only",
+        description: "Get notified about appointment call results"
+      },
+      
+      appointment_confirmations: {
+        label: "Appointment Confirmation Alerts",
+        type: "boolean",
+        default: false,
+        description: "Email notification when customers confirm appointments"
+      },
+      
+      cancellation_alerts: {
+        label: "Cancellation & Reschedule Alerts",
+        type: "boolean", 
+        default: true,
+        description: "Immediate notification when customers cancel or reschedule"
+      },
+      
+      daily_activity_summary: {
+        label: "Daily Activity Summary",
+        type: "boolean",
+        default: false,
+        delivery_time: "09:00",
+        description: "Daily email with call activity, confirmations, and key metrics"
+      }
+    },
+    
+    performance_reporting: {
+      weekly_performance_report: {
+        label: "Weekly Performance Report",
+        type: "boolean",
+        default: false,
+        delivery_day: "monday",
+        delivery_time: "09:00",
+        description: "Comprehensive weekly report with analytics and insights"
+      },
+      
+      monthly_business_review: {
+        label: "Monthly Business Review",
+        type: "boolean",
+        default: false,
+        description: "Detailed monthly report with trends, recommendations, and benchmarks"
+      },
+      
+      custom_report_notifications: {
+        label: "Custom Report Completion",
+        type: "boolean",
+        default: true,
+        description: "Notify when custom reports are ready for download"
+      }
+    }
+  }
+  
+  // SMS Notification Settings
+  sms_notifications: {
+    enable_sms: {
+      label: "Enable SMS Notifications",
+      type: "boolean",
+      default: false,
+      conditional: "phone_number_provided",
+      description: "Receive critical alerts via SMS (requires phone number)"
+    },
+    
+    sms_preferences: {
+      critical_system_alerts: {
+        label: "Critical System Alerts",
+        type: "boolean",
+        default: true,
+        conditional: "enable_sms",
+        description: "SMS for system outages, security issues, and critical failures"
+      },
+      
+      high_volume_call_failures: {
+        label: "High Volume Call Failures", 
+        type: "boolean",
+        default: true,
+        conditional: "enable_sms",
+        description: "SMS when multiple calls fail (potential system issue)"
+      },
+      
+      usage_limit_alerts: {
+        label: "Usage Limit Alerts",
+        type: "boolean",
+        default: false,
+        conditional: "enable_sms", 
+        description: "SMS when approaching monthly usage limits"
+      }
+    }
+  }
+  
+  // In-App Notification Settings
+  in_app_notifications: {
+    real_time_alerts: {
+      call_status_updates: {
+        label: "Real-time Call Status Updates",
+        type: "boolean",
+        default: true,
+        description: "Live notifications about ongoing call progress"
+      },
+      
+      contact_confirmations: {
+        label: "Contact Confirmation Alerts",
+        type: "boolean",
+        default: true,
+        description: "Immediate alerts when customers confirm appointments"
+      },
+      
+      system_performance: {
+        label: "System Performance Alerts",
+        type: "boolean", 
+        default: false,
+        description: "Notifications about system performance and optimization suggestions"
+      }
+    },
+    
+    notification_display: {
+      notification_position: {
+        label: "Notification Position",
+        type: "select",
+        options: [
+          { value: "top_right", label: "Top Right (Default)" },
+          { value: "top_left", label: "Top Left" },
+          { value: "bottom_right", label: "Bottom Right" },
+          { value: "bottom_left", label: "Bottom Left" }
+        ],
+        default: "top_right",
+        affects: ["ui_layout", "user_experience"]
+      },
+      
+      notification_duration: {
+        label: "Notification Display Duration",
+        type: "select",
+        options: [
+          { value: 3, label: "3 seconds" },
+          { value: 5, label: "5 seconds (Default)" },
+          { value: 10, label: "10 seconds" },
+          { value: 0, label: "Until manually dismissed" }
+        ],
+        default: 5,
+        affects: ["user_attention", "notification_visibility"]
+      }
+    }
+  }
+}
+```
+
+---
+
+## 🎨 **10. User Interface Customization**
+
+### **Personalization Settings**
+
+```typescript
+UICustomizationSection {
+  // Display Preferences
+  display_settings: {
+    theme_selection: {
+      label: "Interface Theme",
+      type: "select",
+      options: [
+        { value: "light", label: "Light Theme (Default)", preview: "light_theme_preview" },
+        { value: "dark", label: "Dark Theme", preview: "dark_theme_preview" },
+        { value: "auto", label: "Auto (Follow system preference)", preview: "auto_theme_preview" }
+      ],
+      default: "light",
+      affects: ["visual_appearance", "eye_strain", "battery_usage_mobile"]
+    },
+    
+    density_preference: {
+      label: "Information Density",
+      type: "select",
+      options: [
+        { value: "compact", label: "Compact - More items per screen" },
+        { value: "comfortable", label: "Comfortable - Balanced spacing (Default)" },
+        { value: "spacious", label: "Spacious - Extra spacing for accessibility" }
+      ],
+      default: "comfortable",
+      affects: ["contact_list_layout", "dashboard_layout", "form_spacing"]
+    },
+    
+    color_scheme: {
+      primary_color: {
+        label: "Primary Color Theme",
+        type: "color_select",
+        options: [
+          { value: "#3B82F6", label: "Blue (Default)", color: "#3B82F6" },
+          { value: "#10B981", label: "Green (Medical)", color: "#10B981" },
+          { value: "#8B5CF6", label: "Purple (Beauty)", color: "#8B5CF6" },
+          { value: "#F59E0B", label: "Orange (Restaurant)", color: "#F59E0B" },
+          { value: "#6B7280", label: "Gray (Professional)", color: "#6B7280" }
+        ],
+        default_by_business_type: {
+          medical: "#10B981",
+          salon: "#8B5CF6", 
+          restaurant: "#F59E0B",
+          consultant: "#6B7280",
+          general: "#3B82F6"
+        },
+        affects: ["brand_consistency", "visual_identity"]
+      }
+    }
+  }
+  
+  // Layout Preferences
+  layout_configuration: {
+    sidebar_preference: {
+      label: "Sidebar Behavior",
+      type: "select",
+      options: [
+        { value: "always_expanded", label: "Always Expanded" },
+        { value: "auto_collapse", label: "Auto Collapse (Default)" },
+        { value: "always_collapsed", label: "Always Collapsed" }
+      ],
+      default: "auto_collapse",
+      affects: ["screen_real_estate", "navigation_efficiency"]
+    },
+    
+    default_contact_view: {
+      label: "Default Contact View",
+      type: "select", 
+      options: [
+        { value: "grid", label: "Grid View (Cards)" },
+        { value: "list", label: "List View (Table)" },
+        { value: "compact", label: "Compact View (Dense)" }
+      ],
+      default: "grid",
+      affects: ["contact_list_display", "information_density"]
+    },
+    
+    items_per_page: {
+      label: "Items Per Page",
+      type: "select",
+      options: [
+        { value: 10, label: "10 items" },
+        { value: 25, label: "25 items (Default)" },
+        { value: 50, label: "50 items" },
+        { value: 100, label: "100 items" }
+      ],
+      default: 25,
+      affects: ["page_load_performance", "data_consumption"]
+    }
+  }
+  
+  // Accessibility Settings
+  accessibility_options: {
+    font_size: {
+      label: "Font Size",
+      type: "select",
+      options: [
+        { value: "small", label: "Small", size: "14px" },
+        { value: "medium", label: "Medium (Default)", size: "16px" },
+        { value: "large", label: "Large", size: "18px" },
+        { value: "extra_large", label: "Extra Large", size: "20px" }
+      ],
+      default: "medium",
+      affects: ["text_readability", "accessibility_compliance"]
+    },
+    
+    high_contrast_mode: {
+      label: "High Contrast Mode",
+      type: "boolean",
+      default: false,
+      description: "Increase contrast for better visibility",
+      affects: ["visual_accessibility", "color_perception"]
+    },
+    
+    reduced_motion: {
+      label: "Reduce Motion & Animations",
+      type: "boolean",
+      default: false,
+      description: "Minimize animations for users sensitive to motion",
+      affects: ["animation_behavior", "accessibility_compliance"]
+    }
+  }
+}
+```
+
+---
+
+## ⚙️ **11. Advanced Configuration Options**
+
+### **System Behavior Customization**
+
+```typescript
+AdvancedConfigurationSection {
+  // Workflow Automation
+  automation_preferences: {
+    auto_contact_creation: {
+      label: "Automatic Contact Creation",
+      description: "Automatically create contacts from calendar integrations",
+      
+      calcom_auto_create: {
+        label: "Auto-create from Cal.com Bookings",
+        type: "boolean",
+        default: true,
+        conditional: "calcom_integration_enabled"
+      },
+      
+      calendly_auto_create: {
+        label: "Auto-create from Calendly Bookings", 
+        type: "boolean",
+        default: true,
+        conditional: "calendly_integration_enabled"
+      },
+      
+      duplicate_handling: {
+        label: "Duplicate Contact Handling",
+        type: "select",
+        options: [
+          { value: "create_new", label: "Always create new contact" },
+          { value: "update_existing", label: "Update existing contact if found" },
+          { value: "ask_user", label: "Ask user what to do with duplicates" },
+          { value: "skip_duplicates", label: "Skip creating duplicate contacts" }
+        ],
+        default: "update_existing",
+        affects: ["data_quality", "contact_management_workflow"]
+      }
+    },
+    
+    call_automation: {
+      auto_schedule_calls: {
+        label: "Automatically Schedule Calls",
+        type: "boolean",
+        default: true,
+        description: "Automatically schedule reminder calls when contacts are created with appointment times"
+      },
+      
+      auto_retry_failed_calls: {
+        label: "Automatic Call Retries",
+        type: "boolean",
+        default: true,
+        description: "Automatically retry calls that fail or go unanswered"
+      },
+      
+      weekend_call_scheduling: {
+        label: "Allow Weekend Call Scheduling",
+        type: "boolean",
+        default: false,
+        description: "Schedule calls for Saturday and Sunday (respecting business hours)"
+      },
+      
+      holiday_call_scheduling: {
+        label: "Allow Holiday Call Scheduling",
+        type: "boolean",
+        default: false,
+        description: "Schedule calls on UK bank holidays and custom holidays"
+      }
+    }
+  }
+  
+  // Data Management Preferences
+  data_management_settings: {
+    contact_archiving: {
+      auto_archive_completed: {
+        label: "Auto-archive Completed Appointments",
+        type: "boolean",
+        default: false,
+        description: "Automatically archive contacts after their appointment date passes"
+      },
+      
+      archive_delay_days: {
+        label: "Archive Delay",
+        type: "select",
+        conditional: "auto_archive_completed",
+        options: [
+          { value: 1, label: "1 day after appointment" },
+          { value: 7, label: "1 week after appointment" },
+          { value: 30, label: "1 month after appointment (Recommended)" },
+          { value: 90, label: "3 months after appointment" }
+        ],
+        default: 30,
+        affects: ["contact_list_size", "performance"]
+      }
+    },
+    
+    data_cleanup: {
+      remove_old_call_logs: {
+        label: "Automatic Call Log Cleanup",
+        type: "boolean",
+        default: false,
+        description: "Automatically remove old call logs to save storage"
+      },
+      
+      cleanup_period_months: {
+        label: "Call Log Retention Period",
+        type: "select",
+        conditional: "remove_old_call_logs",
+        options: [
+          { value: 6, label: "6 months" },
+          { value: 12, label: "1 year (Recommended)" },
+          { value: 24, label: "2 years" },
+          { value: 36, label: "3 years" }
+        ],
+        default: 12,
+        compliance_note: "Medical practices should consider longer retention for compliance"
+      }
+    }
+  }
+  
+  // Performance Optimization
+  performance_settings: {
+    data_loading: {
+      contact_list_size: {
+        label: "Default Contact List Size",
+        type: "select",
+        options: [
+          { value: 25, label: "25 contacts per page (Faster loading)" },
+          { value: 50, label: "50 contacts per page (Default)" },
+          { value: 100, label: "100 contacts per page (More items)" }
+        ],
+        default: 50,
+        affects: ["page_load_speed", "data_usage"]
+      },
+      
+      real_time_updates: {
+        label: "Real-time Data Updates",
+        type: "boolean",
+        default: true,
+        description: "Get live updates when data changes (may impact performance on slower connections)"
+      },
+      
+      background_sync: {
+        label: "Background Data Synchronization",
+        type: "boolean",
+        default: true,
+        description: "Sync data in the background for faster user experience"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 📋 **12. Data Export & Portability Controls**
+
+### **Data Management & Export**
+
+```typescript
+DataExportSection {
+  // Export Controls
+  data_export_options: {
+    contact_data_export: {
+      export_format: {
+        label: "Export Format",
+        type: "select",
+        options: [
+          { value: "csv", label: "CSV (Excel Compatible)", recommended: true },
+          { value: "json", label: "JSON (Developer Friendly)" },
+          { value: "pdf", label: "PDF Report (Human Readable)" }
+        ],
+        default: "csv",
+        affects: ["data_compatibility", "import_capability"]
+      },
+      
+      export_scope: {
+        label: "Export Scope",
+        type: "select",
+        options: [
+          { value: "all_contacts", label: "All Contacts" },
+          { value: "active_contacts", label: "Active Contacts Only" },
+          { value: "filtered_contacts", label: "Currently Filtered Contacts" },
+          { value: "selected_contacts", label: "Selected Contacts Only" }
+        ],
+        default: "all_contacts",
+        affects: ["export_size", "data_completeness"]
+      },
+      
+      field_selection: {
+        label: "Field Selection",
+        type: "multi_select",
+        options: [
+          { value: "basic_info", label: "Basic Information (Name, Phone, Email)" },
+          { value: "appointment_details", label: "Appointment Details" },
+          { value: "call_history", label: "Call History & Outcomes" },
+          { value: "group_membership", label: "Group Memberships" },
+          { value: "metadata", label: "Metadata (Created, Updated dates)" }
+        ],
+        default: ["basic_info", "appointment_details"],
+        hipaa_filtering: "automatic_phi_removal_for_medical_practices"
+      }
+    },
+    
+    analytics_data_export: {
+      performance_reports: {
+        label: "Export Performance Analytics",
+        type: "boolean",
+        default: false,
+        description: "Include call performance and success rate data in exports"
+      },
+      
+      time_period: {
+        label: "Analytics Time Period",
+        type: "select",
+        conditional: "performance_reports",
+        options: [
+          { value: 30, label: "Last 30 days" },
+          { value: 90, label: "Last 3 months" },
+          { value: 365, label: "Last year" },
+          { value: "all", label: "All historical data" }
+        ],
+        default: 90
+      }
+    }
+  }
+  
+  // Data Import Settings
+  data_import_preferences: {
+    import_validation: {
+      strict_validation: {
+        label: "Strict Import Validation",
+        type: "boolean",
+        default: true,
+        description: "Reject imports with any validation errors (recommended)"
+      },
+      
+      duplicate_handling: {
+        label: "Duplicate Import Handling",
+        type: "select",
+        options: [
+          { value: "skip", label: "Skip duplicate entries" },
+          { value: "update", label: "Update existing contacts" },
+          { value: "create_new", label: "Create new contacts anyway" },
+          { value: "ask", label: "Ask for each duplicate" }
+        ],
+        default: "skip",
+        affects: ["import_workflow", "data_integrity"]
+      }
+    },
+    
+    field_mapping_preferences: {
+      remember_field_mappings: {
+        label: "Remember Field Mappings",
+        type: "boolean",
+        default: true,
+        description: "Save field mapping preferences for future imports"
+      },
+      
+      auto_detect_fields: {
+        label: "Auto-detect CSV Fields",
+        type: "boolean", 
+        default: true,
+        description: "Automatically map CSV columns to contact fields when possible"
+      }
+    }
+  }
+  
+  // Backup & Recovery
+  backup_settings: {
+    automatic_backups: {
+      enable_auto_backup: {
+        label: "Enable Automatic Backups",
+        type: "boolean",
+        default: true,
+        description: "Automatically backup your contact data"
+      },
+      
+      backup_frequency: {
+        label: "Backup Frequency",
+        type: "select",
+        conditional: "enable_auto_backup",
+        options: [
+          { value: "daily", label: "Daily (Recommended)" },
+          { value: "weekly", label: "Weekly" },
+          { value: "monthly", label: "Monthly" }
+        ],
+        default: "daily",
+        affects: ["data_protection", "recovery_capabilities"]
+      },
+      
+      backup_retention: {
+        label: "Backup Retention Period",
+        type: "select",
+        options: [
+          { value: 30, label: "30 days" },
+          { value: 90, label: "90 days (Recommended)" },
+          { value: 180, label: "6 months" },
+          { value: 365, label: "1 year" }
+        ],
+        default: 90,
+        affects: ["storage_usage", "recovery_options"]
+      }
+    },
+    
+    manual_backup: {
+      create_backup_now: {
+        button: "Create Backup Now",
+        action: "trigger_immediate_backup",
+        includes: ["contacts", "call_history", "configuration", "team_settings"]
+      },
+      
+      download_backup: {
+        button: "Download Latest Backup",
+        action: "download_encrypted_backup_file",
+        format: "encrypted_zip_file",
+        security: "password_protected"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 🔧 **Profile Section API Implementation**
+
+### **Profile Management Endpoints**
+
+```python
+# User Profile Management
+@api_router.get("/users/profile")
+async def get_user_profile(current_user: dict = Depends(get_current_user)):
+    """Get current user's profile information"""
+    
+    user_profile = await db.users.find_one({"id": current_user["id"]})
+    if not user_profile:
+        raise HTTPException(status_code=404, detail="User profile not found")
+    
+    # Remove sensitive information
+    safe_profile = {
+        "id": user_profile["id"],
+        "email": user_profile["email"],
+        "full_name": user_profile["full_name"],
+        "role": user_profile["role"],
+        "job_title": user_profile.get("job_title"),
+        "phone_number": user_profile.get("phone_number"),
+        "created_at": user_profile["created_at"],
+        "last_login": user_profile.get("last_login"),
+        "preferences": user_profile.get("preferences", {}),
+        "notification_settings": user_profile.get("notification_settings", {})
+    }
+    
+    return safe_profile
+
+@api_router.patch("/users/profile")
+async def update_user_profile(
+    profile_updates: UserProfileUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update user profile information"""
+    
+    # Validate update permissions
+    if profile_updates.email and profile_updates.email != current_user["email"]:
+        # Email change requires verification
+        await initiate_email_change_verification(current_user["id"], profile_updates.email)
+        profile_updates.email = None  # Don't update email until verified
+    
+    # Apply updates
+    update_data = {}
+    if profile_updates.full_name:
+        update_data["full_name"] = profile_updates.full_name.strip()
+    if profile_updates.job_title:
+        update_data["job_title"] = profile_updates.job_title.strip()
+    if profile_updates.phone_number:
+        update_data["phone_number"] = format_phone_number(profile_updates.phone_number)
+    if profile_updates.preferences:
+        update_data["preferences"] = profile_updates.preferences
+    if profile_updates.notification_settings:
+        update_data["notification_settings"] = profile_updates.notification_settings
+    
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    result = await db.users.update_one(
+        {"id": current_user["id"]},
+        {"$set": update_data}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Log profile update for audit
+    await log_user_action(
+        user_id=current_user["id"],
+        action="profile_updated",
+        details={"fields_updated": list(update_data.keys())}
+    )
+    
+    return {"message": "Profile updated successfully", "updated_fields": list(update_data.keys())}
+
+# Business Profile Management
+@api_router.get("/users/business")
+async def get_business_profile(current_user: dict = Depends(get_current_user)):
+    """Get business profile information for current tenant"""
+    
+    # Get tenant information
+    tenant = await db.tenants.find_one({"id": current_user["tenant_id"]})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Business profile not found")
+    
+    # Get tenant configuration
+    config = await db.tenant_config.find_one({"tenant_id": current_user["tenant_id"]})
+    
+    business_profile = {
+        "business_name": tenant["name"],
+        "company_name": tenant.get("company_name"),
+        "business_type": config.get("business_type", "general") if config else "general",
+        "industry_category": config.get("industry_category") if config else None,
+        "phone_number": config.get("business_phone") if config else None,
+        "email": config.get("business_email") if config else None,
+        "website": config.get("website_url") if config else None,
+        "address": {
+            "street": config.get("street_address") if config else None,
+            "city": config.get("city") if config else None,
+            "county": config.get("county_state") if config else None,
+            "postal_code": config.get("postal_code") if config else None,
+            "country": config.get("country", "United Kingdom") if config else "United Kingdom"
+        },
+        "business_hours": config.get("business_hours") if config else None,
+        "timezone": config.get("timezone", "Europe/London") if config else "Europe/London",
+        "created_at": tenant["created_at"],
+        "last_updated": config.get("updated_at") if config else tenant.get("updated_at")
+    }
+    
+    return business_profile
+
+@api_router.patch("/users/business")
+async def update_business_profile(
+    business_updates: BusinessProfileUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update business profile information"""
+    
+    # Verify admin permissions
+    require_admin_or_above(current_user)
+    
+    # Validate business name uniqueness if changing
+    if business_updates.business_name:
+        existing_tenant = await db.tenants.find_one({
+            "name": business_updates.business_name,
+            "id": {"$ne": current_user["tenant_id"]}  # Exclude current tenant
+        })
+        if existing_tenant:
+            raise HTTPException(
+                status_code=409, 
+                detail="Business name already exists. Please choose a different name."
+            )
+    
+    # Update tenant information
+    tenant_updates = {}
+    if business_updates.business_name:
+        tenant_updates["name"] = business_updates.business_name.strip()
+    if business_updates.company_name:
+        tenant_updates["company_name"] = business_updates.company_name.strip()
+    
+    if tenant_updates:
+        tenant_updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+        await db.tenants.update_one(
+            {"id": current_user["tenant_id"]},
+            {"$set": tenant_updates}
+        )
+    
+    # Update tenant configuration
+    config_updates = {}
+    if business_updates.business_type:
+        config_updates["business_type"] = business_updates.business_type
+        # Apply business-type specific defaults
+        business_defaults = get_business_type_defaults(business_updates.business_type)
+        config_updates.update(business_defaults)
+    
+    if business_updates.phone_number:
+        config_updates["business_phone"] = format_phone_number(business_updates.phone_number)
+    if business_updates.email:
+        config_updates["business_email"] = business_updates.email.lower().strip()
+    if business_updates.website:
+        config_updates["website_url"] = validate_and_format_url(business_updates.website)
+    if business_updates.address:
+        config_updates.update({
+            "street_address": business_updates.address.get("street"),
+            "city": business_updates.address.get("city"),
+            "county_state": business_updates.address.get("county"),
+            "postal_code": business_updates.address.get("postal_code"),
+            "country": business_updates.address.get("country", "United Kingdom")
+        })
+    if business_updates.business_hours:
+        config_updates["business_hours"] = business_updates.business_hours
+    if business_updates.timezone:
+        config_updates["timezone"] = business_updates.timezone
+    
+    if config_updates:
+        config_updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+        await db.tenant_config.update_one(
+            {"tenant_id": current_user["tenant_id"]},
+            {"$set": config_updates},
+            upsert=True
+        )
+    
+    # Log business profile update for audit
+    await log_admin_action(
+        admin_id=current_user["id"],
+        tenant_id=current_user["tenant_id"],
+        action="business_profile_updated",
+        details={
+            "tenant_updates": list(tenant_updates.keys()),
+            "config_updates": list(config_updates.keys())
+        }
+    )
+    
+    return {
+        "message": "Business profile updated successfully",
+        "tenant_updated": bool(tenant_updates),
+        "config_updated": bool(config_updates)
+    }
+```
+
+---
+
+## 🎯 **Profile Section User Experience**
+
+### **Profile Navigation & Layout**
+
+```typescript
+ProfileUIImplementation {
+  // Profile Section Layout
+  profile_layout: {
+    navigation_structure: {
+      sidebar_navigation: {
+        business_profile: {
+          icon: "🏢",
+          label: "Business Profile",
+          subsections: ["Basic Information", "Contact Details", "Business Hours", "Location"]
+        },
+        
+        user_account: {
+          icon: "👤", 
+          label: "Account Settings",
+          subsections: ["Personal Details", "Security", "Notifications"]
+        },
+        
+        call_preferences: {
+          icon: "📞",
+          label: "Call Settings", 
+          subsections: ["Call Timing", "Retry Settings", "Voice Preferences"]
+        },
+        
+        integrations: {
+          icon: "🔗",
+          label: "Integrations",
+          subsections: ["Cal.com", "Calendly", "Connection Status"]
+        },
+        
+        team: {
+          icon: "👥",
+          label: "Team Management",
+          subsections: ["Team Members", "Roles & Permissions"],
+          admin_only: true
+        },
+        
+        privacy: {
+          icon: "🔒", 
+          label: "Privacy & Compliance",
+          subsections: ["HIPAA Settings", "Data Retention", "Privacy Controls"],
+          conditional: "business_type_medical_or_admin"
+        },
+        
+        data: {
+          icon: "📋",
+          label: "Data Management",
+          subsections: ["Export", "Import Settings", "Backup & Recovery"],
+          admin_only: true
+        }
+      }
+    },
+    
+    responsive_design: {
+      mobile_layout: {
+        navigation: "bottom_tab_navigation",
+        sections: "accordion_style_collapsible_sections",
+        forms: "single_column_layout"
+      },
+      
+      tablet_layout: {
+        navigation: "left_sidebar_with_main_content",
+        sections: "card_based_layout",
+        forms: "two_column_where_appropriate"
+      },
+      
+      desktop_layout: {
+        navigation: "persistent_left_sidebar",
+        sections: "multi_column_card_layout", 
+        forms: "optimized_multi_column_forms"
+      }
+    }
+  }
+  
+  // Form Behavior & Validation
+  form_implementation: {
+    auto_save: {
+      enabled: true,
+      save_delay: "2_seconds_after_typing_stops",
+      save_indicator: "subtle_saved_indicator",
+      error_handling: "display_save_errors_inline"
+    },
+    
+    validation_behavior: {
+      real_time_validation: true,
+      validation_timing: "on_blur_and_on_submit",
+      error_display: "inline_field_errors_with_help_text",
+      success_indicators: "subtle_checkmarks_for_valid_fields"
+    },
+    
+    change_tracking: {
+      unsaved_changes_warning: true,
+      change_confirmation: "prompt_before_navigation_with_unsaved_changes",
+      change_highlighting: "highlight_modified_fields"
+    }
+  }
+}
+```
+
+---
+
+## 🚀 **Implementation Status & Technical Details**
+
+### **Profile Section Database Schema**
+
+```sql
+-- User Preferences Table
+CREATE TABLE user_preferences (
+  user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  
+  -- UI Preferences
+  theme TEXT DEFAULT 'light',
+  density TEXT DEFAULT 'comfortable',
+  primary_color TEXT DEFAULT '#3B82F6',
+  sidebar_behavior TEXT DEFAULT 'auto_collapse',
+  default_contact_view TEXT DEFAULT 'grid',
+  items_per_page INTEGER DEFAULT 25,
+  
+  -- Notification Preferences
+  email_notifications JSONB DEFAULT '{}',
+  sms_notifications JSONB DEFAULT '{}',
+  in_app_notifications JSONB DEFAULT '{}',
+  
+  -- Accessibility Settings
+  font_size TEXT DEFAULT 'medium',
+  high_contrast_mode BOOLEAN DEFAULT false,
+  reduced_motion BOOLEAN DEFAULT false,
+  
+  -- Workflow Preferences
+  default_dashboard_view TEXT DEFAULT 'overview',
+  dashboard_refresh_rate INTEGER DEFAULT 300,
+  auto_save_enabled BOOLEAN DEFAULT true,
+  
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Business Profile Extended Information
+CREATE TABLE business_profiles (
+  tenant_id UUID PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+  
+  -- Extended Business Information
+  legal_business_name TEXT,
+  trading_name TEXT,
+  business_registration_number TEXT,
+  vat_number TEXT,
+  industry_category TEXT,
+  
+  -- Contact Information
+  primary_phone TEXT,
+  business_email TEXT,
+  website_url TEXT,
+  
+  -- Location Information
+  street_address TEXT,
+  city TEXT,
+  county_state TEXT,
+  postal_code TEXT,
+  country TEXT DEFAULT 'United Kingdom',
+  
+  -- Operating Information
+  business_hours JSONB,
+  holiday_calendar JSONB,
+  service_areas JSONB,
+  
+  -- Branding & Customization
+  logo_url TEXT,
+  brand_colors JSONB,
+  custom_messaging JSONB,
+  
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Team Member Management
+CREATE TABLE team_member_profiles (
+  user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  
+  -- Extended Team Information
+  job_title TEXT,
+  department TEXT,
+  manager_id UUID REFERENCES users(id),
+  hire_date DATE,
+  
+  -- Access Control
+  custom_permissions JSONB DEFAULT '{}',
+  access_restrictions JSONB DEFAULT '{}',
+  
+  -- Activity Tracking
+  last_activity TIMESTAMPTZ,
+  login_count INTEGER DEFAULT 0,
+  
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+### **Profile Section Implementation Status**
+
+| Feature Category | Implementation Status | Client Control Level |
+|------------------|----------------------|----------------------|
+| **Business Profile** | ✅ Complete | Full client admin control |
+| **User Account Settings** | ✅ Complete | Individual user control |
+| **Call Preferences** | ✅ Complete | Client admin control |
+| **Integration Management** | ✅ Complete | Client admin control |
+| **Team Management** | ✅ Complete | Client admin control |
+| **Privacy & Compliance** | ✅ Complete | Client admin control |
+| **Data Export Controls** | ✅ Complete | Client admin control |
+| **UI Customization** | ✅ Complete | Individual user control |
+| **Notification Preferences** | ✅ Complete | Individual user control |
+| **Analytics Configuration** | ✅ Complete | Client admin control |
+
+### **Client Control Summary**
+
+```typescript
+ClientControlCapabilities {
+  // What Clients Can Fully Control
+  full_control: [
+    "Business information and branding",
+    "Team member management and permissions", 
+    "Call timing and retry settings",
+    "Voice script tone and personalization",
+    "Calendar integration configuration",
+    "Privacy and compliance settings",
+    "Data export and backup preferences",
+    "User interface customization",
+    "Notification preferences",
+    "Analytics dashboard configuration"
+  ],
+  
+  // What Clients Can Partially Control
+  partial_control: [
+    "Business type (affects compliance requirements)",
+    "HIPAA compliance level (if medical practice)",
+    "Integration field mapping (within platform constraints)",
+    "Call script content (within business type templates)"
+  ],
+  
+  // What Clients Cannot Control (System-Level)
+  no_control: [
+    "Core platform features and functionality",
+    "System security settings",
+    "Platform-wide rate limits",
+    "Retell AI system configuration",
+    "Database schema and structure",
+    "Platform compliance requirements"
+  ]
+}
+```
+
+## 🏆 **Profile Section Success Metrics**
+
+### **User Adoption & Engagement**
+
+```typescript
+ProfileSectionMetrics {
+  user_engagement: {
+    profile_completion_rate: "percentage_of_users_with_complete_profiles",
+    customization_adoption: "percentage_of_users_who_customize_ui_settings",
+    integration_setup_rate: "percentage_of_tenants_with_calendar_integrations",
+    team_utilization: "average_team_members_per_tenant"
+  },
+  
+  feature_utilization: {
+    most_customized_settings: "ranking_of_most_frequently_modified_settings",
+    least_used_features: "features_with_low_adoption_rates",
+    support_request_topics: "common_profile_related_support_requests"
+  }
+}
+```
+
+**The VioConcierge Profile Section provides comprehensive self-service account management with granular control over business settings, team management, compliance configuration, and user preferences, enabling clients to fully customize their appointment management experience.** 🎯
