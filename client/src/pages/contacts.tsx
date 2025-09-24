@@ -270,9 +270,11 @@ export default function Contacts() {
 
   // Fetch contacts with stable query key (filtering is client-side)
   const { data: contacts = [], isLoading: contactsLoading } = useQuery({
-    queryKey: ['/api/contacts', currentPage],
+    queryKey: ['/api/contacts', currentPage, Date.now()], // Cache busting
     // Temporarily enable for testing - in production, should be enabled: !!user
     enabled: true,
+    staleTime: 0, // Always fetch fresh data
+    gcTime: 0, // Don't cache (renamed from cacheTime in v5)
   }) as { data: Contact[], isLoading: boolean };
 
   const { data: contactStats = { total: 0, pending: 0, confirmed: 0 } } = useQuery({
