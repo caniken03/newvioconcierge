@@ -849,7 +849,11 @@ export default function Contacts() {
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <Card>
+            <Card 
+              className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-blue-200"
+              onClick={() => setFilters(prev => ({ ...prev, status: "all" }))}
+              data-testid="stats-card-total-contacts"
+            >
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -865,7 +869,11 @@ export default function Contacts() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card 
+              className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-yellow-200"
+              onClick={() => setFilters(prev => ({ ...prev, status: "pending" }))}
+              data-testid="stats-card-pending-contacts"
+            >
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -881,7 +889,11 @@ export default function Contacts() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card 
+              className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-green-200"
+              onClick={() => setFilters(prev => ({ ...prev, status: "confirmed" }))}
+              data-testid="stats-card-confirmed-contacts"
+            >
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>

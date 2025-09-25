@@ -159,7 +159,11 @@ export default function CallManagement() {
             
             {/* Call Overview Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <Card data-testid="active-calls-card">
+              <Card 
+                className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-green-200" 
+                onClick={() => setStatusFilter("in_progress")}
+                data-testid="active-calls-card"
+              >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Active Calls</CardTitle>
                   <PhoneCall className="h-4 w-4 text-muted-foreground" />
@@ -170,7 +174,11 @@ export default function CallManagement() {
                 </CardContent>
               </Card>
               
-              <Card data-testid="scheduled-calls-card">
+              <Card 
+                className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-blue-200" 
+                onClick={() => setStatusFilter("scheduled")}
+                data-testid="scheduled-calls-card"
+              >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Scheduled</CardTitle>
                   <Clock className="h-4 w-4 text-muted-foreground" />
@@ -181,7 +189,11 @@ export default function CallManagement() {
                 </CardContent>
               </Card>
               
-              <Card data-testid="completed-calls-card">
+              <Card 
+                className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-green-200" 
+                onClick={() => setStatusFilter("completed")}
+                data-testid="completed-calls-card"
+              >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Completed Today</CardTitle>
                   <CheckCircle className="h-4 w-4 text-muted-foreground" />
