@@ -118,23 +118,6 @@ export default function Sidebar() {
           </div>
         )}
 
-        {/* Client Admin Only Navigation */}
-        {user.role === 'client_admin' && (
-          <div className="space-y-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1">
-              Administration
-            </h3>
-            <NavLink href="/users" icon="fas fa-users" testId="nav-user-management">
-              User Management
-            </NavLink>
-            <NavLink href="/configuration" icon="fas fa-cog" testId="nav-configuration">
-              Configuration
-            </NavLink>
-            <NavLink href="/integrations" icon="fas fa-plug" testId="nav-integrations">
-              Integrations
-            </NavLink>
-          </div>
-        )}
       </nav>
 
       {/* Bottom Actions */}
