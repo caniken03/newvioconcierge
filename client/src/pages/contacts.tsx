@@ -270,7 +270,7 @@ export default function Contacts() {
 
   // Fetch contacts with proper cache control (server handles cache-busting)
   const { data: contacts = [], isLoading: contactsLoading } = useQuery({
-    queryKey: ['/api/contacts', currentPage],
+    queryKey: ['/api/contacts'],
     // Temporarily enable for testing - in production, should be enabled: !!user
     enabled: true,
     staleTime: 0, // Always fetch fresh data
@@ -598,9 +598,10 @@ export default function Contacts() {
     // Search filter
     if (filters.search.trim()) {
       const searchLower = filters.search.toLowerCase();
-      return contact.name?.toLowerCase().includes(searchLower) || 
-             contact.phone?.toLowerCase().includes(searchLower) ||
-             contact.email?.toLowerCase().includes(searchLower);
+      const matchesSearch = contact.name?.toLowerCase().includes(searchLower) || 
+                           contact.phone?.toLowerCase().includes(searchLower) ||
+                           contact.email?.toLowerCase().includes(searchLower);
+      if (!matchesSearch) return false;
     }
 
     // Status filter
@@ -632,11 +633,6 @@ export default function Contacts() {
       const createdDate = new Date(contact.createdAt);
       const toDate = new Date(filters.createdDateTo + 'T23:59:59');
       if (createdDate > toDate) return false;
-    }
-
-    // Status filter
-    if (filters.status !== "all" && contact.appointmentStatus !== filters.status) {
-      return false;
     }
 
     // Contact group filter - check if contact is in the selected group
