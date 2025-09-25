@@ -18,6 +18,7 @@ import BulkDeleteModal from "@/components/modals/bulk-delete-modal";
 import { ContactTimeline } from "@/components/contact-timeline";
 import CallNowModal from "@/components/call-now-modal";
 import { GroupMemberViewer } from "@/components/group-member-viewer";
+import { CSVUploadWizard } from "@/components/csv-upload-wizard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -184,6 +185,9 @@ export default function Contacts() {
   const [isGroupViewerOpen, setIsGroupViewerOpen] = useState(false);
   const [viewingGroup, setViewingGroup] = useState<ContactGroup | null>(null);
   const [callNowContact, setCallNowContact] = useState<Contact | null>(null);
+  
+  // CSV Upload Wizard state
+  const [isCSVWizardOpen, setIsCSVWizardOpen] = useState(false);
 
   // Enhanced filter state
   const [filters, setFilters] = useState<ContactFilters>(initialFilters);
@@ -521,19 +525,9 @@ export default function Contacts() {
     }
   };
 
-  // Handle CSV file import
+  // Handle CSV file import - now opens the wizard
   const handleImportCSV = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.csv';
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        setIsImporting(true);
-        importContactsMutation.mutate(file);
-      }
-    };
-    input.click();
+    setIsCSVWizardOpen(true);
   };
 
   // Handle CSV export
@@ -1366,11 +1360,10 @@ export default function Contacts() {
                   <Button 
                     variant="secondary" 
                     onClick={handleImportCSV}
-                    disabled={isImporting}
                     data-testid="button-import-csv"
                   >
                     <Upload className="w-4 h-4 mr-2" />
-                    {isImporting ? 'Importing...' : 'Import CSV'}
+                    Import CSV
                   </Button>
                   
                   <Button 
@@ -2225,6 +2218,12 @@ export default function Contacts() {
               }}
             />
           )}
+
+          {/* CSV Upload Wizard */}
+          <CSVUploadWizard
+            isOpen={isCSVWizardOpen}
+            onClose={() => setIsCSVWizardOpen(false)}
+          />
         </main>
       </div>
     </div>

@@ -1,0 +1,2978 @@
+# VioConcierge CSV Upload System - Detailed Product Requirements Document
+
+## Executive Summary
+
+The **VioConcierge CSV Upload System** enables businesses to bulk import contacts with appointment details, automatic group assignment, and comprehensive data validation. The system supports **HIPAA-compliant data processing**, **intelligent field mapping**, **duplicate detection**, and **real-time upload progress tracking** for seamless contact database population.
+
+---
+
+## 📊 **CSV Upload Architecture Overview**
+
+### **Upload System Design Philosophy**
+
+```typescript
+CSVUploadArchitecture {
+  core_objectives: {
+    bulk_data_import: "Enable efficient import of large contact databases (up to 10,000 contacts per upload)",
+    intelligent_field_mapping: "Automatic detection and mapping of CSV columns to VioConcierge contact fields",
+    group_auto_assignment: "Automatic group creation and assignment based on CSV data patterns",
+    appointment_scheduling: "Automatic appointment reminder scheduling upon successful import",
+    hipaa_compliance: "Comprehensive PHI protection and compliance filtering for medical practices",
+    data_validation: "Real-time validation with detailed error reporting and correction suggestions"
+  },
+  
+  supported_file_formats: {
+    primary_format: "CSV (Comma-Separated Values)",
+    encoding: "UTF-8 with BOM support",
+    file_size_limit: "10MB maximum file size",
+    record_limit: "10,000 contacts maximum per upload",
+    alternative_formats: ["Excel XLSX (converted to CSV)", "Tab-separated values (TSV)"]
+  },
+  
+  upload_workflow: {
+    step_1: "File Upload & Format Validation",
+    step_2: "CSV Parsing & Column Detection", 
+    step_3: "Field Mapping Interface",
+    step_4: "Data Validation & Error Detection",
+    step_5: "Preview & Confirmation",
+    step_6: "HIPAA Compliance Check (if medical)",
+    step_7: "Group Assignment Processing",
+    step_8: "Bulk Import Execution",
+    step_9: "Appointment Scheduling",
+    step_10: "Import Summary & Error Report"
+  }
+}
+```
+
+---
+
+## 📋 **1. CSV File Structure & Requirements**
+
+### **Standard CSV Format Specification**
+
+```typescript
+CSVFileSpecification {
+  // Required CSV Structure
+  file_requirements: {
+    header_row: {
+      required: true,
+      description: "First row must contain column headers",
+      case_sensitivity: "case_insensitive_header_matching",
+      special_characters: "underscores_and_spaces_automatically_normalized"
+    },
+    
+    character_encoding: {
+      preferred: "UTF-8 with BOM",
+      supported: ["UTF-8", "UTF-8 with BOM", "ISO-8859-1", "Windows-1252"],
+      automatic_detection: "system_attempts_automatic_encoding_detection"
+    },
+    
+    delimiter_support: {
+      primary: "comma_separated_values",
+      alternative: ["semicolon_separated", "tab_separated", "pipe_separated"],
+      automatic_detection: "system_detects_delimiter_automatically"
+    },
+    
+    data_format_rules: {
+      text_fields: "quoted_if_containing_commas_or_special_characters",
+      date_fields: "multiple_formats_supported_with_automatic_detection",
+      phone_fields: "flexible_formatting_with_automatic_normalization",
+      boolean_fields: "yes_no_true_false_1_0_supported"
+    }
+  },
+  
+  // Supported Column Headers (Field Mapping)
+  supported_columns: {
+    // REQUIRED FIELDS
+    required_columns: {
+      name: {
+        accepted_headers: ["name", "full_name", "customer_name", "patient_name", "client_name", "guest_name"],
+        validation: "minimum_2_characters_no_numbers_only",
+        example: "John Smith, Sarah Johnson, Dr. Michael Chen"
+      },
+      
+      phone: {
+        accepted_headers: ["phone", "phone_number", "mobile", "telephone", "contact_number"],
+        validation: "uk_phone_format_with_automatic_formatting",
+        example: "+447912345678, 07912345678, +44 791 234 5678"
+      },
+      
+      appointment_date: {
+        accepted_headers: ["appointment_date", "date", "appointment_day", "visit_date", "service_date"],
+        validation: "future_date_required_multiple_formats_supported",
+        supported_formats: ["DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD", "DD-MM-YYYY", "DD/MM/YY"],
+        example: "15/01/2024, 01/15/2024, 2024-01-15"
+      },
+      
+      appointment_time: {
+        accepted_headers: ["appointment_time", "time", "visit_time", "service_time", "meeting_time"],
+        validation: "valid_time_format_business_hours_preferred",
+        supported_formats: ["HH:MM", "HH:MM:SS", "H:MM AM/PM", "HH:MM AM/PM"],
+        example: "14:30, 2:30 PM, 14:30:00"
+      }
+    },
+    
+    // OPTIONAL FIELDS
+    optional_columns: {
+      email: {
+        accepted_headers: ["email", "email_address", "contact_email"],
+        validation: "valid_email_format_duplicate_checking",
+        example: "john.smith@email.com"
+      },
+      
+      appointment_type: {
+        accepted_headers: ["appointment_type", "service_type", "visit_type", "consultation_type"],
+        validation: "business_type_appropriate_validation",
+        medical_filtering: "phi_screening_for_medical_practices",
+        example: "Consultation, Hair Cut, Dinner Reservation, Strategy Meeting"
+      },
+      
+      appointment_duration: {
+        accepted_headers: ["duration", "appointment_duration", "service_duration", "length"],
+        validation: "positive_integer_minutes_reasonable_range_15_to_480",
+        example: "30, 60, 90, 120 (minutes)"
+      },
+      
+      provider_name: {
+        accepted_headers: ["provider", "doctor", "stylist", "therapist", "consultant", "server"],
+        validation: "text_validation_with_business_type_context",
+        medical_filtering: "provider_name_validation_for_hipaa",
+        example: "Dr. Smith, Maria Rodriguez, John (Server)"
+      },
+      
+      special_instructions: {
+        accepted_headers: ["instructions", "special_instructions", "notes", "comments", "preparation"],
+        validation: "text_length_limit_phi_screening_if_medical",
+        medical_filtering: "comprehensive_phi_detection_and_sanitization",
+        example: "Arrive 15 minutes early, Color formula: L'Oreal 7.1, Gluten-free required"
+      },
+      
+      group_assignment: {
+        accepted_headers: ["group", "groups", "category", "segment", "type"],
+        validation: "group_name_validation_auto_creation_if_not_exists",
+        multiple_groups: "comma_separated_group_names_for_multiple_assignment",
+        example: "VIP Patients, Hair Color Clients, Regular Guests"
+      }
+    },
+    
+    // SYSTEM FIELDS (Auto-Generated)
+    system_generated: {
+      tenant_id: "automatically_assigned_from_user_context",
+      contact_id: "uuid_generated_for_each_new_contact",
+      created_at: "timestamp_of_import_processing",
+      booking_source: "automatically_set_to_csv_import",
+      appointment_status: "automatically_set_to_pending"
+    }
+  }
+}
+```
+
+### **CSV Template Examples by Business Type**
+
+```csv
+# MEDICAL PRACTICE CSV TEMPLATE (HIPAA Compliant)
+Patient Name,Phone,Email,Appointment Date,Appointment Time,Visit Type,Provider,Preparation Instructions,Group
+Sarah Johnson,+447912345678,sarah.j@email.com,15/01/2024,14:30,Consultation,Dr. Smith,Arrive 15 minutes early,New Patients
+Michael Brown,07987654321,m.brown@email.com,16/01/2024,10:00,Follow-up,Dr. Johnson,Bring insurance card,Follow-up Required
+Emma Wilson,+447555123456,emma.w@email.com,17/01/2024,16:00,Check-up,Dr. Smith,Fasting required,Regular Patients
+
+# SALON/SPA CSV TEMPLATE
+Client Name,Phone,Email,Appointment Date,Appointment Time,Service Type,Stylist,Duration,Special Instructions,Group
+Lisa Thompson,+447912345678,lisa.t@email.com,15/01/2024,10:00,Hair Color and Cut,Maria,120,Color formula: L'Oreal 7.1,Color Clients
+James Wilson,07987654321,james.w@email.com,15/01/2024,14:30,Massage,Sarah,90,Prefers deep tissue,Spa Clients
+Sophie Chen,+447555123456,sophie.c@email.com,16/01/2024,11:00,Facial,Emma,60,Sensitive skin,VIP Clients
+
+# RESTAURANT CSV TEMPLATE
+Guest Name,Phone,Email,Reservation Date,Reservation Time,Party Size,Occasion,Special Requests,Group
+Mr. & Mrs. Smith,+447912345678,smith@email.com,15/01/2024,19:30,4,Anniversary,Gluten-free options needed,Special Occasions
+Corporate Group,07987654321,events@company.com,16/01/2024,12:00,12,Business Lunch,Quiet table required,Corporate Clients
+Johnson Family,+447555123456,johnson@email.com,17/01/2024,18:00,6,Birthday,Birthday cake requested,Regular Guests
+
+# CONSULTANT CSV TEMPLATE  
+Client Name,Phone,Email,Meeting Date,Meeting Time,Consultation Type,Consultant,Duration,Preparation Required,Group
+Robert Chen,+447912345678,r.chen@techstart.com,15/01/2024,14:00,Strategy Session,John Smith,90,Bring Q4 financials,Active Projects
+Sarah Davis,07987654321,sarah.davis@corp.com,16/01/2024,10:30,Financial Review,Jane Doe,60,Prepare budget documents,Financial Clients
+Tech Startup Inc,+447555123456,ceo@startup.com,17/01/2024,15:00,Business Plan Review,John Smith,120,Business plan draft ready,Prospects
+```
+
+---
+
+## 🔄 **2. Upload Process Implementation**
+
+### **Step-by-Step Upload Workflow**
+
+```typescript
+UploadProcessWorkflow {
+  // Step 1: File Upload Interface
+  file_upload_interface: {
+    upload_area: {
+      drag_and_drop: "drag_csv_file_onto_upload_area",
+      click_to_browse: "click_to_open_file_browser",
+      file_validation: "immediate_validation_on_file_selection",
+      supported_formats: "display_supported_formats_csv_xlsx_tsv"
+    },
+    
+    immediate_validation: {
+      file_size_check: "validate_file_under_10mb_limit",
+      file_format_check: "validate_csv_or_supported_format",
+      encoding_detection: "automatic_character_encoding_detection",
+      preliminary_parsing: "basic_csv_structure_validation"
+    },
+    
+    upload_progress: {
+      file_upload_progress: "progress_bar_during_file_upload",
+      parsing_progress: "progress_indicator_during_csv_parsing",
+      validation_progress: "progress_indicator_during_data_validation"
+    }
+  },
+  
+  // Step 2: CSV Parsing & Analysis
+  csv_parsing: {
+    automatic_detection: {
+      delimiter_detection: "automatically_detect_comma_semicolon_tab_pipe",
+      header_detection: "identify_header_row_vs_data_rows",
+      data_type_inference: "automatically_infer_column_data_types",
+      encoding_handling: "handle_utf8_bom_and_other_encodings"
+    },
+    
+    parsing_validation: {
+      row_count_validation: "ensure_within_10000_row_limit",
+      column_consistency: "validate_consistent_column_count_across_rows",
+      data_integrity: "check_for_truncated_rows_or_parsing_errors",
+      character_validation: "handle_special_characters_and_unicode"
+    },
+    
+    parsing_results: {
+      total_rows: "count_of_data_rows_excluding_header",
+      total_columns: "count_of_detected_columns",
+      detected_headers: "list_of_column_headers_found",
+      sample_data: "first_5_rows_for_preview",
+      parsing_errors: "list_of_any_parsing_issues_encountered"
+    }
+  },
+  
+  // Step 3: Field Mapping Interface
+  field_mapping_interface: {
+    automatic_field_detection: {
+      smart_column_mapping: "ai_powered_mapping_of_csv_columns_to_contact_fields",
+      confidence_scoring: "confidence_percentage_for_each_automatic_mapping",
+      mapping_suggestions: "suggest_best_field_matches_with_reasoning",
+      unmapped_columns: "highlight_csv_columns_that_couldnt_be_automatically_mapped"
+    },
+    
+    manual_mapping_controls: {
+      drag_and_drop_mapping: "drag_csv_columns_to_contact_field_targets",
+      dropdown_field_selection: "dropdown_per_csv_column_to_select_target_field",
+      preview_mapping_results: "show_how_csv_data_will_map_to_contact_fields",
+      ignore_columns: "option_to_ignore_csv_columns_not_needed"
+    },
+    
+    mapping_validation: {
+      required_field_check: "ensure_required_fields_name_phone_appointment_are_mapped",
+      data_format_validation: "validate_mapped_data_matches_expected_formats",
+      duplicate_mapping_prevention: "prevent_multiple_csv_columns_mapping_to_same_field",
+      business_logic_validation: "ensure_appointment_time_components_properly_mapped"
+    }
+  }
+}
+```
+
+### **CSV Upload UI Implementation**
+
+```typescript
+CSVUploadInterface {
+  // Upload Modal/Page Layout
+  upload_interface_layout: {
+    upload_wizard_steps: [
+      {
+        step: 1,
+        title: "Upload CSV File",
+        content: "file_selection_and_upload_with_immediate_validation",
+        navigation: "next_button_enabled_after_successful_file_upload"
+      },
+      {
+        step: 2, 
+        title: "Map Fields",
+        content: "field_mapping_interface_with_automatic_suggestions",
+        navigation: "next_enabled_after_required_fields_mapped"
+      },
+      {
+        step: 3,
+        title: "Validate Data",
+        content: "data_validation_with_error_reporting_and_correction",
+        navigation: "next_enabled_after_validation_passes_or_errors_accepted"
+      },
+      {
+        step: 4,
+        title: "Configure Groups",
+        content: "group_assignment_and_creation_interface",
+        navigation: "next_enabled_after_group_configuration"
+      },
+      {
+        step: 5,
+        title: "Preview Import",
+        content: "preview_of_contacts_to_be_created_with_all_details",
+        navigation: "import_button_to_execute_final_import"
+      },
+      {
+        step: 6,
+        title: "Import Progress",
+        content: "real_time_import_progress_with_success_failure_tracking",
+        navigation: "completion_button_after_import_finishes"
+      }
+    ],
+    
+    upload_area_design: {
+      drag_drop_zone: {
+        visual_design: "large_dashed_border_area_with_upload_icon",
+        hover_state: "highlight_border_when_file_dragged_over",
+        drop_feedback: "immediate_visual_feedback_when_file_dropped",
+        supported_formats_display: "show_csv_xlsx_tsv_file_icons"
+      },
+      
+      file_browser_fallback: {
+        browse_button: "prominent_browse_files_button_for_click_upload",
+        file_filter: "filter_file_dialog_to_csv_and_excel_files",
+        multiple_file_handling: "prevent_multiple_file_selection_show_single_file_requirement"
+      }
+    }
+  },
+  
+  // Field Mapping Interface Design
+  field_mapping_design: {
+    layout_structure: {
+      csv_columns_panel: {
+        position: "left_side_of_mapping_interface",
+        content: "list_of_detected_csv_columns_with_sample_data",
+        interaction: "draggable_columns_for_drag_drop_mapping",
+        preview: "show_first_few_values_from_each_column"
+      },
+      
+      contact_fields_panel: {
+        position: "right_side_of_mapping_interface", 
+        content: "list_of_available_contact_fields_with_descriptions",
+        categorization: "grouped_by_required_optional_business_specific",
+        drop_zones: "visual_drop_zones_for_each_contact_field"
+      },
+      
+      mapping_connections: {
+        visual_indicators: "lines_or_arrows_showing_csv_column_to_field_mappings",
+        confidence_indicators: "color_coding_for_automatic_mapping_confidence",
+        validation_status: "checkmarks_or_warnings_for_mapping_validation"
+      }
+    },
+    
+    intelligent_mapping_suggestions: {
+      automatic_suggestions: {
+        name_detection: "automatically_map_columns_containing_name_fullname_customer",
+        phone_detection: "automatically_map_columns_containing_phone_mobile_telephone",
+        date_detection: "automatically_map_date_formatted_columns_to_appointment_date",
+        time_detection: "automatically_map_time_formatted_columns_to_appointment_time",
+        email_detection: "automatically_map_email_formatted_columns_to_email_field"
+      },
+      
+      suggestion_confidence: {
+        high_confidence: "90_100%_confidence_auto_map_with_green_indicator",
+        medium_confidence: "70_89%_confidence_suggest_with_yellow_indicator",
+        low_confidence: "50_69%_confidence_show_as_option_with_orange_indicator",
+        no_confidence: "below_50%_leave_unmapped_with_manual_selection_required"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 🔍 **3. Data Validation & Error Handling**
+
+### **Comprehensive Validation System**
+
+```typescript
+CSVDataValidationSystem {
+  // Multi-Level Validation
+  validation_levels: {
+    format_validation: {
+      field_format_checks: {
+        phone_format: "validate_uk_phone_number_format_and_convert_to_e164",
+        email_format: "validate_email_format_and_check_for_disposable_emails",
+        date_format: "parse_and_validate_appointment_dates_ensure_future_dates",
+        time_format: "parse_and_validate_appointment_times_check_business_hours",
+        name_format: "validate_names_are_realistic_and_not_test_data"
+      },
+      
+      business_logic_validation: {
+        appointment_datetime_combination: "ensure_date_and_time_create_valid_future_datetime",
+        business_hours_compliance: "validate_appointment_times_fall_within_business_hours",
+        duration_reasonableness: "validate_appointment_durations_are_reasonable_for_business_type",
+        provider_assignment: "validate_provider_names_against_known_staff_if_configured"
+      }
+    },
+    
+    business_type_validation: {
+      medical_practice_validation: {
+        phi_detection: "comprehensive_phi_detection_in_all_text_fields",
+        appointment_type_screening: "screen_appointment_types_for_medical_specificity",
+        patient_name_validation: "ensure_patient_names_are_appropriate",
+        consent_verification: "validate_that_voice_call_consent_can_be_obtained"
+      },
+      
+      salon_spa_validation: {
+        service_type_validation: "validate_service_types_against_common_beauty_services",
+        duration_validation: "ensure_service_durations_are_appropriate_for_service_types",
+        stylist_validation: "validate_stylist_names_against_staff_directory_if_available"
+      },
+      
+      restaurant_validation: {
+        party_size_extraction: "extract_and_validate_party_size_from_various_fields",
+        reservation_time_validation: "ensure_reservation_times_align_with_restaurant_hours",
+        dietary_restriction_detection: "detect_and_properly_format_dietary_restrictions"
+      },
+      
+      consultant_validation: {
+        meeting_type_validation: "validate_consultation_types_against_service_offerings",
+        client_company_validation: "validate_company_names_and_format_consistently",
+        preparation_requirements: "validate_preparation_instructions_are_professional"
+      }
+    },
+    
+    duplicate_detection: {
+      exact_duplicate_detection: "identify_rows_with_identical_name_and_phone_combinations",
+      fuzzy_duplicate_detection: "identify_potential_duplicates_with_similar_names_or_phones",
+      existing_contact_checking: "check_imported_contacts_against_existing_database",
+      duplicate_resolution_options: [
+        "skip_duplicates",
+        "update_existing_contacts",
+        "create_new_contacts_anyway",
+        "manual_review_required"
+      ]
+    }
+  },
+  
+  // Error Reporting & Correction
+  error_handling: {
+    error_categorization: {
+      critical_errors: {
+        description: "Errors that prevent contact creation",
+        examples: ["missing_required_fields", "invalid_phone_format", "phi_detected_in_medical"],
+        resolution: "must_be_fixed_before_import_can_proceed",
+        ui_treatment: "red_highlighting_with_detailed_error_messages"
+      },
+      
+      warning_errors: {
+        description: "Issues that should be reviewed but don't prevent import",
+        examples: ["missing_email", "unusual_appointment_duration", "potential_duplicate"],
+        resolution: "can_proceed_with_import_but_review_recommended",
+        ui_treatment: "yellow_highlighting_with_warning_messages"
+      },
+      
+      informational_notices: {
+        description: "Information about automatic processing decisions",
+        examples: ["phone_format_converted", "date_format_interpreted", "group_auto_created"],
+        resolution: "no_action_required_informational_only",
+        ui_treatment: "blue_highlighting_with_informational_messages"
+      }
+    },
+    
+    error_correction_tools: {
+      inline_editing: {
+        edit_cells_directly: "allow_editing_csv_data_directly_in_validation_interface",
+        format_assistance: "provide_format_help_and_examples_for_corrections",
+        real_time_validation: "re_validate_data_as_corrections_are_made"
+      },
+      
+      bulk_corrections: {
+        find_and_replace: "find_and_replace_tool_for_common_corrections",
+        column_transformation: "apply_transformations_to_entire_columns",
+        format_standardization: "automatically_standardize_phone_date_time_formats"
+      },
+      
+      error_export: {
+        export_errors_only: "export_only_rows_with_errors_for_external_correction",
+        error_report_csv: "detailed_csv_report_with_error_descriptions_and_suggestions",
+        corrected_data_reimport: "ability_to_reimport_corrected_data_seamlessly"
+      }
+    }
+  }
+}
+```
+
+### **Data Validation Implementation**
+
+```python
+class CSVDataValidator:
+    """
+    Comprehensive CSV data validation system with business-type specific rules
+    """
+    
+    def __init__(self):
+        self.validation_rules = {
+            "medical": MedicalDataValidator(),
+            "salon": SalonDataValidator(),
+            "restaurant": RestaurantDataValidator(), 
+            "consultant": ConsultantDataValidator(),
+            "general": GeneralDataValidator()
+        }
+    
+    async def validate_csv_data(self, csv_data: List[dict], field_mapping: dict, business_type: str) -> CSVValidationResult:
+        """
+        Comprehensive validation of CSV data with business-type specific rules
+        """
+        
+        validator = self.validation_rules.get(business_type, self.validation_rules["general"])
+        
+        # Initialize validation tracking
+        validation_results = []
+        critical_errors = 0
+        warnings = 0
+        valid_rows = 0
+        
+        logger.info(f"🔍 Starting CSV validation: {len(csv_data)} rows, business type: {business_type}")
+        
+        # Validate each row
+        for row_index, row_data in enumerate(csv_data):
+            row_validation = await self.validate_single_row(
+                row_data=row_data,
+                field_mapping=field_mapping,
+                validator=validator,
+                row_number=row_index + 2  # +2 because index starts at 0 and row 1 is header
+            )
+            
+            validation_results.append(row_validation)
+            
+            if row_validation.has_critical_errors:
+                critical_errors += 1
+            elif row_validation.has_warnings:
+                warnings += 1
+            else:
+                valid_rows += 1
+        
+        # Generate overall validation summary
+        validation_summary = CSVValidationResult(
+            total_rows=len(csv_data),
+            valid_rows=valid_rows,
+            rows_with_warnings=warnings,
+            rows_with_critical_errors=critical_errors,
+            validation_results=validation_results,
+            can_proceed_with_import=critical_errors == 0,
+            business_type=business_type,
+            validation_timestamp=datetime.now(timezone.utc).isoformat()
+        )
+        
+        logger.info(f"✅ CSV validation complete: {valid_rows} valid, {warnings} warnings, {critical_errors} critical errors")
+        
+        return validation_summary
+    
+    async def validate_single_row(self, row_data: dict, field_mapping: dict, validator, row_number: int) -> RowValidationResult:
+        """
+        Validate a single CSV row with comprehensive error checking
+        """
+        
+        errors = []
+        warnings = []
+        processed_data = {}
+        
+        # Validate required fields
+        required_fields = ["name", "phone", "appointment_date", "appointment_time"]
+        
+        for required_field in required_fields:
+            csv_column = field_mapping.get(required_field)
+            if not csv_column or not row_data.get(csv_column):
+                errors.append(ValidationError(
+                    field=required_field,
+                    csv_column=csv_column,
+                    row_number=row_number,
+                    error_type="missing_required_field",
+                    message=f"Required field '{required_field}' is missing or empty",
+                    severity="critical"
+                ))
+        
+        # Validate and process each mapped field
+        for vioconcierge_field, csv_column in field_mapping.items():
+            if csv_column and row_data.get(csv_column):
+                field_value = row_data[csv_column].strip()
+                
+                # Field-specific validation
+                if vioconcierge_field == "phone":
+                    phone_validation = await self.validate_phone_field(field_value, row_number)
+                    if phone_validation.valid:
+                        processed_data["phone"] = phone_validation.formatted_phone
+                    else:
+                        errors.append(phone_validation.error)
+                
+                elif vioconcierge_field == "appointment_date":
+                    date_validation = await self.validate_date_field(field_value, row_number)
+                    if date_validation.valid:
+                        processed_data["appointment_date"] = date_validation.parsed_date
+                    else:
+                        errors.append(date_validation.error)
+                
+                elif vioconcierge_field == "appointment_time":
+                    time_validation = await self.validate_time_field(field_value, row_number)
+                    if time_validation.valid:
+                        processed_data["appointment_time"] = time_validation.parsed_time
+                    else:
+                        errors.append(time_validation.error)
+                
+                elif vioconcierge_field == "special_instructions":
+                    # Business-type specific instruction validation
+                    instruction_validation = await validator.validate_special_instructions(field_value, row_number)
+                    if instruction_validation.valid:
+                        processed_data["special_instructions"] = instruction_validation.processed_instructions
+                    else:
+                        if instruction_validation.severity == "critical":
+                            errors.append(instruction_validation.error)
+                        else:
+                            warnings.append(instruction_validation.error)
+                
+                else:
+                    # Standard field validation
+                    processed_data[vioconcierge_field] = field_value
+        
+        # Combine appointment date and time
+        if "appointment_date" in processed_data and "appointment_time" in processed_data:
+            try:
+                combined_datetime = self.combine_date_time(
+                    processed_data["appointment_date"],
+                    processed_data["appointment_time"]
+                )
+                processed_data["appointment_datetime"] = combined_datetime
+            except Exception as e:
+                errors.append(ValidationError(
+                    field="appointment_datetime",
+                    row_number=row_number,
+                    error_type="datetime_combination_error",
+                    message=f"Could not combine date and time: {str(e)}",
+                    severity="critical"
+                ))
+        
+        return RowValidationResult(
+            row_number=row_number,
+            original_data=row_data,
+            processed_data=processed_data,
+            errors=errors,
+            warnings=warnings,
+            has_critical_errors=len([e for e in errors if e.severity == "critical"]) > 0,
+            has_warnings=len(warnings) > 0,
+            is_valid=len([e for e in errors if e.severity == "critical"]) == 0
+        )
+
+@dataclass
+class ValidationError:
+    field: str
+    csv_column: Optional[str]
+    row_number: int
+    error_type: str
+    message: str
+    severity: str  # critical, warning, info
+    suggested_correction: Optional[str] = None
+
+@dataclass
+class RowValidationResult:
+    row_number: int
+    original_data: dict
+    processed_data: dict
+    errors: List[ValidationError]
+    warnings: List[ValidationError]
+    has_critical_errors: bool
+    has_warnings: bool
+    is_valid: bool
+
+@dataclass
+class CSVValidationResult:
+    total_rows: int
+    valid_rows: int
+    rows_with_warnings: int
+    rows_with_critical_errors: int
+    validation_results: List[RowValidationResult]
+    can_proceed_with_import: bool
+    business_type: str
+    validation_timestamp: str
+```
+
+---
+
+## 👥 **4. Automatic Group Assignment System**
+
+### **Group Creation & Assignment Logic**
+
+```typescript
+AutomaticGroupAssignmentSystem {
+  // Group Assignment Methods
+  assignment_methods: {
+    explicit_group_column: {
+      description: "CSV contains dedicated group column with group names",
+      csv_column_examples: ["group", "groups", "category", "segment"],
+      processing: "create_groups_if_not_exist_and_assign_contacts",
+      multiple_groups: "support_comma_separated_group_names_for_multiple_assignment",
+      example: "VIP Patients,New Patients or Hair Color Clients"
+    },
+    
+    automatic_group_inference: {
+      description: "Automatically create groups based on data patterns",
+      inference_rules: {
+        appointment_type_groups: "create_groups_based_on_appointment_service_types",
+        provider_groups: "create_groups_based_on_assigned_providers_doctors_stylists",
+        time_based_groups: "create_groups_based_on_appointment_time_patterns",
+        business_logic_groups: "create_business_specific_groups_based_on_data_analysis"
+      },
+      example_auto_groups: [
+        "Hair Color Clients (from appointment_type analysis)",
+        "Dr. Smith Patients (from provider analysis)",
+        "Morning Appointments (from time analysis)",
+        "VIP Services (from duration/type analysis)"
+      ]
+    },
+    
+    template_based_assignment: {
+      description: "Use business-type templates for common group patterns",
+      medical_templates: ["New Patients", "Follow-up Required", "Surgical Patients", "VIP Patients"],
+      salon_templates: ["Color Clients", "New Clients", "VIP Clients", "Monthly Regulars"],
+      restaurant_templates: ["Regular Guests", "Special Occasions", "Corporate Clients", "Large Parties"],
+      consultant_templates: ["Active Projects", "Prospects", "Past Clients", "High Value Clients"]
+    }
+  },
+  
+  // Group Assignment Configuration
+  assignment_configuration: {
+    group_creation_rules: {
+      auto_create_groups: {
+        label: "Automatically Create New Groups",
+        default: true,
+        description: "Create new groups automatically if they don't exist in CSV data",
+        safety: "preview_new_groups_before_creation"
+      },
+      
+      group_naming_rules: {
+        name_validation: "ensure_group_names_are_unique_and_descriptive",
+        name_sanitization: "remove_special_characters_and_normalize_spacing",
+        name_length_limits: "maximum_50_characters_for_group_names",
+        duplicate_handling: "merge_with_existing_groups_if_names_match"
+      },
+      
+      group_color_assignment: {
+        automatic_color_assignment: "assign_colors_automatically_based_on_business_type_and_group_purpose",
+        color_rules: {
+          medical: "use_professional_medical_colors_green_blue_gray",
+          salon: "use_beauty_colors_purple_pink_teal",
+          restaurant: "use_hospitality_colors_orange_red_gold",
+          consultant: "use_professional_colors_blue_gray_navy"
+        },
+        color_distribution: "ensure_different_colors_for_different_groups_avoid_duplicates"
+      }
+    }
+  }
+}
+```
+
+### **Group Assignment Implementation**
+
+```python
+class CSVGroupAssignmentProcessor:
+    """
+    Handles automatic group creation and assignment during CSV import
+    """
+    
+    def __init__(self):
+        self.business_type_colors = {
+            "medical": ["#10B981", "#3B82F6", "#6B7280", "#14B8A6"],  # Professional medical colors
+            "salon": ["#8B5CF6", "#EC4899", "#14B8A6", "#F59E0B"],    # Beauty colors
+            "restaurant": ["#F59E0B", "#EF4444", "#FBBF24", "#10B981"], # Hospitality colors
+            "consultant": ["#3B82F6", "#6B7280", "#1E40AF", "#374151"], # Professional colors
+            "general": ["#3B82F6", "#10B981", "#F59E0B", "#8B5CF6"]    # General business colors
+        }
+    
+    async def process_group_assignments(
+        self, 
+        validated_csv_data: List[dict], 
+        field_mapping: dict, 
+        tenant_id: str, 
+        business_type: str
+    ) -> GroupAssignmentResult:
+        """
+        Process group assignments for CSV import with automatic group creation
+        """
+        
+        # Extract group assignment information
+        group_assignments = await self.extract_group_assignments(validated_csv_data, field_mapping)
+        
+        # Analyze group patterns for automatic suggestions
+        group_analysis = await self.analyze_group_patterns(validated_csv_data, field_mapping, business_type)
+        
+        # Create new groups that don't exist
+        group_creation_result = await self.create_required_groups(
+            group_assignments=group_assignments,
+            group_analysis=group_analysis,
+            tenant_id=tenant_id,
+            business_type=business_type
+        )
+        
+        # Prepare final contact-to-group mappings
+        contact_group_mappings = await self.prepare_contact_group_mappings(
+            validated_csv_data=validated_csv_data,
+            group_assignments=group_assignments,
+            created_groups=group_creation_result.created_groups
+        )
+        
+        return GroupAssignmentResult(
+            groups_to_create=group_creation_result.created_groups,
+            contact_group_mappings=contact_group_mappings,
+            group_assignment_summary=group_analysis,
+            auto_created_groups=group_creation_result.auto_created_count,
+            manual_groups_used=group_creation_result.existing_groups_used
+        )
+    
+    async def extract_group_assignments(self, csv_data: List[dict], field_mapping: dict) -> dict:
+        """
+        Extract group assignment information from CSV data
+        """
+        
+        group_column = field_mapping.get("group_assignment")
+        group_assignments = {}
+        
+        if not group_column:
+            logger.info("ℹ️ No group column mapped - will use automatic group inference")
+            return {}
+        
+        for row_index, row in enumerate(csv_data):
+            groups_text = row.get(group_column, "").strip()
+            
+            if groups_text:
+                # Handle multiple groups (comma-separated)
+                group_names = [name.strip() for name in groups_text.split(",") if name.strip()]
+                
+                # Validate and clean group names
+                validated_groups = []
+                for group_name in group_names:
+                    cleaned_name = self.clean_group_name(group_name)
+                    if cleaned_name and len(cleaned_name) <= 50:
+                        validated_groups.append(cleaned_name)
+                
+                if validated_groups:
+                    group_assignments[row_index] = validated_groups
+        
+        logger.info(f"📋 Extracted group assignments: {len(group_assignments)} rows have group assignments")
+        
+        return group_assignments
+    
+    async def analyze_group_patterns(self, csv_data: List[dict], field_mapping: dict, business_type: str) -> dict:
+        """
+        Analyze CSV data patterns to suggest automatic group creation
+        """
+        
+        pattern_analysis = {}
+        
+        # Analyze appointment type patterns
+        appointment_type_column = field_mapping.get("appointment_type")
+        if appointment_type_column:
+            appointment_types = {}
+            for row in csv_data:
+                apt_type = row.get(appointment_type_column, "").strip()
+                if apt_type:
+                    appointment_types[apt_type] = appointment_types.get(apt_type, 0) + 1
+            
+            # Suggest groups for appointment types with 5+ contacts
+            apt_type_groups = []
+            for apt_type, count in appointment_types.items():
+                if count >= 5:
+                    suggested_group_name = f"{apt_type} Clients"
+                    apt_type_groups.append({
+                        "suggested_name": suggested_group_name,
+                        "based_on": "appointment_type_analysis",
+                        "criteria": f"appointment_type = '{apt_type}'",
+                        "estimated_members": count,
+                        "business_value": f"Target {apt_type} specific campaigns"
+                    })
+            
+            pattern_analysis["appointment_type_groups"] = apt_type_groups
+        
+        # Analyze provider patterns
+        provider_column = field_mapping.get("provider_name")
+        if provider_column:
+            providers = {}
+            for row in csv_data:
+                provider = row.get(provider_column, "").strip()
+                if provider:
+                    providers[provider] = providers.get(provider, 0) + 1
+            
+            # Suggest groups for providers with 10+ contacts
+            provider_groups = []
+            for provider, count in providers.items():
+                if count >= 10:
+                    suggested_group_name = f"{provider} Clients"
+                    provider_groups.append({
+                        "suggested_name": suggested_group_name,
+                        "based_on": "provider_analysis",
+                        "criteria": f"provider = '{provider}'",
+                        "estimated_members": count,
+                        "business_value": f"Enable {provider}-specific communication"
+                    })
+            
+            pattern_analysis["provider_groups"] = provider_groups
+        
+        # Business-type specific pattern analysis
+        if business_type == "medical":
+            pattern_analysis.update(await self.analyze_medical_patterns(csv_data, field_mapping))
+        elif business_type == "salon":
+            pattern_analysis.update(await self.analyze_salon_patterns(csv_data, field_mapping))
+        
+        return pattern_analysis
+    
+    async def create_required_groups(
+        self, 
+        group_assignments: dict, 
+        group_analysis: dict, 
+        tenant_id: str, 
+        business_type: str
+    ) -> GroupCreationResult:
+        """
+        Create all groups required for CSV import
+        """
+        
+        # Collect all group names that need to exist
+        required_group_names = set()
+        
+        # From explicit group assignments
+        for row_groups in group_assignments.values():
+            required_group_names.update(row_groups)
+        
+        # From automatic group suggestions (if enabled)
+        for pattern_type, suggestions in group_analysis.items():
+            for suggestion in suggestions:
+                required_group_names.add(suggestion["suggested_name"])
+        
+        # Get existing groups for tenant
+        existing_groups = await db.contact_groups.find({"tenant_id": tenant_id}).to_list(100)
+        existing_group_names = {group["name"]: group["id"] for group in existing_groups}
+        
+        # Create new groups
+        created_groups = []
+        auto_created_count = 0
+        existing_groups_used = 0
+        
+        available_colors = self.business_type_colors.get(business_type, self.business_type_colors["general"])
+        color_index = 0
+        
+        for group_name in required_group_names:
+            if group_name in existing_group_names:
+                # Group already exists
+                existing_groups_used += 1
+                created_groups.append({
+                    "id": existing_group_names[group_name],
+                    "name": group_name,
+                    "created": False
+                })
+            else:
+                # Create new group
+                new_group_id = str(uuid.uuid4())
+                group_color = available_colors[color_index % len(available_colors)]
+                color_index += 1
+                
+                group_doc = {
+                    "id": new_group_id,
+                    "tenant_id": tenant_id,
+                    "name": group_name,
+                    "description": f"Auto-created from CSV import",
+                    "color": group_color,
+                    "contact_count": 0,  # Will be updated after import
+                    "created_by": "csv_import_system",
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }
+                
+                result = await db.contact_groups.insert_one(group_doc)
+                if result.inserted_id:
+                    auto_created_count += 1
+                    created_groups.append({
+                        "id": new_group_id,
+                        "name": group_name,
+                        "color": group_color,
+                        "created": True
+                    })
+                    
+                    logger.info(f"✅ Auto-created group: '{group_name}' (Color: {group_color})")
+        
+        return GroupCreationResult(
+            created_groups=created_groups,
+            auto_created_count=auto_created_count,
+            existing_groups_used=existing_groups_used,
+            total_groups_required=len(required_group_names)
+        )
+
+@dataclass
+class GroupAssignmentResult:
+    groups_to_create: List[dict]
+    contact_group_mappings: dict
+    group_assignment_summary: dict
+    auto_created_groups: int
+    manual_groups_used: int
+
+@dataclass
+class GroupCreationResult:
+    created_groups: List[dict]
+    auto_created_count: int
+    existing_groups_used: int
+    total_groups_required: int
+```
+
+---
+
+## 🏥 **5. HIPAA Compliance Processing**
+
+### **Medical Practice CSV Import Compliance**
+
+```typescript
+HIPAACompliantCSVProcessing {
+  // PHI Detection & Protection
+  phi_protection_system: {
+    automatic_phi_detection: {
+      text_field_analysis: "scan_all_text_fields_for_potential_protected_health_information",
+      detection_algorithms: [
+        "medical_term_detection",
+        "diagnosis_pattern_recognition", 
+        "medication_name_identification",
+        "medical_procedure_detection",
+        "insurance_information_detection",
+        "ssn_pattern_detection"
+      ],
+      
+      phi_categories_detected: {
+        medical_conditions: ["diabetes", "hypertension", "cancer", "depression", "surgery"],
+        medical_procedures: ["biopsy", "colonoscopy", "mri", "ct_scan", "operation"],
+        medications: ["prescription_drug_names", "dosage_information", "medication_schedules"],
+        personal_identifiers: ["ssn_patterns", "medical_record_numbers", "insurance_ids"],
+        sensitive_dates: ["birth_dates", "diagnosis_dates", "procedure_dates"]
+      }
+    },
+    
+    phi_handling_actions: {
+      critical_phi_detected: {
+        action: "block_import_row_require_manual_review",
+        examples: ["diagnosis_in_appointment_type", "medication_in_instructions", "ssn_in_any_field"],
+        resolution: "remove_or_sanitize_phi_before_import_can_proceed"
+      },
+      
+      potential_phi_detected: {
+        action: "flag_for_review_allow_import_with_sanitization",
+        examples: ["medical_terms_in_special_instructions", "potential_condition_references"],
+        resolution: "automatic_sanitization_with_generic_replacement_terms"
+      },
+      
+      safe_medical_terms: {
+        action: "allow_import_with_generic_medical_language",
+        examples: ["consultation", "follow_up", "check_up", "appointment", "visit"],
+        processing: "keep_generic_terms_remove_specific_medical_details"
+      }
+    },
+    
+    hipaa_compliant_field_processing: {
+      patient_name_processing: "validate_patient_names_ensure_no_medical_identifiers_included",
+      appointment_type_sanitization: "replace_specific_medical_procedures_with_generic_terms",
+      provider_name_validation: "ensure_provider_names_are_appropriate_for_voice_calls",
+      instruction_sanitization: "remove_medical_details_keep_only_logistical_instructions"
+    }
+  },
+  
+  // Compliance Documentation
+  compliance_documentation: {
+    import_audit_trail: {
+      comprehensive_logging: "log_every_step_of_medical_csv_import_process",
+      phi_detection_logs: "detailed_logs_of_phi_detection_and_sanitization_actions",
+      consent_verification: "document_how_voice_call_consent_will_be_obtained",
+      data_minimization_proof: "document_that_only_minimum_necessary_data_imported"
+    },
+    
+    compliance_certifications: {
+      hipaa_compliance_check: "verify_import_meets_hipaa_requirements_before_execution",
+      business_associate_agreement: "ensure_csv_import_covered_by_appropriate_legal_agreements",
+      patient_consent_requirements: "document_consent_obtaining_process_for_imported_patients"
+    }
+  }
+}
+```
+
+### **HIPAA Compliance Implementation**
+
+```python
+class HIPAACompliantCSVProcessor:
+    """
+    HIPAA-compliant CSV processing for medical practice imports
+    """
+    
+    def __init__(self):
+        self.phi_detection_patterns = {
+            # Medical conditions
+            "medical_conditions": [
+                r'\b(diabetes|hypertension|cancer|depression|anxiety|arthritis|asthma|copd)\b',
+                r'\b(heart disease|stroke|obesity|pneumonia|bronchitis|allergies)\b'
+            ],
+            
+            # Medical procedures
+            "medical_procedures": [
+                r'\b(surgery|operation|procedure|biopsy|endoscopy|colonoscopy)\b',
+                r'\b(mri|ct scan|x-ray|ultrasound|mammogram|ekg|ecg)\b'
+            ],
+            
+            # Medications
+            "medications": [
+                r'\b(medication|prescription|drug|pill|tablet|capsule|injection)\b',
+                r'\b(insulin|aspirin|ibuprofen|acetaminophen|antibiotic)\b'
+            ],
+            
+            # Personal identifiers
+            "personal_identifiers": [
+                r'\b\d{3}-\d{2}-\d{4}\b',     # SSN pattern
+                r'\b\d{3}\d{2}\d{4}\b',       # SSN without dashes
+                r'\bmrn\s*:?\s*\d+\b',        # Medical record number
+                r'\bpatient\s*id\s*:?\s*\d+\b' # Patient ID
+            ]
+        }
+        
+        self.safe_medical_terms = [
+            "consultation", "follow-up", "check-up", "appointment", "visit",
+            "evaluation", "assessment", "review", "examination"
+        ]
+    
+    async def process_medical_csv_with_hipaa_compliance(
+        self, 
+        csv_data: List[dict], 
+        field_mapping: dict, 
+        tenant_id: str
+    ) -> HIPAAProcessingResult:
+        """
+        Process medical practice CSV with comprehensive HIPAA compliance
+        """
+        
+        logger.info(f"🏥 Starting HIPAA-compliant CSV processing for {len(csv_data)} patient records")
+        
+        compliant_rows = []
+        phi_violations = []
+        sanitization_actions = []
+        
+        for row_index, row_data in enumerate(csv_data):
+            # Process single row with HIPAA compliance
+            row_result = await self.process_medical_row_hipaa_compliant(
+                row_data=row_data,
+                field_mapping=field_mapping,
+                row_number=row_index + 2
+            )
+            
+            if row_result.compliant:
+                compliant_rows.append(row_result.processed_data)
+                if row_result.sanitization_actions:
+                    sanitization_actions.extend(row_result.sanitization_actions)
+            else:
+                phi_violations.append(row_result.phi_violations)
+        
+        # Generate HIPAA compliance report
+        compliance_report = self.generate_hipaa_compliance_report(
+            total_rows=len(csv_data),
+            compliant_rows=len(compliant_rows),
+            phi_violations=phi_violations,
+            sanitization_actions=sanitization_actions
+        )
+        
+        return HIPAAProcessingResult(
+            compliant_data=compliant_rows,
+            phi_violations=phi_violations,
+            sanitization_actions=sanitization_actions,
+            compliance_report=compliance_report,
+            can_proceed_with_import=len(phi_violations) == 0
+        )
+    
+    async def process_medical_row_hipaa_compliant(self, row_data: dict, field_mapping: dict, row_number: int) -> MedicalRowProcessingResult:
+        """
+        Process single CSV row with HIPAA compliance validation
+        """
+        
+        processed_data = {}
+        phi_violations = []
+        sanitization_actions = []
+        
+        # Process each mapped field with HIPAA validation
+        for vioconcierge_field, csv_column in field_mapping.items():
+            if csv_column and row_data.get(csv_column):
+                field_value = row_data[csv_column].strip()
+                
+                if vioconcierge_field == "name":
+                    # Patient name validation
+                    name_result = await self.validate_patient_name_hipaa(field_value, row_number)
+                    if name_result.compliant:
+                        processed_data["name"] = name_result.processed_name
+                    else:
+                        phi_violations.append(name_result.violation)
+                
+                elif vioconcierge_field == "appointment_type":
+                    # Appointment type PHI screening
+                    apt_type_result = await self.validate_appointment_type_hipaa(field_value, row_number)
+                    if apt_type_result.compliant:
+                        processed_data["appointment_type"] = apt_type_result.sanitized_type
+                        if apt_type_result.sanitization_applied:
+                            sanitization_actions.append(apt_type_result.sanitization_action)
+                    else:
+                        phi_violations.append(apt_type_result.violation)
+                
+                elif vioconcierge_field == "special_instructions":
+                    # Special instructions comprehensive PHI screening
+                    instruction_result = await self.validate_instructions_hipaa(field_value, row_number)
+                    if instruction_result.compliant:
+                        processed_data["special_instructions"] = instruction_result.sanitized_instructions
+                        if instruction_result.sanitization_applied:
+                            sanitization_actions.append(instruction_result.sanitization_action)
+                    else:
+                        phi_violations.append(instruction_result.violation)
+                
+                elif vioconcierge_field == "provider_name":
+                    # Provider name validation for voice calls
+                    provider_result = await self.validate_provider_name_hipaa(field_value, row_number)
+                    processed_data["provider_name"] = provider_result.processed_name
+                
+                else:
+                    # Other fields - standard processing with PHI screening
+                    phi_check = await self.screen_field_for_phi(field_value, vioconcierge_field, row_number)
+                    if phi_check.phi_detected:
+                        phi_violations.append(phi_check.violation)
+                    else:
+                        processed_data[vioconcierge_field] = field_value
+        
+        return MedicalRowProcessingResult(
+            row_number=row_number,
+            compliant=len(phi_violations) == 0,
+            processed_data=processed_data,
+            phi_violations=phi_violations,
+            sanitization_actions=sanitization_actions
+        )
+    
+    async def validate_appointment_type_hipaa(self, appointment_type: str, row_number: int) -> AppointmentTypeHIPAAResult:
+        """
+        Validate and sanitize appointment type for HIPAA compliance
+        """
+        
+        appointment_type_lower = appointment_type.lower()
+        
+        # Check for specific medical procedures (critical PHI)
+        critical_medical_terms = [
+            'surgery', 'operation', 'biopsy', 'colonoscopy', 'endoscopy',
+            'chemotherapy', 'radiation', 'transplant', 'amputation'
+        ]
+        
+        for term in critical_medical_terms:
+            if term in appointment_type_lower:
+                return AppointmentTypeHIPAAResult(
+                    compliant=False,
+                    violation=PHIViolation(
+                        field="appointment_type",
+                        row_number=row_number,
+                        phi_type="medical_procedure",
+                        detected_term=term,
+                        original_value=appointment_type,
+                        severity="critical",
+                        message=f"Medical procedure '{term}' detected in appointment type - too specific for voice calls"
+                    )
+                )
+        
+        # Check for medical conditions
+        condition_terms = [
+            'diabetes', 'cancer', 'depression', 'anxiety', 'hypertension',
+            'arthritis', 'asthma', 'copd', 'heart disease'
+        ]
+        
+        for term in condition_terms:
+            if term in appointment_type_lower:
+                # Sanitize by replacing with generic term
+                sanitized_type = "consultation"
+                return AppointmentTypeHIPAAResult(
+                    compliant=True,
+                    sanitized_type=sanitized_type,
+                    sanitization_applied=True,
+                    sanitization_action=SanitizationAction(
+                        field="appointment_type",
+                        row_number=row_number,
+                        original_value=appointment_type,
+                        sanitized_value=sanitized_type,
+                        reason=f"Replaced medical condition '{term}' with generic term for privacy"
+                    )
+                )
+        
+        # Check if it's a safe generic medical term
+        if any(safe_term in appointment_type_lower for safe_term in self.safe_medical_terms):
+            return AppointmentTypeHIPAAResult(
+                compliant=True,
+                sanitized_type=appointment_type  # Safe to use as-is
+            )
+        
+        # Default to generic term if uncertain
+        return AppointmentTypeHIPAAResult(
+            compliant=True,
+            sanitized_type="appointment",
+            sanitization_applied=True,
+            sanitization_action=SanitizationAction(
+                field="appointment_type",
+                row_number=row_number,
+                original_value=appointment_type,
+                sanitized_value="appointment",
+                reason="Replaced with generic term for HIPAA compliance"
+            )
+        )
+
+@dataclass
+class PHIViolation:
+    field: str
+    row_number: int
+    phi_type: str
+    detected_term: str
+    original_value: str
+    severity: str
+    message: str
+
+@dataclass
+class SanitizationAction:
+    field: str
+    row_number: int
+    original_value: str
+    sanitized_value: str
+    reason: str
+
+@dataclass
+class AppointmentTypeHIPAAResult:
+    compliant: bool
+    sanitized_type: Optional[str] = None
+    sanitization_applied: bool = False
+    sanitization_action: Optional[SanitizationAction] = None
+    violation: Optional[PHIViolation] = None
+
+@dataclass
+class MedicalRowProcessingResult:
+    row_number: int
+    compliant: bool
+    processed_data: dict
+    phi_violations: List[PHIViolation]
+    sanitization_actions: List[SanitizationAction]
+
+@dataclass
+class HIPAAProcessingResult:
+    compliant_data: List[dict]
+    phi_violations: List[PHIViolation]
+    sanitization_actions: List[SanitizationAction]
+    compliance_report: dict
+    can_proceed_with_import: bool
+```
+
+---
+
+## 🔄 **6. Bulk Import Execution System**
+
+### **Import Processing Architecture**
+
+```typescript
+BulkImportExecutionSystem {
+  // Import Processing Strategy
+  processing_strategy: {
+    batch_processing: {
+      batch_size: 100,  // Process 100 contacts per batch
+      rationale: "balance_between_performance_and_memory_usage",
+      parallel_processing: "process_multiple_batches_concurrently_where_safe",
+      error_isolation: "batch_failures_dont_affect_other_batches"
+    },
+    
+    transaction_management: {
+      database_transactions: "use_database_transactions_for_batch_consistency",
+      rollback_capability: "ability_to_rollback_partial_imports_on_critical_failures",
+      checkpoint_creation: "create_checkpoints_every_500_contacts_for_resume_capability"
+    },
+    
+    progress_tracking: {
+      real_time_progress: "websocket_updates_for_real_time_progress_display",
+      granular_tracking: "track_progress_at_contact_group_and_appointment_level",
+      eta_calculation: "calculate_estimated_completion_time_based_on_current_processing_rate"
+    }
+  },
+  
+  // Import Execution Phases
+  execution_phases: {
+    phase_1_contact_creation: {
+      description: "Create contact records in database",
+      processing: "bulk_insert_contacts_with_validation",
+      error_handling: "individual_contact_errors_dont_stop_batch_processing",
+      success_criteria: "contact_record_created_with_unique_id"
+    },
+    
+    phase_2_group_assignment: {
+      description: "Assign contacts to groups",
+      processing: "update_contact_group_ids_arrays_and_group_member_counts",
+      dependency: "requires_phase_1_completion",
+      success_criteria: "contact_group_memberships_established"
+    },
+    
+    phase_3_appointment_scheduling: {
+      description: "Schedule automatic appointment reminder calls",
+      processing: "create_follow_up_tasks_for_contacts_with_appointment_times",
+      dependency: "requires_phase_1_and_2_completion", 
+      success_criteria: "reminder_calls_scheduled_in_automation_system"
+    },
+    
+    phase_4_analytics_update: {
+      description: "Update analytics and statistics",
+      processing: "update_contact_counts_group_statistics_and_analytics_caches",
+      dependency: "requires_all_previous_phases",
+      success_criteria: "analytics_reflect_imported_contacts"
+    }
+  }
+}
+```
+
+### **Bulk Import Technical Implementation**
+
+```python
+@api_router.post("/contacts/csv-import")
+async def execute_csv_import(
+    import_request: CSVImportRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Execute bulk CSV import with comprehensive processing and error handling
+    """
+    
+    # Verify import permissions
+    require_admin_or_above(current_user)
+    
+    # Validate import request
+    if not import_request.validated_data:
+        raise HTTPException(status_code=422, detail="No validated data provided for import")
+    
+    # Create import session
+    import_session_id = str(uuid.uuid4())
+    import_session = {
+        "id": import_session_id,
+        "tenant_id": current_user["tenant_id"],
+        "initiated_by": current_user["id"],
+        "total_rows": len(import_request.validated_data),
+        "status": "starting",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "import_configuration": import_request.dict()
+    }
+    
+    # Record import session
+    await db.csv_import_sessions.insert_one(import_session)
+    
+    # Execute import in background task
+    import_task = asyncio.create_task(
+        execute_bulk_import_background(
+            import_session_id=import_session_id,
+            validated_data=import_request.validated_data,
+            field_mapping=import_request.field_mapping,
+            group_assignments=import_request.group_assignments,
+            tenant_id=current_user["tenant_id"],
+            user_id=current_user["id"],
+            business_type=import_request.business_type
+        )
+    )
+    
+    return {
+        "success": True,
+        "import_session_id": import_session_id,
+        "message": "CSV import started",
+        "total_contacts": len(import_request.validated_data),
+        "estimated_duration": f"{len(import_request.validated_data) // 10} seconds",
+        "status_endpoint": f"/api/contacts/csv-import/{import_session_id}/status",
+        "real_time_updates": "available_via_websocket"
+    }
+
+async def execute_bulk_import_background(
+    import_session_id: str,
+    validated_data: List[dict],
+    field_mapping: dict, 
+    group_assignments: dict,
+    tenant_id: str,
+    user_id: str,
+    business_type: str
+):
+    """
+    Background task for executing bulk CSV import
+    """
+    
+    try:
+        # Update session status
+        await update_import_session_status(import_session_id, "processing", "Starting bulk import...")
+        
+        # PHASE 1: Create Contacts
+        logger.info(f"📋 Phase 1: Creating {len(validated_data)} contacts...")
+        contact_creation_result = await execute_bulk_contact_creation(
+            validated_data=validated_data,
+            field_mapping=field_mapping,
+            tenant_id=tenant_id,
+            user_id=user_id,
+            business_type=business_type,
+            import_session_id=import_session_id
+        )
+        
+        await update_import_session_status(
+            import_session_id, 
+            "processing", 
+            f"Phase 1 complete: {contact_creation_result.successful_contacts} contacts created"
+        )
+        
+        # PHASE 2: Assign Groups
+        logger.info(f"👥 Phase 2: Assigning groups...")
+        group_assignment_result = await execute_bulk_group_assignment(
+            created_contacts=contact_creation_result.created_contacts,
+            group_assignments=group_assignments,
+            tenant_id=tenant_id,
+            import_session_id=import_session_id
+        )
+        
+        await update_import_session_status(
+            import_session_id,
+            "processing",
+            f"Phase 2 complete: {group_assignment_result.assignments_made} group assignments made"
+        )
+        
+        # PHASE 3: Schedule Appointment Reminders
+        logger.info(f"📞 Phase 3: Scheduling appointment reminders...")
+        scheduling_result = await execute_bulk_appointment_scheduling(
+            created_contacts=contact_creation_result.created_contacts,
+            tenant_id=tenant_id,
+            business_type=business_type,
+            import_session_id=import_session_id
+        )
+        
+        await update_import_session_status(
+            import_session_id,
+            "processing", 
+            f"Phase 3 complete: {scheduling_result.calls_scheduled} reminder calls scheduled"
+        )
+        
+        # PHASE 4: Update Analytics
+        logger.info(f"📊 Phase 4: Updating analytics...")
+        await update_analytics_after_import(tenant_id, contact_creation_result.successful_contacts)
+        
+        # Complete import session
+        import_summary = {
+            "total_contacts_processed": len(validated_data),
+            "successful_contacts": contact_creation_result.successful_contacts,
+            "failed_contacts": contact_creation_result.failed_contacts,
+            "groups_created": group_assignment_result.groups_created,
+            "group_assignments": group_assignment_result.assignments_made,
+            "calls_scheduled": scheduling_result.calls_scheduled,
+            "processing_time_seconds": (datetime.now(timezone.utc) - datetime.fromisoformat(import_session["created_at"])).total_seconds()
+        }
+        
+        await db.csv_import_sessions.update_one(
+            {"id": import_session_id},
+            {"$set": {
+                "status": "completed",
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "import_summary": import_summary
+            }}
+        )
+        
+        logger.info(f"✅ CSV import completed successfully: {import_session_id}")
+        
+    except Exception as e:
+        logger.error(f"❌ CSV import failed: {import_session_id} - {str(e)}")
+        
+        await db.csv_import_sessions.update_one(
+            {"id": import_session_id},
+            {"$set": {
+                "status": "failed",
+                "failed_at": datetime.now(timezone.utc).isoformat(),
+                "error_message": str(e)
+            }}
+        )
+
+async def execute_bulk_contact_creation(
+    validated_data: List[dict],
+    field_mapping: dict,
+    tenant_id: str,
+    user_id: str, 
+    business_type: str,
+    import_session_id: str
+) -> ContactCreationResult:
+    """
+    Execute bulk contact creation with batch processing
+    """
+    
+    BATCH_SIZE = 100
+    successful_contacts = 0
+    failed_contacts = 0
+    created_contacts = []
+    creation_errors = []
+    
+    # Process in batches
+    for i in range(0, len(validated_data), BATCH_SIZE):
+        batch = validated_data[i:i + BATCH_SIZE]
+        batch_number = i // BATCH_SIZE + 1
+        
+        logger.info(f"📦 Processing batch {batch_number}: {len(batch)} contacts")
+        
+        # Prepare batch for database insertion
+        batch_contacts = []
+        
+        for row_data in batch:
+            try:
+                # Build contact document
+                contact_doc = await build_contact_document_from_csv_row(
+                    row_data=row_data,
+                    field_mapping=field_mapping,
+                    tenant_id=tenant_id,
+                    business_type=business_type
+                )
+                
+                batch_contacts.append(contact_doc)
+                
+            except Exception as e:
+                failed_contacts += 1
+                creation_errors.append({
+                    "row_data": row_data,
+                    "error": str(e),
+                    "batch_number": batch_number
+                })
+        
+        # Bulk insert batch
+        if batch_contacts:
+            try:
+                insert_result = await db.contacts.insert_many(batch_contacts)
+                
+                if insert_result.inserted_ids:
+                    batch_success_count = len(insert_result.inserted_ids)
+                    successful_contacts += batch_success_count
+                    
+                    # Add to created contacts list with IDs
+                    for j, contact_doc in enumerate(batch_contacts):
+                        if j < len(insert_result.inserted_ids):
+                            contact_doc["id"] = insert_result.inserted_ids[j]
+                            created_contacts.append(contact_doc)
+                    
+                    logger.info(f"✅ Batch {batch_number} successful: {batch_success_count} contacts created")
+                
+            except Exception as e:
+                logger.error(f"❌ Batch {batch_number} failed: {str(e)}")
+                failed_contacts += len(batch_contacts)
+                creation_errors.append({
+                    "batch_number": batch_number,
+                    "batch_size": len(batch_contacts),
+                    "error": str(e)
+                })
+        
+        # Update progress
+        progress_percentage = ((i + len(batch)) / len(validated_data)) * 100
+        await update_import_progress(import_session_id, progress_percentage, f"Batch {batch_number} processed")
+    
+    return ContactCreationResult(
+        successful_contacts=successful_contacts,
+        failed_contacts=failed_contacts,
+        created_contacts=created_contacts,
+        creation_errors=creation_errors
+    )
+
+async def build_contact_document_from_csv_row(
+    row_data: dict,
+    field_mapping: dict,
+    tenant_id: str,
+    business_type: str
+) -> dict:
+    """
+    Build VioConcierge contact document from CSV row data
+    """
+    
+    contact_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+    
+    # Base contact document
+    contact_doc = {
+        "id": contact_id,
+        "tenant_id": tenant_id,
+        "booking_source": "csv_import",
+        "appointment_status": "pending",
+        "call_attempts": 0,
+        "created_at": now.isoformat(),
+        "updated_at": now.isoformat()
+    }
+    
+    # Map CSV fields to contact fields
+    for vioconcierge_field, csv_column in field_mapping.items():
+        if csv_column and row_data.get(csv_column):
+            field_value = row_data[csv_column].strip()
+            
+            if vioconcierge_field == "appointment_date" or vioconcierge_field == "appointment_time":
+                # Handle date/time combination separately
+                continue
+            else:
+                contact_doc[vioconcierge_field] = field_value
+    
+    # Combine appointment date and time
+    if "appointment_date" in field_mapping and "appointment_time" in field_mapping:
+        date_value = row_data.get(field_mapping["appointment_date"], "").strip()
+        time_value = row_data.get(field_mapping["appointment_time"], "").strip()
+        
+        if date_value and time_value:
+            combined_datetime = combine_csv_date_time(date_value, time_value)
+            if combined_datetime:
+                contact_doc["appointment_time"] = combined_datetime.isoformat()
+    
+    # Set business-type specific defaults
+    if business_type == "medical":
+        contact_doc["timezone"] = "Europe/London"
+        contact_doc["call_before_hours"] = 24  # 24 hours for medical appointments
+    elif business_type == "salon":
+        contact_doc["call_before_hours"] = 6   # 6 hours for beauty services
+    elif business_type == "restaurant":
+        contact_doc["call_before_hours"] = 2   # 2 hours for restaurant reservations
+    else:
+        contact_doc["call_before_hours"] = 24  # Default 24 hours
+    
+    return contact_doc
+
+@dataclass
+class ContactCreationResult:
+    successful_contacts: int
+    failed_contacts: int
+    created_contacts: List[dict]
+    creation_errors: List[dict]
+```
+
+---
+
+## 📞 **7. Automatic Appointment Scheduling**
+
+### **Post-Import Call Scheduling System**
+
+```typescript
+AutomaticAppointmentScheduling {
+  // Scheduling Logic for Imported Contacts
+  scheduling_rules: {
+    schedule_triggers: {
+      contacts_with_appointment_time: "automatically_schedule_calls_for_contacts_with_valid_appointment_datetime",
+      business_hours_validation: "ensure_scheduled_calls_fall_within_business_hours",
+      call_timing_calculation: "calculate_call_time_based_on_tenant_default_or_contact_specific_hours",
+      duplicate_prevention: "prevent_duplicate_call_scheduling_for_same_appointment"
+    },
+    
+    scheduling_configuration: {
+      default_call_timing: "use_tenant_configured_default_hours_before_appointment",
+      business_type_optimization: {
+        medical: "24_hours_before_for_preparation_time",
+        salon: "6_hours_before_for_day_of_planning",
+        restaurant: "2_hours_before_for_immediate_confirmation",
+        consultant: "24_hours_before_for_professional_preparation"
+      },
+      timezone_handling: "use_tenant_timezone_for_accurate_call_scheduling",
+      automation_flags: "mark_scheduled_calls_as_auto_execution_enabled"
+    },
+    
+    scheduling_validation: {
+      future_appointment_check: "only_schedule_calls_for_future_appointments",
+      business_hours_alignment: "ensure_scheduled_call_time_falls_within_calling_hours",
+      minimum_advance_notice: "ensure_at_least_1_hour_between_import_and_call_time",
+      maximum_advance_scheduling: "dont_schedule_calls_more_than_6_months_in_advance"
+    }
+  },
+  
+  // Bulk Scheduling Process
+  bulk_scheduling_process: {
+    scheduling_batch_processing: {
+      batch_size: 50,  // Schedule 50 calls per batch
+      processing_rate: "respect_system_performance_and_database_load",
+      error_isolation: "scheduling_failures_dont_affect_contact_creation_success"
+    },
+    
+    follow_up_task_creation: {
+      task_document_structure: "create_comprehensive_follow_up_task_records",
+      idempotency_handling: "prevent_duplicate_task_creation_with_unique_keys",
+      scheduling_metadata: "include_csv_import_context_in_task_metadata"
+    }
+  }
+}
+```
+
+### **Appointment Scheduling Implementation**
+
+```python
+async def execute_bulk_appointment_scheduling(
+    created_contacts: List[dict],
+    tenant_id: str,
+    business_type: str,
+    import_session_id: str
+) -> SchedulingResult:
+    """
+    Schedule appointment reminder calls for all imported contacts with appointments
+    """
+    
+    # Get tenant configuration for call timing
+    tenant_config = await db.tenant_config.find_one({"tenant_id": tenant_id})
+    default_call_hours = tenant_config.get("follow_up_hours", 24) if tenant_config else 24
+    
+    # Filter contacts that have appointment times
+    contacts_with_appointments = [
+        contact for contact in created_contacts 
+        if contact.get("appointment_time")
+    ]
+    
+    logger.info(f"📞 Scheduling calls for {len(contacts_with_appointments)} contacts with appointments")
+    
+    scheduled_calls = 0
+    scheduling_errors = []
+    
+    # Process scheduling in batches
+    BATCH_SIZE = 50
+    
+    for i in range(0, len(contacts_with_appointments), BATCH_SIZE):
+        batch = contacts_with_appointments[i:i + BATCH_SIZE]
+        
+        # Prepare follow-up tasks for batch
+        follow_up_tasks = []
+        
+        for contact in batch:
+            try:
+                # Calculate call scheduling time
+                appointment_dt = datetime.fromisoformat(contact["appointment_time"])
+                call_hours_before = contact.get("call_before_hours", default_call_hours)
+                call_trigger_time = appointment_dt - timedelta(hours=call_hours_before)
+                
+                # Validate call timing
+                if call_trigger_time <= datetime.now(timezone.utc):
+                    logger.warning(f"⚠️ Skipping past appointment: {contact['name']} - {appointment_dt}")
+                    continue
+                
+                # Create follow-up task document
+                task_doc = {
+                    "id": str(uuid.uuid4()),
+                    "tenant_id": tenant_id,
+                    "contact_id": contact["id"],
+                    "contact_name": contact["name"],
+                    "contact_phone": contact["phone"],
+                    "task_type": "initial_call",
+                    "scheduled_time": call_trigger_time.isoformat(),
+                    "status": "pending",
+                    "auto_execution": True,
+                    "tenant_timezone": tenant_config.get("timezone", "Europe/London") if tenant_config else "Europe/London",
+                    "call_before_hours": call_hours_before,
+                    "appointment_time_original": appointment_dt.isoformat(),
+                    "idempotency_key": f"csv_import_{contact['id']}_{int(call_trigger_time.timestamp())}",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "execution_method": "csv_import_automation",
+                    "import_session_id": import_session_id
+                }
+                
+                follow_up_tasks.append(task_doc)
+                
+            except Exception as e:
+                scheduling_errors.append({
+                    "contact_id": contact.get("id"),
+                    "contact_name": contact.get("name"),
+                    "error": str(e)
+                })
+        
+        # Bulk insert follow-up tasks
+        if follow_up_tasks:
+            try:
+                insert_result = await db.follow_up_tasks.insert_many(follow_up_tasks)
+                if insert_result.inserted_ids:
+                    scheduled_calls += len(insert_result.inserted_ids)
+                    logger.info(f"✅ Scheduled {len(insert_result.inserted_ids)} calls for batch")
+            except Exception as e:
+                logger.error(f"❌ Batch scheduling failed: {str(e)}")
+                scheduling_errors.append({
+                    "batch_number": i // BATCH_SIZE + 1,
+                    "batch_size": len(follow_up_tasks),
+                    "error": str(e)
+                })
+    
+    return SchedulingResult(
+        contacts_with_appointments=len(contacts_with_appointments),
+        calls_scheduled=scheduled_calls,
+        scheduling_errors=scheduling_errors,
+        scheduling_success_rate=round((scheduled_calls / len(contacts_with_appointments) * 100), 2) if contacts_with_appointments else 0
+    )
+
+@dataclass
+class SchedulingResult:
+    contacts_with_appointments: int
+    calls_scheduled: int
+    scheduling_errors: List[dict]
+    scheduling_success_rate: float
+```
+
+---
+
+## 📊 **8. Import Progress Tracking & Real-Time Updates**
+
+### **Progress Monitoring System**
+
+```typescript
+ImportProgressTrackingSystem {
+  // Real-Time Progress Updates
+  progress_tracking: {
+    granular_progress_stages: {
+      file_upload: "0_10%_file_upload_and_parsing",
+      validation: "10_30%_data_validation_and_error_checking", 
+      group_processing: "30_40%_group_analysis_and_creation",
+      contact_creation: "40_80%_bulk_contact_database_insertion",
+      group_assignment: "80_90%_group_membership_assignment",
+      call_scheduling: "90_95%_appointment_reminder_scheduling",
+      analytics_update: "95_100%_analytics_and_statistics_update"
+    },
+    
+    progress_communication: {
+      websocket_updates: {
+        update_frequency: "every_2_seconds_during_active_processing",
+        update_content: [
+          "current_stage_description",
+          "percentage_complete",
+          "contacts_processed_so_far",
+          "estimated_time_remaining",
+          "current_batch_being_processed"
+        ]
+      },
+      
+      progress_persistence: {
+        database_tracking: "store_progress_in_csv_import_sessions_table",
+        resume_capability: "ability_to_resume_interrupted_imports",
+        error_recovery: "continue_processing_after_non_critical_errors"
+      }
+    },
+    
+    success_failure_tracking: {
+      detailed_metrics: {
+        contacts_created: "running_count_of_successfully_created_contacts",
+        contacts_failed: "running_count_of_failed_contact_creations_with_reasons",
+        groups_created: "count_of_new_groups_created_during_import",
+        calls_scheduled: "count_of_appointment_calls_scheduled",
+        processing_speed: "contacts_processed_per_minute_performance_metric"
+      },
+      
+      error_aggregation: {
+        error_categorization: "group_errors_by_type_for_summary_reporting",
+        critical_error_tracking: "track_errors_that_prevent_contact_creation",
+        warning_aggregation: "track_warnings_that_dont_prevent_import",
+        resolution_suggestions: "provide_suggestions_for_fixing_common_errors"
+      }
+    }
+  }
+}
+```
+
+### **Progress Tracking Implementation**
+
+```python
+class CSVImportProgressTracker:
+    """
+    Real-time progress tracking for CSV import operations
+    """
+    
+    def __init__(self):
+        self.websocket_connections = {}  # Track connected clients
+        
+    async def track_import_progress(self, import_session_id: str, websocket = None):
+        """
+        Start tracking import progress with optional websocket for real-time updates
+        """
+        
+        if websocket:
+            self.websocket_connections[import_session_id] = websocket
+        
+        # Monitor import session progress
+        await self.monitor_import_session_progress(import_session_id)
+    
+    async def monitor_import_session_progress(self, import_session_id: str):
+        """
+        Monitor import session and send real-time updates
+        """
+        
+        while True:
+            try:
+                # Get current import session status
+                import_session = await db.csv_import_sessions.find_one({"id": import_session_id})
+                
+                if not import_session:
+                    break
+                
+                # Send progress update
+                progress_update = {
+                    "import_session_id": import_session_id,
+                    "status": import_session.get("status"),
+                    "progress_percentage": import_session.get("progress_percentage", 0),
+                    "current_stage": import_session.get("current_stage"),
+                    "contacts_processed": import_session.get("contacts_processed", 0),
+                    "successful_contacts": import_session.get("successful_contacts", 0),
+                    "failed_contacts": import_session.get("failed_contacts", 0),
+                    "estimated_time_remaining": import_session.get("eta"),
+                    "last_updated": datetime.now(timezone.utc).isoformat()
+                }
+                
+                # Send via websocket if connected
+                if import_session_id in self.websocket_connections:
+                    try:
+                        websocket = self.websocket_connections[import_session_id]
+                        await websocket.send_json(progress_update)
+                    except Exception as e:
+                        logger.warning(f"⚠️ Websocket update failed: {e}")
+                        # Remove disconnected websocket
+                        if import_session_id in self.websocket_connections:
+                            del self.websocket_connections[import_session_id]
+                
+                # Check if import is complete
+                if import_session.get("status") in ["completed", "failed", "cancelled"]:
+                    break
+                
+                # Wait before next update
+                await asyncio.sleep(2)
+                
+            except Exception as e:
+                logger.error(f"❌ Progress monitoring error: {e}")
+                await asyncio.sleep(5)
+
+# WebSocket endpoint for real-time import progress
+@api_router.websocket("/contacts/csv-import/{import_session_id}/progress")
+async def csv_import_progress_websocket(websocket: WebSocket, import_session_id: str):
+    """
+    WebSocket endpoint for real-time CSV import progress updates
+    """
+    await websocket.accept()
+    
+    try:
+        # Start progress tracking
+        progress_tracker = CSVImportProgressTracker()
+        await progress_tracker.track_import_progress(import_session_id, websocket)
+        
+    except WebSocketDisconnect:
+        logger.info(f"📱 CSV import progress websocket disconnected: {import_session_id}")
+    except Exception as e:
+        logger.error(f"❌ CSV import progress websocket error: {e}")
+    finally:
+        # Cleanup
+        if import_session_id in progress_tracker.websocket_connections:
+            del progress_tracker.websocket_connections[import_session_id]
+
+# REST endpoint for import status (fallback for non-websocket clients)
+@api_router.get("/contacts/csv-import/{import_session_id}/status")
+async def get_csv_import_status(import_session_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Get current status of CSV import session
+    """
+    
+    import_session = await db.csv_import_sessions.find_one({
+        "id": import_session_id,
+        "tenant_id": current_user["tenant_id"]
+    })
+    
+    if not import_session:
+        raise HTTPException(status_code=404, detail="Import session not found")
+    
+    return {
+        "import_session_id": import_session_id,
+        "status": import_session.get("status", "unknown"),
+        "progress_percentage": import_session.get("progress_percentage", 0),
+        "total_rows": import_session.get("total_rows", 0),
+        "contacts_processed": import_session.get("contacts_processed", 0),
+        "successful_contacts": import_session.get("successful_contacts", 0),
+        "failed_contacts": import_session.get("failed_contacts", 0),
+        "groups_created": import_session.get("groups_created", 0),
+        "calls_scheduled": import_session.get("calls_scheduled", 0),
+        "current_stage": import_session.get("current_stage", ""),
+        "estimated_completion": import_session.get("eta"),
+        "started_at": import_session.get("created_at"),
+        "completed_at": import_session.get("completed_at"),
+        "import_summary": import_session.get("import_summary"),
+        "errors": import_session.get("errors", [])
+    }
+```
+
+---
+
+## 📋 **9. CSV Import Database Schema**
+
+### **Import System Data Storage**
+
+```sql
+-- CSV Import Sessions Table
+CREATE TABLE csv_import_sessions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  
+  -- Import Session Information
+  initiated_by UUID NOT NULL REFERENCES users(id),
+  file_name TEXT,
+  file_size INTEGER,
+  total_rows INTEGER,
+  
+  -- Processing Status
+  status TEXT DEFAULT 'starting',  -- starting, processing, completed, failed, cancelled
+  progress_percentage DECIMAL(5,2) DEFAULT 0.00,
+  current_stage TEXT,
+  
+  -- Processing Results
+  contacts_processed INTEGER DEFAULT 0,
+  successful_contacts INTEGER DEFAULT 0,
+  failed_contacts INTEGER DEFAULT 0,
+  groups_created INTEGER DEFAULT 0,
+  group_assignments INTEGER DEFAULT 0,
+  calls_scheduled INTEGER DEFAULT 0,
+  
+  -- Configuration
+  import_configuration JSONB NOT NULL,
+  field_mapping JSONB NOT NULL,
+  business_type TEXT,
+  
+  -- Error Tracking
+  validation_errors JSONB DEFAULT '[]',
+  processing_errors JSONB DEFAULT '[]',
+  
+  -- Timing Information
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  started_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  failed_at TIMESTAMPTZ,
+  processing_duration_seconds INTEGER,
+  
+  -- Results Summary
+  import_summary JSONB,
+  success_rate DECIMAL(5,2)
+);
+
+-- CSV Import Error Log
+CREATE TABLE csv_import_errors (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  import_session_id UUID NOT NULL REFERENCES csv_import_sessions(id) ON DELETE CASCADE,
+  
+  -- Error Information
+  row_number INTEGER,
+  csv_column TEXT,
+  vioconcierge_field TEXT,
+  error_type TEXT NOT NULL,
+  error_severity TEXT NOT NULL,  -- critical, warning, info
+  error_message TEXT NOT NULL,
+  
+  -- Original Data
+  original_value TEXT,
+  suggested_correction TEXT,
+  
+  -- Resolution
+  resolved BOOLEAN DEFAULT false,
+  resolution_action TEXT,
+  resolved_at TIMESTAMPTZ,
+  
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- PHI Detection Log (for HIPAA compliance)
+CREATE TABLE phi_detection_logs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  import_session_id UUID REFERENCES csv_import_sessions(id) ON DELETE CASCADE,
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  
+  -- PHI Detection Information
+  row_number INTEGER,
+  field_name TEXT,
+  phi_type TEXT,              -- medical_condition, procedure, medication, personal_identifier
+  detected_content TEXT,      -- The actual PHI content detected
+  confidence_score DECIMAL(3,2), -- Confidence in PHI detection (0.00 to 1.00)
+  
+  -- Action Taken
+  action_taken TEXT,          -- blocked, sanitized, flagged_for_review
+  sanitized_content TEXT,     -- Content after sanitization
+  sanitization_method TEXT,   -- replacement_term, removal, generic_substitution
+  
+  -- Compliance Information
+  compliance_status TEXT DEFAULT 'under_review',  -- compliant, violation, under_review
+  reviewed_by UUID REFERENCES users(id),
+  review_notes TEXT,
+  
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Import Performance Metrics
+CREATE TABLE csv_import_performance (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  import_session_id UUID NOT NULL REFERENCES csv_import_sessions(id) ON DELETE CASCADE,
+  
+  -- Performance Metrics
+  file_size_mb DECIMAL(8,2),
+  total_rows INTEGER,
+  processing_time_seconds INTEGER,
+  contacts_per_second DECIMAL(8,2),
+  
+  -- Stage Timing Breakdown
+  parsing_time_seconds INTEGER,
+  validation_time_seconds INTEGER,
+  creation_time_seconds INTEGER,
+  scheduling_time_seconds INTEGER,
+  
+  -- Memory and Resource Usage
+  peak_memory_usage_mb INTEGER,
+  database_connections_used INTEGER,
+  
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Indexes for Performance
+CREATE INDEX idx_csv_import_sessions_tenant ON csv_import_sessions(tenant_id, created_at DESC);
+CREATE INDEX idx_csv_import_sessions_status ON csv_import_sessions(status, created_at);
+CREATE INDEX idx_csv_import_errors_session ON csv_import_errors(import_session_id, error_severity);
+CREATE INDEX idx_phi_detection_tenant ON phi_detection_logs(tenant_id, created_at DESC);
+CREATE INDEX idx_import_performance_metrics ON csv_import_performance(processing_time_seconds, total_rows);
+```
+
+---
+
+## 🎯 **10. Import Summary & Reporting**
+
+### **Post-Import Summary Generation**
+
+```typescript
+ImportSummaryReporting {
+  // Import Completion Summary
+  completion_summary: {
+    overview_statistics: {
+      total_rows_processed: "count_of_csv_rows_processed",
+      successful_imports: "count_of_contacts_successfully_created",
+      failed_imports: "count_of_contacts_that_failed_creation",
+      success_rate: "percentage_successful_imports",
+      processing_time: "total_time_from_start_to_completion"
+    },
+    
+    detailed_breakdown: {
+      contacts_by_status: {
+        created_successfully: "contacts_created_without_errors",
+        created_with_warnings: "contacts_created_but_with_data_quality_warnings", 
+        failed_validation: "contacts_that_failed_validation_checks",
+        failed_creation: "contacts_that_failed_database_insertion"
+      },
+      
+      groups_summary: {
+        existing_groups_used: "count_of_existing_groups_contacts_were_added_to",
+        new_groups_created: "count_of_new_groups_auto_created_during_import",
+        total_group_assignments: "total_contact_to_group_assignments_made"
+      },
+      
+      appointment_scheduling: {
+        contacts_with_appointments: "count_of_imported_contacts_with_appointment_times",
+        calls_scheduled: "count_of_reminder_calls_scheduled",
+        scheduling_success_rate: "percentage_of_appointments_successfully_scheduled_for_calls"
+      }
+    },
+    
+    quality_analysis: {
+      data_quality_score: "overall_assessment_of_imported_data_quality",
+      common_issues_found: "most_frequent_validation_errors_or_warnings",
+      optimization_suggestions: "recommendations_for_improving_future_imports"
+    }
+  },
+  
+  // Error Reporting & Resolution
+  error_reporting: {
+    error_summary_report: {
+      critical_errors: "errors_that_prevented_contact_creation",
+      warning_errors: "issues_that_should_be_reviewed_but_didnt_prevent_import",
+      data_quality_issues: "suggestions_for_improving_csv_data_quality"
+    },
+    
+    downloadable_error_report: {
+      error_csv_export: "csv_file_containing_only_rows_that_had_errors_with_error_descriptions",
+      correction_template: "csv_template_with_error_corrections_for_reimport",
+      detailed_error_log: "comprehensive_log_of_all_errors_and_warnings_encountered"
+    },
+    
+    resolution_guidance: {
+      common_error_fixes: "step_by_step_instructions_for_fixing_most_common_errors",
+      csv_preparation_tips: "guidelines_for_preparing_better_csv_files_in_future",
+      field_mapping_optimization: "suggestions_for_optimizing_field_mapping_for_future_imports"
+    }
+  }
+}
+```
+
+### **Import Summary Implementation**
+
+```python
+class CSVImportSummaryGenerator:
+    """
+    Generates comprehensive import summaries and reports
+    """
+    
+    async def generate_import_summary(self, import_session_id: str) -> ImportSummaryReport:
+        """
+        Generate comprehensive summary of CSV import session
+        """
+        
+        # Get import session details
+        import_session = await db.csv_import_sessions.find_one({"id": import_session_id})
+        if not import_session:
+            raise ValueError("Import session not found")
+        
+        # Get detailed error information
+        import_errors = await db.csv_import_errors.find({
+            "import_session_id": import_session_id
+        }).to_list(1000)
+        
+        # Get PHI detection information (for medical practices)
+        phi_detections = await db.phi_detection_logs.find({
+            "import_session_id": import_session_id
+        }).to_list(1000)
+        
+        # Get performance metrics
+        performance_metrics = await db.csv_import_performance.find_one({
+            "import_session_id": import_session_id
+        })
+        
+        # Generate summary statistics
+        summary_stats = self.calculate_summary_statistics(import_session, import_errors)
+        
+        # Generate quality analysis
+        quality_analysis = self.analyze_import_data_quality(import_errors, phi_detections)
+        
+        # Generate recommendations
+        recommendations = self.generate_import_recommendations(
+            import_session, import_errors, summary_stats, quality_analysis
+        )
+        
+        return ImportSummaryReport(
+            import_session_id=import_session_id,
+            tenant_id=import_session["tenant_id"],
+            business_type=import_session.get("business_type"),
+            
+            # Overview statistics
+            total_rows=import_session.get("total_rows", 0),
+            successful_contacts=import_session.get("successful_contacts", 0),
+            failed_contacts=import_session.get("failed_contacts", 0),
+            success_rate=summary_stats["success_rate"],
+            processing_time=import_session.get("processing_duration_seconds", 0),
+            
+            # Detailed breakdown
+            groups_created=import_session.get("groups_created", 0),
+            group_assignments=import_session.get("group_assignments", 0),
+            calls_scheduled=import_session.get("calls_scheduled", 0),
+            
+            # Error analysis
+            error_summary=self.categorize_errors(import_errors),
+            phi_detection_summary=self.summarize_phi_detections(phi_detections),
+            
+            # Quality and recommendations
+            data_quality_score=quality_analysis["overall_quality_score"],
+            recommendations=recommendations,
+            
+            # Performance metrics
+            performance_metrics=performance_metrics,
+            
+            # Export options
+            error_report_available=len(import_errors) > 0,
+            corrected_csv_template_available=True,
+            
+            generated_at=datetime.now(timezone.utc).isoformat()
+        )
+    
+    def calculate_summary_statistics(self, import_session: dict, import_errors: List[dict]) -> dict:
+        """
+        Calculate summary statistics for import session
+        """
+        
+        total_rows = import_session.get("total_rows", 0)
+        successful_contacts = import_session.get("successful_contacts", 0)
+        failed_contacts = import_session.get("failed_contacts", 0)
+        
+        success_rate = (successful_contacts / total_rows * 100) if total_rows > 0 else 0
+        
+        # Error categorization
+        critical_errors = len([e for e in import_errors if e.get("error_severity") == "critical"])
+        warning_errors = len([e for e in import_errors if e.get("error_severity") == "warning"])
+        
+        return {
+            "success_rate": round(success_rate, 2),
+            "total_errors": len(import_errors),
+            "critical_errors": critical_errors,
+            "warning_errors": warning_errors,
+            "error_rate": round((len(import_errors) / total_rows * 100), 2) if total_rows > 0 else 0
+        }
+    
+    def generate_import_recommendations(
+        self, 
+        import_session: dict, 
+        import_errors: List[dict], 
+        summary_stats: dict, 
+        quality_analysis: dict
+    ) -> List[str]:
+        """
+        Generate actionable recommendations for improving future imports
+        """
+        
+        recommendations = []
+        
+        # Success rate recommendations
+        if summary_stats["success_rate"] < 90:
+            recommendations.append(
+                "Consider reviewing CSV data quality before import - "
+                f"current success rate is {summary_stats['success_rate']:.1f}%"
+            )
+        
+        # Error pattern recommendations
+        error_types = {}
+        for error in import_errors:
+            error_type = error.get("error_type", "unknown")
+            error_types[error_type] = error_types.get(error_type, 0) + 1
+        
+        if error_types.get("invalid_phone_format", 0) > 0:
+            recommendations.append(
+                "Phone number formatting issues detected - ensure all phone numbers are in UK format (+44...)"
+            )
+        
+        if error_types.get("phi_detected", 0) > 0:
+            recommendations.append(
+                "Protected Health Information detected - review medical data for HIPAA compliance"
+            )
+        
+        # Performance recommendations
+        processing_time = import_session.get("processing_duration_seconds", 0)
+        if processing_time > 300:  # More than 5 minutes
+            recommendations.append(
+                "Large import detected - consider breaking large files into smaller batches for better performance"
+            )
+        
+        # Quality recommendations
+        if quality_analysis["overall_quality_score"] < 75:
+            recommendations.append(
+                "Data quality could be improved - review field completeness and format consistency"
+            )
+        
+        return recommendations
+
+@dataclass
+class ImportSummaryReport:
+    import_session_id: str
+    tenant_id: str
+    business_type: Optional[str]
+    total_rows: int
+    successful_contacts: int
+    failed_contacts: int
+    success_rate: float
+    processing_time: int
+    groups_created: int
+    group_assignments: int
+    calls_scheduled: int
+    error_summary: dict
+    phi_detection_summary: dict
+    data_quality_score: float
+    recommendations: List[str]
+    performance_metrics: Optional[dict]
+    error_report_available: bool
+    corrected_csv_template_available: bool
+    generated_at: str
+```
+
+---
+
+## 📱 **11. CSV Import User Interface**
+
+### **Upload Interface Design & User Experience**
+
+```typescript
+CSVImportUIImplementation {
+  // Upload Modal/Page Design
+  upload_interface: {
+    modal_layout: {
+      modal_size: "large_modal_80%_screen_width_90%_height",
+      responsive_design: "full_screen_on_mobile_devices",
+      step_indicator: "progress_stepper_showing_current_step_and_completion",
+      navigation_controls: "back_next_cancel_buttons_with_appropriate_states"
+    },
+    
+    file_upload_area: {
+      drag_drop_design: {
+        visual_design: "large_dashed_border_rectangle_with_upload_icon",
+        dimensions: "400px_width_200px_height_minimum",
+        hover_effects: "highlight_border_and_background_on_file_hover",
+        drop_feedback: "visual_confirmation_when_file_dropped"
+      },
+      
+      file_requirements_display: {
+        supported_formats: "CSV, Excel (.xlsx), Tab-separated (.tsv)",
+        file_size_limit: "Maximum 10MB file size",
+        record_limit: "Maximum 10,000 contacts per file",
+        encoding_requirements: "UTF-8 encoding recommended"
+      },
+      
+      immediate_feedback: {
+        file_validation_results: "instant_validation_feedback_on_file_selection",
+        parsing_preview: "show_first_few_rows_after_successful_parsing",
+        error_messages: "clear_error_messages_for_file_format_or_size_issues"
+      }
+    }
+  },
+  
+  // Field Mapping Interface
+  field_mapping_ui: {
+    layout_design: {
+      two_panel_layout: {
+        left_panel: "csv_columns_with_sample_data_and_data_type_detection",
+        right_panel: "vioconcierge_fields_organized_by_required_and_optional",
+        center_area: "mapping_connections_and_confidence_indicators"
+      },
+      
+      drag_drop_mapping: {
+        draggable_csv_columns: "csv_columns_can_be_dragged_to_target_fields",
+        drop_zones: "clearly_defined_drop_zones_for_each_contact_field",
+        visual_connections: "lines_or_arrows_showing_established_mappings",
+        mapping_removal: "click_x_or_drag_away_to_remove_mappings"
+      }
+    },
+    
+    intelligent_assistance: {
+      automatic_suggestions: {
+        high_confidence_auto_mapping: "green_indicators_for_90%+_confidence_mappings",
+        medium_confidence_suggestions: "yellow_indicators_for_70-89%_confidence",
+        low_confidence_options: "orange_indicators_for_50-69%_confidence",
+        no_suggestion: "gray_indicators_for_unmappable_columns"
+      },
+      
+      mapping_validation: {
+        required_field_checking: "real_time_validation_that_required_fields_are_mapped",
+        duplicate_mapping_prevention: "prevent_multiple_csv_columns_mapping_to_same_field",
+        data_type_compatibility: "warn_if_csv_data_type_doesnt_match_expected_field_type"
+      }
+    }
+  },
+  
+  // Data Validation Results Display
+  validation_results_ui: {
+    summary_dashboard: {
+      validation_overview: "high_level_counts_of_valid_warning_error_rows",
+      progress_indicator: "percentage_of_rows_successfully_validated",
+      action_buttons: "proceed_with_import_or_download_errors_for_correction"
+    },
+    
+    detailed_error_display: {
+      error_table: {
+        columns: ["Row", "Field", "Error Type", "Message", "Suggested Fix"],
+        sorting: "sortable_by_row_number_error_type_severity",
+        filtering: "filter_by_error_type_severity_or_field",
+        pagination: "paginate_large_error_lists_for_performance"
+      },
+      
+      inline_correction: {
+        edit_capability: "click_to_edit_individual_cell_values_with_real_time_validation",
+        bulk_correction: "apply_corrections_to_multiple_rows_with_same_error",
+        correction_preview: "preview_corrected_data_before_applying_changes"
+      }
+    },
+    
+    hipaa_compliance_display: {
+      phi_detection_summary: "summary_of_phi_detected_and_sanitization_actions_taken",
+      compliance_score: "overall_hipaa_compliance_score_for_import",
+      manual_review_items: "list_of_items_requiring_manual_hipaa_review",
+      sanitization_preview: "show_before_and_after_for_sanitized_content"
+    }
+  }
+}
+```
+
+### **Import UI Component Implementation**
+
+```typescript
+// CSV Import React Component (Frontend)
+const CSVImportWizard = () => {
+  const [currentStep, setCurrentStep] = useState(1);
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [csvData, setCsvData] = useState([]);
+  const [fieldMapping, setFieldMapping] = useState({});
+  const [validationResults, setValidationResults] = useState(null);
+  const [importProgress, setImportProgress] = useState(null);
+  
+  // Step 1: File Upload
+  const handleFileUpload = async (file) => {
+    try {
+      setUploadedFile(file);
+      
+      // Validate file
+      const validation = await validateCSVFile(file);
+      if (!validation.valid) {
+        toast.error(validation.error);
+        return;
+      }
+      
+      // Parse CSV
+      const parseResult = await parseCSVFile(file);
+      setCsvData(parseResult.data);
+      
+      // Automatic field mapping
+      const autoMapping = await suggestFieldMapping(parseResult.headers);
+      setFieldMapping(autoMapping);
+      
+      setCurrentStep(2);
+      toast.success(`CSV parsed successfully: ${parseResult.data.length} rows found`);
+      
+    } catch (error) {
+      toast.error(`File upload failed: ${error.message}`);
+    }
+  };
+  
+  // Step 2: Field Mapping
+  const handleFieldMappingComplete = async () => {
+    try {
+      // Validate required fields are mapped
+      const requiredFields = ['name', 'phone', 'appointment_date', 'appointment_time'];
+      const missingFields = requiredFields.filter(field => !fieldMapping[field]);
+      
+      if (missingFields.length > 0) {
+        toast.error(`Please map required fields: ${missingFields.join(', ')}`);
+        return;
+      }
+      
+      // Validate data with mapping
+      const validation = await validateCSVData(csvData, fieldMapping);
+      setValidationResults(validation);
+      
+      setCurrentStep(3);
+      
+    } catch (error) {
+      toast.error(`Field mapping validation failed: ${error.message}`);
+    }
+  };
+  
+  // Step 3: Execute Import
+  const handleExecuteImport = async () => {
+    try {
+      setCurrentStep(4); // Progress step
+      
+      // Start import process
+      const importResponse = await axios.post(`${API}/contacts/csv-import`, {
+        validated_data: csvData,
+        field_mapping: fieldMapping,
+        validation_results: validationResults,
+        business_type: user?.businessType || 'general'
+      });
+      
+      const importSessionId = importResponse.data.import_session_id;
+      
+      // Start real-time progress tracking
+      const ws = new WebSocket(`${WS_URL}/contacts/csv-import/${importSessionId}/progress`);
+      
+      ws.onmessage = (event) => {
+        const progressData = JSON.parse(event.data);
+        setImportProgress(progressData);
+        
+        if (progressData.status === 'completed') {
+          setCurrentStep(5); // Summary step
+          ws.close();
+          toast.success('CSV import completed successfully!');
+        } else if (progressData.status === 'failed') {
+          ws.close();
+          toast.error('CSV import failed. Please review errors and try again.');
+        }
+      };
+      
+    } catch (error) {
+      toast.error(`Import execution failed: ${error.message}`);
+    }
+  };
+  
+  return (
+    <div className="csv-import-wizard">
+      <div className="step-indicator">
+        {/* Step progress indicator */}
+      </div>
+      
+      {currentStep === 1 && (
+        <FileUploadStep onFileUpload={handleFileUpload} />
+      )}
+      
+      {currentStep === 2 && (
+        <FieldMappingStep 
+          csvData={csvData}
+          fieldMapping={fieldMapping}
+          onMappingChange={setFieldMapping}
+          onComplete={handleFieldMappingComplete}
+        />
+      )}
+      
+      {currentStep === 3 && (
+        <ValidationResultsStep
+          validationResults={validationResults}
+          onExecuteImport={handleExecuteImport}
+        />
+      )}
+      
+      {currentStep === 4 && (
+        <ImportProgressStep 
+          progress={importProgress}
+        />
+      )}
+      
+      {currentStep === 5 && (
+        <ImportSummaryStep
+          importSessionId={importProgress?.import_session_id}
+        />
+      )}
+    </div>
+  );
+};
+```
+
+---
+
+## 🔍 **12. CSV Import API Endpoints**
+
+### **Complete API Implementation**
+
+```python
+# CSV Import API Endpoints
+@api_router.post("/contacts/csv-upload")
+async def upload_csv_file(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Upload and parse CSV file for import
+    """
+    
+    # Validate file
+    validation_result = await validate_uploaded_csv_file(file)
+    if not validation_result.valid:
+        raise HTTPException(status_code=422, detail=validation_result.error)
+    
+    # Parse CSV file
+    try:
+        csv_parser = CSVParser()
+        parse_result = await csv_parser.parse_uploaded_file(file)
+        
+        return {
+            "success": True,
+            "file_info": {
+                "filename": file.filename,
+                "size_bytes": parse_result.file_size,
+                "encoding": parse_result.detected_encoding,
+                "delimiter": parse_result.detected_delimiter
+            },
+            "parsing_results": {
+                "total_rows": parse_result.total_rows,
+                "total_columns": parse_result.total_columns,
+                "headers": parse_result.headers,
+                "sample_data": parse_result.sample_rows[:5]
+            },
+            "automatic_field_mapping": parse_result.suggested_mapping,
+            "next_step": "field_mapping_configuration"
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ CSV parsing failed: {e}")
+        raise HTTPException(status_code=422, detail=f"CSV parsing failed: {str(e)}")
+
+@api_router.post("/contacts/csv-validate")
+async def validate_csv_data(
+    validation_request: CSVValidationRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Validate CSV data with field mapping
+    """
+    
+    # Get business type for validation context
+    tenant_config = await db.tenant_config.find_one({"tenant_id": current_user["tenant_id"]})
+    business_type = tenant_config.get("business_type", "general") if tenant_config else "general"
+    
+    # Execute comprehensive validation
+    validator = CSVDataValidator()
+    validation_result = await validator.validate_csv_data(
+        csv_data=validation_request.csv_data,
+        field_mapping=validation_request.field_mapping,
+        business_type=business_type
+    )
+    
+    # Process HIPAA compliance if medical practice
+    if business_type == "medical":
+        hipaa_processor = HIPAACompliantCSVProcessor()
+        hipaa_result = await hipaa_processor.process_medical_csv_with_hipaa_compliance(
+            csv_data=validation_request.csv_data,
+            field_mapping=validation_request.field_mapping,
+            tenant_id=current_user["tenant_id"]
+        )
+        validation_result.hipaa_compliance = hipaa_result
+    
+    return {
+        "validation_complete": True,
+        "business_type": business_type,
+        "validation_summary": {
+            "total_rows": validation_result.total_rows,
+            "valid_rows": validation_result.valid_rows,
+            "rows_with_warnings": validation_result.rows_with_warnings,
+            "rows_with_critical_errors": validation_result.rows_with_critical_errors,
+            "can_proceed": validation_result.can_proceed_with_import
+        },
+        "detailed_results": validation_result.validation_results,
+        "hipaa_compliance": getattr(validation_result, 'hipaa_compliance', None),
+        "next_step": "group_configuration" if validation_result.can_proceed_with_import else "error_correction"
+    }
+
+@api_router.get("/contacts/csv-import/{import_session_id}/summary")
+async def get_import_summary(
+    import_session_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get comprehensive import summary and report
+    """
+    
+    # Verify session belongs to user's tenant
+    import_session = await db.csv_import_sessions.find_one({
+        "id": import_session_id,
+        "tenant_id": current_user["tenant_id"]
+    })
+    
+    if not import_session:
+        raise HTTPException(status_code=404, detail="Import session not found")
+    
+    # Generate comprehensive summary
+    summary_generator = CSVImportSummaryGenerator()
+    summary_report = await summary_generator.generate_import_summary(import_session_id)
+    
+    return summary_report
+
+@api_router.get("/contacts/csv-import/{import_session_id}/export-errors")
+async def export_import_errors(
+    import_session_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Export CSV file containing only rows that had errors for correction
+    """
+    
+    # Get import errors
+    import_errors = await db.csv_import_errors.find({
+        "import_session_id": import_session_id
+    }).to_list(1000)
+    
+    if not import_errors:
+        raise HTTPException(status_code=404, detail="No errors found for this import session")
+    
+    # Generate error correction CSV
+    error_csv_generator = ErrorCSVGenerator()
+    error_csv_content = await error_csv_generator.generate_error_correction_csv(
+        import_session_id=import_session_id,
+        import_errors=import_errors
+    )
+    
+    return Response(
+        content=error_csv_content,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename=import_errors_{import_session_id[:8]}.csv"
+        }
+    )
+
+# Data models for CSV import
+class CSVImportRequest(BaseModel):
+    validated_data: List[dict]
+    field_mapping: Dict[str, str]
+    group_assignments: Optional[Dict[str, List[str]]] = None
+    business_type: str = "general"
+    import_configuration: Optional[dict] = None
+
+class CSVValidationRequest(BaseModel):
+    csv_data: List[dict]
+    field_mapping: Dict[str, str]
+    business_type: Optional[str] = "general"
+```
+
+---
+
+## 🚀 **CSV Import System Implementation Summary**
+
+### **Complete Implementation Status**
+
+| Component | Implementation Status | Technical Details |
+|-----------|----------------------|-------------------|
+| **File Upload & Parsing** | ✅ Complete | Multi-format support, encoding detection, automatic delimiter detection |
+| **Field Mapping System** | ✅ Complete | AI-powered automatic mapping, drag-drop interface, validation |
+| **Data Validation** | ✅ Complete | Multi-tier validation, business-type specific rules, error correction |
+| **HIPAA Compliance** | ✅ Complete | PHI detection, sanitization, compliance reporting |
+| **Group Auto-Assignment** | ✅ Complete | Pattern analysis, automatic group creation, intelligent suggestions |
+| **Bulk Import Processing** | ✅ Complete | Batch processing, transaction management, error isolation |
+| **Appointment Scheduling** | ✅ Complete | Automatic call scheduling, business-type optimization |
+| **Progress Tracking** | ✅ Complete | Real-time WebSocket updates, granular progress reporting |
+| **Error Handling** | ✅ Complete | Comprehensive error categorization, correction tools, reporting |
+| **Import Analytics** | ✅ Complete | Summary reporting, quality analysis, optimization recommendations |
+
+### **CSV Import Performance Specifications**
+
+```typescript
+CSVImportPerformanceSpecs {
+  processing_performance: {
+    small_files: "under_100_contacts_processed_in_under_10_seconds",
+    medium_files: "100_1000_contacts_processed_in_under_60_seconds", 
+    large_files: "1000_10000_contacts_processed_in_under_10_minutes",
+    file_parsing: "10mb_csv_file_parsed_in_under_30_seconds"
+  },
+  
+  accuracy_targets: {
+    field_mapping_accuracy: "95%_automatic_mapping_accuracy_for_standard_csv_formats",
+    validation_accuracy: "99%_validation_accuracy_for_data_format_checking",
+    phi_detection_accuracy: "98%_accuracy_for_hipaa_phi_detection_in_medical_data",
+    duplicate_detection_accuracy: "95%_accuracy_for_duplicate_contact_identification"
+  },
+  
+  scalability_limits: {
+    max_file_size: "10mb_maximum_file_size",
+    max_records: "10000_contacts_maximum_per_import",
+    concurrent_imports: "5_simultaneous_imports_per_tenant",
+    memory_usage: "processing_uses_less_than_500mb_ram_per_import"
+  }
+}
+```
+
+### **Database Impact & Cleanup**
+
+```sql
+-- Import session cleanup (run daily)
+CREATE OR REPLACE FUNCTION cleanup_old_import_sessions()
+RETURNS VOID AS $$
+BEGIN
+  -- Archive completed import sessions older than 90 days
+  UPDATE csv_import_sessions 
+  SET status = 'archived'
+  WHERE status = 'completed' 
+  AND created_at < NOW() - INTERVAL '90 days';
+  
+  -- Delete failed import sessions older than 30 days
+  DELETE FROM csv_import_sessions
+  WHERE status = 'failed'
+  AND created_at < NOW() - INTERVAL '30 days';
+  
+  -- Clean up associated error logs
+  DELETE FROM csv_import_errors
+  WHERE import_session_id NOT IN (
+    SELECT id FROM csv_import_sessions 
+    WHERE status != 'archived'
+  );
+END;
+$$ LANGUAGE plpgsql;
+
+-- Schedule cleanup
+SELECT cron.schedule('cleanup-import-sessions', '0 2 * * *', 'SELECT cleanup_old_import_sessions();');
+```
+
+**The VioConcierge CSV Import System provides comprehensive bulk contact import capabilities with intelligent field mapping, HIPAA compliance, automatic group assignment, and real-time appointment scheduling - enabling businesses to efficiently populate their contact databases while maintaining data quality and regulatory compliance.** 🎯
+
+---
+
+## 📋 **Developer Implementation Checklist**
+
+### **Required Configuration & Setup**
+
+```bash
+# CSV Import Configuration
+MAX_CSV_FILE_SIZE_MB=10
+MAX_CSV_RECORDS=10000
+SUPPORTED_ENCODINGS=UTF-8,UTF-8-BOM,ISO-8859-1
+BATCH_SIZE_CONTACTS=100
+BATCH_SIZE_SCHEDULING=50
+
+# HIPAA Compliance (Medical Practices)
+ENABLE_PHI_DETECTION=true
+HIPAA_COMPLIANCE_STRICT=true
+PHI_SANITIZATION_ENABLED=true
+
+# Performance Optimization
+CSV_PARSING_TIMEOUT=300
+IMPORT_PROCESSING_TIMEOUT=1800
+WEBSOCKET_UPDATE_INTERVAL=2
+PROGRESS_CHECKPOINT_INTERVAL=500
+```
+
+**The CSV import system is production-ready with comprehensive data processing, validation, compliance, and real-time progress tracking suitable for bulk contact management in appointment-based businesses.** 🚀
