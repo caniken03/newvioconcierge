@@ -88,6 +88,8 @@ interface ValidationError {
   error: string;
   severity: 'error' | 'warning' | 'info';
   suggestion?: string;
+  hipaaViolation?: boolean;
+  phiType?: 'direct' | 'quasi' | 'potential';
 }
 
 interface GroupAssignment {
@@ -281,9 +283,17 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
 
-  // Business type (default to general for now - will be fetched from tenant config)
-  const businessType: BusinessType = 'general';
+  // Business type - should be sourced from tenant config, defaulting to general for testing
+  // TODO: Wire to actual tenant configuration
+  const [businessType, setBusinessType] = useState<BusinessType>('general');
   const businessConfig = BUSINESS_FIELD_MAPPINGS[businessType];
+
+  // Allow business type override for testing HIPAA compliance
+  const setBusinessTypeForTesting = (type: BusinessType) => {
+    setBusinessType(type);
+    // Clear validation errors when business type changes to re-run validation
+    setValidationErrors([]);
+  };
 
   // Step 1: File Upload Implementation with Papa Parse
   const handleFileUpload = useCallback(async (file: File) => {
@@ -941,6 +951,21 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
       
       if (!value.trim()) return; // Skip empty optional fields
       
+      // HIPAA compliance validation (for medical practices)
+      const hipaaValidation = validateHIPAACompliance(mapping.contactField, value, businessType);
+      if (hipaaValidation) {
+        errors.push({
+          row: rowIndex + 1,
+          column: mapping.csvColumn,
+          value,
+          error: hipaaValidation.error,
+          severity: hipaaValidation.severity,
+          suggestion: hipaaValidation.suggestion,
+          hipaaViolation: hipaaValidation.hipaaViolation,
+          phiType: hipaaValidation.phiType
+        });
+      }
+
       // Business-specific validation rules
       const businessValidation = validateBusinessSpecificField(field, value, businessType);
       if (businessValidation) {
@@ -950,7 +975,9 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
           value,
           error: businessValidation.error,
           severity: businessValidation.severity,
-          suggestion: businessValidation.suggestion
+          suggestion: businessValidation.suggestion,
+          hipaaViolation: businessValidation.hipaaViolation,
+          phiType: businessValidation.phiType
         });
       }
       
@@ -969,6 +996,143 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     });
     
     return errors;
+  };
+
+  // HIPAA/PHI Detection Functions
+  const detectPHI = (value: string, fieldType: ContactFieldType): { isPHI: boolean; phiType: 'direct' | 'quasi' | 'potential' | null; reason: string } => {
+    const normalizedValue = value.toLowerCase().trim();
+    
+    // Direct identifiers (HIPAA "Safe Harbor" Rule - 18 identifiers)
+    const directIdentifierPatterns = [
+      // 1. Names (handled as contact field validation, not in content)
+      // 2. Geographic subdivisions (handled below in quasi-identifiers)
+      // 3. Dates (handled below in quasi-identifiers)
+      // 4. Telephone/Fax numbers (beyond primary contact phone)
+      { pattern: /\b(fax|home|work|mobile|cell)\s*(phone|number|tel)\s*:?\s*[\(\)\d\s\-\.\+]{7,}\b/i, reason: 'Secondary phone/fax number detected' },
+      // 5. Email addresses (beyond primary contact email)
+      { pattern: /\b(secondary|alternate|emergency|contact)\s*email\s*:?\s*[^\s@]+@[^\s@]+\.[^\s@]+\b/i, reason: 'Secondary email address detected' },
+      // 6. Social Security Numbers
+      { pattern: /\b\d{3}-\d{2}-\d{4}\b|\b\d{9}\b/, reason: 'Social Security Number detected' },
+      // 7. Medical Record Numbers
+      { pattern: /\b(mrn|medical|record|patient)\s*#?\s*:?\s*[a-z0-9]{6,}\b/i, reason: 'Medical Record Number detected' },
+      // 8. Health plan beneficiary numbers
+      { pattern: /\b(insurance|policy|member|beneficiary|subscriber)\s*#?\s*:?\s*[a-z0-9]{6,}\b/i, reason: 'Health plan beneficiary number detected' },
+      // 9. Account numbers
+      { pattern: /\b(account|acct)\s*#?\s*:?\s*[a-z0-9]{6,}\b/i, reason: 'Account number detected' },
+      // 10. Certificate/license numbers
+      { pattern: /\b(license|certificate|cert|permit)\s*#?\s*:?\s*[a-z0-9]{6,}\b/i, reason: 'Certificate/license number detected' },
+      // 11. Vehicle identifiers
+      { pattern: /\b(vin|vehicle|plate|license)\s*(number|id|identifier)\s*:?\s*[a-z0-9]{6,}\b/i, reason: 'Vehicle identifier detected' },
+      // 12. Device identifiers and serial numbers
+      { pattern: /\b(device|serial|equipment)\s*(number|id|identifier)\s*:?\s*[a-z0-9]{6,}\b/i, reason: 'Device/serial number detected' },
+      // 13. Web URLs
+      { pattern: /\bhttps?:\/\/[^\s]+|www\.[^\s]+\.[a-z]{2,}/i, reason: 'Web URL detected' },
+      // 14. IP addresses
+      { pattern: /\b(?:\d{1,3}\.){3}\d{1,3}\b/, reason: 'IP address detected' },
+      // 15. Biometric identifiers
+      { pattern: /\b(fingerprint|retina|voiceprint|dna|genetic|biometric)\b/i, reason: 'Biometric identifier detected' },
+      // 16. Full face photos
+      { pattern: /\b(photo|picture|image|facial)\b.*\b(full|face|patient)\b/i, reason: 'Facial photograph reference detected' },
+      // 17. Any other unique identifying number
+      { pattern: /\b(patient|medical|unique)\s*(id|identifier|number)\s*:?\s*[a-z0-9]{6,}\b/i, reason: 'Unique identifier detected' },
+      // 18. Any other identifying characteristic (handled in medical terminology)
+    ];
+
+    // Quasi-identifiers (can be PHI when combined)
+    const quasiIdentifierPatterns = [
+      // Dates related to patient
+      { pattern: /\b(birth|death|admission|discharge|surgery|treatment)\s*date\b/i, reason: 'Patient-related date detected' },
+      // Geographic subdivisions smaller than state
+      { pattern: /\b(zip|postal|apartment|suite|room|floor|building)\s*(code|#|number)?\s*:?\s*\d/i, reason: 'Geographic subdivision detected' },
+      // Age over 89
+      { pattern: /\b(age|aged|years?)\s*:?\s*(9[0-9]|[1-9][0-9]{2,})\b/i, reason: 'Age over 89 detected' },
+    ];
+
+    // Potential PHI based on field type and context
+    const potentialPHIFields: Record<ContactFieldType, string> = {
+      'notes': 'Free-text notes may contain medical information',
+      'comments': 'Comments may contain sensitive patient details',
+      'diagnosis': 'Diagnosis information is PHI',
+      'medication': 'Medication information is PHI', 
+      'allergies': 'Allergy information is PHI',
+      'symptoms': 'Symptom information is PHI',
+      'treatment': 'Treatment information is PHI',
+      'condition': 'Medical condition information is PHI',
+      'familyHistory': 'Family medical history is PHI',
+      'emergencyContact': 'Emergency contact with medical relationship is quasi-PHI'
+    };
+
+    // Check for direct identifiers
+    for (const { pattern, reason } of directIdentifierPatterns) {
+      if (pattern.test(value)) {
+        return { isPHI: true, phiType: 'direct', reason };
+      }
+    }
+
+    // Check for quasi-identifiers
+    for (const { pattern, reason } of quasiIdentifierPatterns) {
+      if (pattern.test(value)) {
+        return { isPHI: true, phiType: 'quasi', reason };
+      }
+    }
+
+    // Check for potential PHI based on field type
+    if (fieldType && potentialPHIFields[fieldType]) {
+      return { isPHI: true, phiType: 'potential', reason: potentialPHIFields[fieldType] };
+    }
+
+    // Medical terminology detection
+    const medicalTerms = [
+      'diagnosis', 'prescription', 'medication', 'treatment', 'therapy', 'surgery', 'procedure',
+      'symptom', 'condition', 'disease', 'disorder', 'syndrome', 'allergy', 'adverse', 'reaction',
+      'blood', 'pressure', 'diabetes', 'cancer', 'tumor', 'malignant', 'benign', 'chronic',
+      'acute', 'pain', 'infection', 'fever', 'nausea', 'vomit', 'diarrhea', 'constipation'
+    ];
+
+    if (medicalTerms.some(term => normalizedValue.includes(term))) {
+      return { isPHI: true, phiType: 'potential', reason: 'Medical terminology detected' };
+    }
+
+    return { isPHI: false, phiType: null, reason: '' };
+  };
+
+  const validateHIPAACompliance = (field: ContactFieldType, value: string, businessType: BusinessType): ValidationError | null => {
+    if (businessType !== 'medical') {
+      return null; // HIPAA only applies to medical practices
+    }
+
+    const phiDetection = detectPHI(value, field);
+    
+    if (phiDetection.isPHI) {
+      const severity = phiDetection.phiType === 'direct' ? 'error' : 'warning';
+      const isBlocking = phiDetection.phiType === 'direct';
+      
+      return {
+        row: 0, column: '', value,
+        error: `HIPAA Violation: ${phiDetection.reason}`,
+        severity,
+        suggestion: phiDetection.phiType === 'direct' 
+          ? 'Remove this information or use de-identified data'
+          : 'Review for potential PHI - consider de-identification',
+        hipaaViolation: true,
+        phiType: phiDetection.phiType
+      };
+    }
+
+    // Check for restricted fields in medical context
+    const restrictedFields: ContactFieldType[] = ['notes', 'comments', 'diagnosis', 'medication', 'allergies'];
+    if (restrictedFields.includes(field)) {
+      return {
+        row: 0, column: '', value,
+        error: 'Field may contain PHI and should be avoided in CSV imports',
+        severity: 'warning',
+        suggestion: 'Consider using alternative fields or ensure data is de-identified',
+        hipaaViolation: true,
+        phiType: 'potential'
+      };
+    }
+
+    return null;
   };
 
   // Business-specific validation rules
@@ -1157,6 +1321,8 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
 
     const totalErrors = validationErrors.filter(e => e.severity === 'error').length;
     const totalWarnings = validationErrors.filter(e => e.severity === 'warning').length;
+    const hipaaViolations = validationErrors.filter(e => e.hipaaViolation).length;
+    const directPHI = validationErrors.filter(e => e.phiType === 'direct').length;
     const validRows = csvFile.rowCount - Object.keys(errorsByRow).length;
 
     return (
@@ -1171,7 +1337,22 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
               </p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={runDataValidation}>
+              <Select
+                value={businessType}
+                onValueChange={(value: BusinessType) => setBusinessTypeForTesting(value)}
+              >
+                <SelectTrigger className="w-32" data-testid="business-type-selector">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="general">General</SelectItem>
+                  <SelectItem value="medical">Medical</SelectItem>
+                  <SelectItem value="salon">Salon</SelectItem>
+                  <SelectItem value="restaurant">Restaurant</SelectItem>
+                  <SelectItem value="consultant">Consultant</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" onClick={runDataValidation} data-testid="revalidate-button">
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Re-validate
               </Button>
@@ -1183,7 +1364,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
             <Card>
               <CardContent className="pt-4">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">{validRows}</div>
+                  <div className="text-2xl font-bold text-green-600" data-testid="valid-rows-count">{validRows}</div>
                   <div className="text-xs text-muted-foreground">Valid Rows</div>
                 </div>
               </CardContent>
@@ -1191,7 +1372,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
             <Card>
               <CardContent className="pt-4">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-red-600">{totalErrors}</div>
+                  <div className="text-2xl font-bold text-red-600" data-testid="errors-count">{totalErrors}</div>
                   <div className="text-xs text-muted-foreground">Errors</div>
                 </div>
               </CardContent>
@@ -1199,7 +1380,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
             <Card>
               <CardContent className="pt-4">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-yellow-600">{totalWarnings}</div>
+                  <div className="text-2xl font-bold text-yellow-600" data-testid="warnings-count">{totalWarnings}</div>
                   <div className="text-xs text-muted-foreground">Warnings</div>
                 </div>
               </CardContent>
@@ -1207,7 +1388,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
             <Card>
               <CardContent className="pt-4">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">
+                  <div className="text-2xl font-bold text-blue-600" data-testid="data-quality-percentage">
                     {Math.round((validRows / csvFile.rowCount) * 100)}%
                   </div>
                   <div className="text-xs text-muted-foreground">Data Quality</div>
@@ -1215,6 +1396,64 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
               </CardContent>
             </Card>
           </div>
+
+          {/* HIPAA Compliance Summary for Medical Practices */}
+          {businessType === 'medical' && (
+            <Card className="border-purple-200 bg-purple-50" data-testid="hipaa-compliance-summary">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Settings className="w-4 h-4 text-purple-600" />
+                  HIPAA Compliance Summary
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                  <div className="text-center">
+                    <div className={`text-2xl font-bold ${hipaaViolations > 0 ? 'text-red-600' : 'text-green-600'}`} data-testid="hipaa-violations-count">
+                      {hipaaViolations}
+                    </div>
+                    <div className="text-xs text-muted-foreground">HIPAA Issues</div>
+                  </div>
+                  <div className="text-center">
+                    <div className={`text-2xl font-bold ${directPHI > 0 ? 'text-red-600' : 'text-green-600'}`} data-testid="direct-phi-count">
+                      {directPHI}
+                    </div>
+                    <div className="text-xs text-muted-foreground">Direct PHI</div>
+                  </div>
+                  <div className="text-center">
+                    <div className={`text-2xl font-bold ${hipaaViolations === 0 ? 'text-green-600' : 'text-yellow-600'}`} data-testid="compliance-status">
+                      {hipaaViolations === 0 ? '✓' : '⚠'}
+                    </div>
+                    <div className="text-xs text-muted-foreground">Compliance</div>
+                  </div>
+                </div>
+                
+                {hipaaViolations > 0 ? (
+                  <div className="space-y-2">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-600 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-red-800">HIPAA Compliance Issues Detected</p>
+                        <p className="text-xs text-red-600 mt-1">
+                          {directPHI > 0 && 'Contains direct PHI that must be removed. '}
+                          Review all flagged data before importing.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-xs text-purple-700 bg-purple-100 p-2 rounded">
+                      <strong>HIPAA Guidance:</strong> Protected Health Information (PHI) includes names, dates of birth, SSNs, medical record numbers, and medical information. 
+                      All PHI must be de-identified before CSV import or processed under proper HIPAA safeguards.
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <p className="text-sm text-green-800">No HIPAA compliance issues detected. Data appears to be properly de-identified.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Errors blocking import */}
           {totalErrors > 0 && (
@@ -1247,34 +1486,56 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
                   <div className="space-y-3">
                     {validationErrors.slice(0, 50).map((error, index) => (
                       <div key={index} className={`p-3 rounded-lg border ${
-                        error.severity === 'error' 
-                          ? 'border-red-200 bg-red-50' 
-                          : 'border-yellow-200 bg-yellow-50'
-                      }`}>
+                        error.hipaaViolation 
+                          ? 'border-purple-300 bg-purple-50' 
+                          : error.severity === 'error' 
+                            ? 'border-red-200 bg-red-50' 
+                            : 'border-yellow-200 bg-yellow-50'
+                      }`} data-testid={`validation-error-${index}`}>
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
-                              {error.severity === 'error' ? (
+                              {error.hipaaViolation ? (
+                                <Settings className="w-4 h-4 text-purple-600" />
+                              ) : error.severity === 'error' ? (
                                 <AlertCircle className="w-4 h-4 text-red-600" />
                               ) : (
                                 <Info className="w-4 h-4 text-yellow-600" />
                               )}
-                              <span className="font-medium text-sm">
+                              <span className="font-medium text-sm" data-testid={`error-location-${index}`}>
                                 Row {error.row}: {error.column}
                               </span>
                               <Badge variant="secondary" className={
-                                error.severity === 'error' ? 'text-red-700' : 'text-yellow-700'
-                              }>
-                                {error.severity}
+                                error.hipaaViolation 
+                                  ? 'text-purple-700 bg-purple-100'
+                                  : error.severity === 'error' 
+                                    ? 'text-red-700' 
+                                    : 'text-yellow-700'
+                              } data-testid={`error-severity-${index}`}>
+                                {error.hipaaViolation ? 'HIPAA' : error.severity}
                               </Badge>
+                              {error.phiType && (
+                                <Badge variant="outline" className="text-purple-700 border-purple-300" data-testid={`phi-type-${index}`}>
+                                  {error.phiType === 'direct' ? 'Direct PHI' : 
+                                   error.phiType === 'quasi' ? 'Quasi PHI' : 'Potential PHI'}
+                                </Badge>
+                              )}
                             </div>
-                            <p className="text-sm mb-1">{error.error}</p>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-sm mb-1" data-testid={`error-message-${index}`}>{error.error}</p>
+                            <p className="text-xs text-muted-foreground" data-testid={`error-value-${index}`}>
                               Value: <code className="bg-muted px-1 rounded">{error.value || '(empty)'}</code>
                             </p>
                             {error.suggestion && (
-                              <p className="text-xs text-blue-600 mt-1">
+                              <p className={`text-xs mt-1 ${error.hipaaViolation ? 'text-purple-600' : 'text-blue-600'}`} data-testid={`error-suggestion-${index}`}>
                                 💡 {error.suggestion}
+                              </p>
+                            )}
+                            {error.hipaaViolation && businessType === 'medical' && (
+                              <p className="text-xs text-purple-700 mt-2 bg-purple-100 p-2 rounded">
+                                <strong>HIPAA Notice:</strong> This field contains Protected Health Information. 
+                                {error.phiType === 'direct' && ' This must be removed or de-identified before import.'}
+                                {error.phiType === 'quasi' && ' This may be PHI when combined with other data.'}
+                                {error.phiType === 'potential' && ' Review for medical information that should be de-identified.'}
                               </p>
                             )}
                           </div>
@@ -1814,7 +2075,10 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
               currentStep === WIZARD_STEPS.length || 
               (currentStep === 1 && !csvFile) ||
               (currentStep === 2 && fieldMappings.filter(m => m.required && m.contactField).length < businessConfig.requiredFields.length) ||
-              (currentStep === 3 && validationErrors.filter(e => e.severity === 'error').length > 0)
+              (currentStep === 3 && (
+                validationErrors.filter(e => e.severity === 'error').length > 0 ||
+                (businessType === 'medical' && validationErrors.filter(e => e.phiType === 'direct').length > 0)
+              ))
             }
             data-testid="wizard-next-button"
           >
