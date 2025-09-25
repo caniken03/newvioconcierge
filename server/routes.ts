@@ -555,16 +555,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         name: z.string().min(1).max(50),
         description: z.string().optional(),
         color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default('#3B82F6'),
+        initialContactIds: z.array(z.string()).optional(),
       });
 
       const groupData = groupSchema.parse(req.body);
       const group = await storage.createContactGroup({
-        ...groupData,
+        name: groupData.name,
+        description: groupData.description,
+        color: groupData.color,
         tenantId: req.user.tenantId,
       });
 
-      res.status(201).json(group);
+      // Add initial contacts to the group if provided
+      if (groupData.initialContactIds && groupData.initialContactIds.length > 0) {
+        for (const contactId of groupData.initialContactIds) {
+          try {
+            await storage.addContactToGroup(contactId, group.id, req.user.tenantId, req.user.id);
+          } catch (error) {
+            console.warn(`Failed to add contact ${contactId} to group ${group.id}:`, error);
+          }
+        }
+        
+        // Update the group contact count
+        const updatedGroup = await storage.getContactGroup(group.id);
+        res.status(201).json(updatedGroup);
+      } else {
+        res.status(201).json(group);
+      }
     } catch (error) {
+      console.error('Failed to create contact group:', error);
       res.status(400).json({ message: 'Failed to create contact group' });
     }
   });
@@ -972,6 +991,182 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(session);
     } catch (error) {
       res.status(400).json({ message: 'Failed to update call session' });
+    }
+  });
+
+  // Bulk call sessions endpoint with enhanced validation and error handling
+  app.post('/api/call-sessions/bulk', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      const bulkCallSchema = z.object({
+        contactIds: z.array(z.string().uuid()).min(1).max(25), // Reduced limit to 25 for better performance
+        groupId: z.string().uuid().optional(),
+        triggerTime: z.string().datetime().optional(),
+      });
+
+      const { contactIds, groupId, triggerTime } = bulkCallSchema.parse(req.body);
+      
+      console.log(`📞 Bulk call request initiated by user ${req.user.id} for tenant ${req.user.tenantId}: ${contactIds.length} contacts`);
+      
+      // Validate tenant configuration
+      const tenantConfig = await storage.getTenantConfig(req.user.tenantId);
+      if (!tenantConfig?.retellApiKey || !tenantConfig?.retellAgentId || !tenantConfig?.retellAgentNumber) {
+        return res.status(400).json({ 
+          message: 'Retell AI configuration missing. Please configure your voice AI settings.',
+          code: 'RETELL_CONFIG_MISSING'
+        });
+      }
+
+      // Validate group ownership if groupId provided
+      if (groupId) {
+        const group = await storage.getContactGroup(groupId);
+        if (!group || group.tenantId !== req.user.tenantId) {
+          return res.status(404).json({ 
+            message: 'Contact group not found or access denied',
+            code: 'GROUP_NOT_FOUND'
+          });
+        }
+      }
+
+      // Pre-validate all contacts belong to tenant (bulk validation)
+      const validationErrors = [];
+      const validContacts = [];
+      
+      for (const contactId of contactIds) {
+        try {
+          const contact = await storage.getContact(contactId);
+          if (!contact) {
+            validationErrors.push({ contactId, error: 'Contact not found', code: 'CONTACT_NOT_FOUND' });
+          } else if (contact.tenantId !== req.user.tenantId) {
+            validationErrors.push({ contactId, error: 'Access denied to contact', code: 'ACCESS_DENIED' });
+          } else if (!contact.phone || contact.phone.trim().length === 0) {
+            validationErrors.push({ contactId, error: 'Contact missing phone number', code: 'MISSING_PHONE' });
+          } else {
+            validContacts.push(contact);
+          }
+        } catch (error) {
+          validationErrors.push({ 
+            contactId, 
+            error: 'Failed to validate contact', 
+            code: 'VALIDATION_ERROR',
+            details: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+
+      if (validContacts.length === 0) {
+        return res.status(400).json({
+          message: 'No valid contacts found for bulk calling',
+          code: 'NO_VALID_CONTACTS',
+          errors: validationErrors,
+          summary: { totalRequested: contactIds.length, valid: 0, invalid: validationErrors.length }
+        });
+      }
+
+      const results = [];
+      const callErrors = [];
+
+      // Process valid contacts for calling
+      for (const contact of validContacts) {
+        try {
+          // Create call session
+          const sessionId = `bulk_call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          const session = await storage.createCallSession({
+            contactId: contact.id,
+            tenantId: req.user.tenantId,
+            sessionId,
+            triggerTime: triggerTime ? new Date(triggerTime) : new Date(),
+            status: 'queued',
+            startTime: new Date(),
+          });
+
+          // Create business-aware call with industry-specific voice scripts
+          const businessType = tenantConfig.businessType || 'general';
+          console.log(`🏥 Creating bulk ${businessType} business call (contact: ${contact.name}, ID: ${contact.id})`);
+          
+          // Use business template service to generate HIPAA-compliant or industry-specific call
+          const retellResponse = await retellService.createBusinessCall(
+            tenantConfig.retellApiKey,
+            contact,
+            { ...tenantConfig, tenantId: req.user.tenantId },
+            session.id,
+            businessTemplateService
+          );
+
+          // Update session with Retell call ID
+          await storage.updateCallSession(session.id, {
+            retellCallId: retellResponse.call_id,
+            status: 'in_progress',
+          });
+
+          // Update contact call attempts
+          await storage.updateContact(contact.id, {
+            callAttempts: (contact.callAttempts || 0) + 1,
+            lastContactTime: new Date()
+          });
+
+          results.push({
+            contactId: contact.id,
+            sessionId: session.id,
+            retellCallId: retellResponse.call_id,
+            status: 'in_progress',
+            contactName: contact.name,
+            contactPhone: contact.phone,
+          });
+
+          console.log(`✅ Successfully initiated call for ${contact.name} (${contact.phone})`);
+
+        } catch (error) {
+          console.error(`❌ Failed to create call for contact ${contact.id} (${contact.name}):`, error);
+          callErrors.push({ 
+            contactId: contact.id,
+            contactName: contact.name,
+            error: error instanceof Error ? error.message : 'Failed to create call',
+            code: 'CALL_CREATION_FAILED',
+            details: error instanceof Error ? error.stack : undefined
+          });
+        }
+      }
+
+      // Combine validation and call errors
+      const allErrors = [...validationErrors, ...callErrors];
+
+      console.log(`📊 Bulk call operation summary: ${results.length} successful, ${allErrors.length} failed out of ${contactIds.length} requested`);
+
+      res.status(201).json({
+        success: results.length > 0,
+        message: results.length > 0 
+          ? `Bulk call operation completed. ${results.length} call${results.length === 1 ? '' : 's'} initiated successfully.`
+          : 'Bulk call operation failed. No calls were initiated.',
+        results,
+        errors: allErrors,
+        summary: {
+          totalRequested: contactIds.length,
+          successful: results.length,
+          failed: allErrors.length,
+          validationErrors: validationErrors.length,
+          callErrors: callErrors.length,
+          groupId: groupId || null,
+          timestamp: new Date().toISOString(),
+          initiatedBy: req.user.id
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Bulk call operation failed:', error);
+      
+      // Enhanced error response with proper status codes
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: 'Invalid request parameters',
+          code: 'VALIDATION_ERROR',
+          details: error.errors
+        });
+      }
+      
+      res.status(500).json({ 
+        message: 'Internal server error during bulk call operation',
+        code: 'INTERNAL_ERROR'
+      });
     }
   });
 

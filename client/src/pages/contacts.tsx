@@ -12,6 +12,7 @@ import ContactGroupAssignment from "@/components/contact-group-assignment";
 import BulkStatusUpdateModal from "@/components/modals/bulk-status-update-modal";
 import { ContactTimeline } from "@/components/contact-timeline";
 import CallNowModal from "@/components/call-now-modal";
+import { GroupMemberViewer } from "@/components/group-member-viewer";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -171,6 +172,10 @@ export default function Contacts() {
   
   // Call Now modal state
   const [isCallNowModalOpen, setIsCallNowModalOpen] = useState(false);
+  
+  // Group Member Viewer state
+  const [isGroupViewerOpen, setIsGroupViewerOpen] = useState(false);
+  const [viewingGroup, setViewingGroup] = useState<ContactGroup | null>(null);
   const [callNowContact, setCallNowContact] = useState<Contact | null>(null);
 
   // Enhanced filter state
@@ -481,6 +486,11 @@ export default function Contacts() {
     if (confirm(`Are you sure you want to delete the group "${groupName}"? This will remove all contacts from this group but not delete the contacts themselves.`)) {
       deleteGroupMutation.mutate(groupId);
     }
+  };
+
+  const handleViewGroupMembers = (group: ContactGroup) => {
+    setViewingGroup(group);
+    setIsGroupViewerOpen(true);
   };
 
   const handleCloseGroupsModal = () => {
@@ -989,6 +999,15 @@ export default function Contacts() {
                             {group.name.charAt(0).toUpperCase()}
                           </div>
                           <div className="flex space-x-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewGroupMembers(group)}
+                              data-testid={`button-view-group-${group.id}`}
+                              title="View group members"
+                            >
+                              <Users className="w-4 h-4" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="sm"
@@ -2007,6 +2026,18 @@ export default function Contacts() {
               setSelectedContacts([]);
             }}
           />
+
+          {/* Group Member Viewer Modal */}
+          {viewingGroup && (
+            <GroupMemberViewer
+              group={viewingGroup}
+              isOpen={isGroupViewerOpen}
+              onClose={() => {
+                setIsGroupViewerOpen(false);
+                setViewingGroup(null);
+              }}
+            />
+          )}
         </main>
       </div>
     </div>
