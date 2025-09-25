@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import type { Contact } from "@/types";
 
@@ -25,6 +26,9 @@ const contactSchema = z.object({
   name: z.string().min(1, "Client Name is required"),
   phone: z.string().min(1, "Phone Number is required"),
   email: z.string().optional().or(z.literal('')),
+  
+  // Group Assignment
+  groupId: z.string().optional(),
   
   // Call Personalization Fields
   eventType: z.string().optional(),
@@ -54,12 +58,31 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
   const queryClient = useQueryClient();
   const isEditing = !!contact;
 
+  // Fetch contact groups for dropdown
+  const { data: contactGroups = [] } = useQuery({
+    queryKey: ['/api/contact-groups'],
+    enabled: isOpen,
+  }) as { data: any[] };
+
+  // For editing contacts, fetch current group membership
+  const { data: currentMembership } = useQuery({
+    queryKey: ['/api/contact-groups', contact?.id, 'membership'],
+    enabled: isOpen && !!contact,
+    queryFn: async () => {
+      if (!contact) return null;
+      const response = await apiRequest('GET', `/api/contacts/${contact.id}/groups`);
+      const groups = await response.json();
+      return groups.length > 0 ? groups[0].groupId : null;
+    }
+  });
+
   const form = useForm<ContactForm>({
     resolver: zodResolver(contactSchema),
     defaultValues: {
       name: contact?.name || "",
       phone: contact?.phone || "",
       email: contact?.email || "",
+      groupId: "",
       eventType: contact?.appointmentType || "",
       contactPerson: contact?.ownerName || "",
       businessName: contact?.companyName || "",
@@ -107,6 +130,7 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
         name: contact.name,
         phone: contact.phone,
         email: contact.email || "",
+        groupId: currentMembership || "",
         eventType: contact.appointmentType || "",
         contactPerson: contact.ownerName || "",
         businessName: contact.companyName || "",
@@ -122,6 +146,7 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
         name: "",
         phone: "",
         email: "",
+        groupId: "",
         eventType: "",
         contactPerson: "",
         businessName: "",
@@ -132,7 +157,7 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
         notes: "",
       });
     }
-  }, [contact, form]);
+  }, [contact, form, currentMembership]);
 
   // Reset form when modal opens/closes
   React.useEffect(() => {
@@ -141,6 +166,7 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
         name: "",
         phone: "",
         email: "",
+        groupId: "",
         eventType: "",
         contactPerson: "",
         businessName: "",
@@ -172,11 +198,21 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
       };
       
       const response = await apiRequest('POST', '/api/contacts', payload);
-      return response.json();
+      const newContact = await response.json();
+      
+      // If a group was selected, add the contact to that group
+      if (data.groupId) {
+        await apiRequest('POST', `/api/contact-groups/${data.groupId}/contacts`, {
+          contactId: newContact.id
+        });
+      }
+      
+      return newContact;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
       queryClient.invalidateQueries({ queryKey: ['/api/contacts/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/contact-groups'] });
       onClose();
       toast({
         title: "Contact created",
@@ -212,11 +248,29 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
       };
       
       const response = await apiRequest('PATCH', `/api/contacts/${contact.id}`, payload);
-      return response.json();
+      const updatedContact = await response.json();
+      
+      // Handle group assignment changes
+      if (currentMembership !== data.groupId) {
+        // Remove from current group if they were in one
+        if (currentMembership) {
+          await apiRequest('DELETE', `/api/contact-groups/${currentMembership}/contacts/${contact.id}`);
+        }
+        
+        // Add to new group if one was selected
+        if (data.groupId) {
+          await apiRequest('POST', `/api/contact-groups/${data.groupId}/contacts`, {
+            contactId: contact.id
+          });
+        }
+      }
+      
+      return updatedContact;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
       queryClient.invalidateQueries({ queryKey: ['/api/contacts/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/contact-groups'] });
       onClose();
       toast({
         title: "Contact updated",
@@ -313,6 +367,39 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
                       className="border-gray-300 rounded-md"
                       data-testid="input-contact-email"
                     />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Group Assignment */}
+            <FormField
+              control={form.control}
+              name="groupId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-sm font-medium text-gray-700">Contact Group (Optional)</FormLabel>
+                  <FormControl>
+                    <Select value={field.value || ""} onValueChange={field.onChange}>
+                      <SelectTrigger data-testid="select-contact-group" className="border-gray-300 rounded-md">
+                        <SelectValue placeholder="Select a group (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">No Group</SelectItem>
+                        {contactGroups.map((group: any) => (
+                          <SelectItem key={group.id} value={group.id}>
+                            <div className="flex items-center gap-2">
+                              <div 
+                                className="w-3 h-3 rounded-full" 
+                                style={{ backgroundColor: group.color }}
+                              ></div>
+                              {group.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
