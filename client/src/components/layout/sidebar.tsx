@@ -85,6 +85,9 @@ export default function Sidebar() {
             <NavLink href="/tenants" icon="fas fa-building" testId="nav-tenant-management">
               Tenant Management
             </NavLink>
+            <NavLink href="/health" icon="fas fa-heartbeat" testId="nav-health-monitoring">
+              Health Monitoring
+            </NavLink>
             <NavLink href="/compliance" icon="fas fa-shield-alt" testId="nav-compliance">
               Compliance & Security
             </NavLink>

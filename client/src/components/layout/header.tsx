@@ -1,6 +1,8 @@
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
+import SystemHealthStatus from "@/components/health/SystemHealthStatus";
+import AlertsBanner from "@/components/health/AlertsBanner";
 
 interface PageConfig {
   title: string;
@@ -105,8 +107,12 @@ export default function Header() {
   };
 
   return (
-    <header className="bg-card border-b border-border px-6 py-4" data-testid="header">
-      <div className="flex items-center justify-between">
+    <>
+      {/* Critical Alerts Banner (Super Admin Only) */}
+      {user.role === 'super_admin' && <AlertsBanner />}
+      
+      <header className="bg-card border-b border-border px-6 py-4" data-testid="header">
+        <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-foreground" data-testid="page-title">
             {pageConfig.title}
@@ -117,6 +123,11 @@ export default function Header() {
         </div>
         
         <div className="flex items-center space-x-4">
+          {/* System Health Status (Super Admin Only) */}
+          {user.role === 'super_admin' && (
+            <SystemHealthStatus compact={true} data-testid="header-health-status" />
+          )}
+          
           {/* Notifications */}
           <button 
             className="relative p-2 text-muted-foreground hover:text-foreground transition-colors"
@@ -151,5 +162,6 @@ export default function Header() {
         </div>
       </div>
     </header>
+    </>
   );
 }

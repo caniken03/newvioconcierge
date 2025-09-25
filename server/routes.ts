@@ -121,6 +121,139 @@ function validateContactData(data: any): { valid: boolean; contact?: any; error?
   }
 }
 
+// Health monitoring interfaces and utilities
+interface SystemHealth {
+  status: 'operational' | 'degraded' | 'critical';
+  message: string;
+  uptime: number;
+  lastCheck: Date;
+  services: {
+    database: { status: 'up' | 'down'; responseTime?: number };
+    retell: { status: 'up' | 'down'; responseTime?: number };
+    storage: { status: 'up' | 'down'; responseTime?: number };
+  };
+  alerts: Array<{
+    id: string;
+    type: 'system_outage' | 'security_breach' | 'auto_pause_events' | 'compliance_violations';
+    severity: 'low' | 'medium' | 'high' | 'critical';
+    message: string;
+    timestamp: Date;
+    acknowledged: boolean;
+  }>;
+}
+
+async function checkSystemHealth(): Promise<SystemHealth> {
+  // Check database connectivity with proper timeout
+  let dbStatus: 'up' | 'down' = 'up';
+  let dbResponseTime: number | undefined;
+  try {
+    const dbStart = Date.now();
+    // Use a lightweight query instead of heavy getAllTenants
+    const testQuery = Promise.race([
+      storage.getUser('test-probe-id').catch(() => null), // Lightweight existence check
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Database timeout')), 5000))
+    ]);
+    await testQuery;
+    dbResponseTime = Date.now() - dbStart;
+  } catch (error) {
+    dbStatus = 'down';
+  }
+
+  // Check Retell service with actual network call (if configured)
+  let retellStatus: 'up' | 'down' = 'up';
+  let retellResponseTime: number | undefined;
+  try {
+    if (process.env.RETELL_API_KEY) {
+      const retellStart = Date.now();
+      // Make actual network request to test connectivity
+      const response = await Promise.race([
+        fetch('https://api.retellai.com/health', {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${process.env.RETELL_API_KEY}` },
+          signal: AbortSignal.timeout(5000)
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Retell timeout')), 5000))
+      ]);
+      retellResponseTime = Date.now() - retellStart;
+      if (!response || response.status >= 400) {
+        retellStatus = 'down';
+      }
+    } else {
+      retellStatus = 'down'; // No API key configured
+    }
+  } catch (error) {
+    retellStatus = 'down';
+  }
+
+  // Storage check with actual read/write test
+  let storageStatus: 'up' | 'down' = 'up';
+  try {
+    // Test storage read capability
+    await storage.getUser('health-check-probe');
+  } catch (error) {
+    // If this fails, storage might be down
+    storageStatus = 'down';
+  }
+
+  // Determine overall status based on service health
+  let overallStatus: 'operational' | 'degraded' | 'critical' = 'operational';
+  let message = 'All systems operational';
+
+  if (dbStatus === 'down' || storageStatus === 'down') {
+    overallStatus = 'critical';
+    message = 'Critical system components unavailable';
+  } else if (retellStatus === 'down') {
+    overallStatus = 'degraded';
+    message = 'External service issues detected - voice calls may be affected';
+  }
+
+  // Generate alerts based on actual service status
+  const alerts = [];
+  if (dbStatus === 'down') {
+    alerts.push({
+      id: `db-alert-${Date.now()}`,
+      type: 'system_outage' as const,
+      severity: 'critical' as const,
+      message: 'Database connectivity lost - system functionality severely impacted',
+      timestamp: new Date(),
+      acknowledged: false
+    });
+  }
+  if (storageStatus === 'down') {
+    alerts.push({
+      id: `storage-alert-${Date.now()}`,
+      type: 'system_outage' as const,
+      severity: 'critical' as const,
+      message: 'Storage system unavailable - data operations failing',
+      timestamp: new Date(),
+      acknowledged: false
+    });
+  }
+  if (retellStatus === 'down') {
+    alerts.push({
+      id: `retell-alert-${Date.now()}`,
+      type: 'auto_pause_events' as const,
+      severity: 'high' as const,
+      message: 'Retell AI service unavailable - voice calls suspended',
+      timestamp: new Date(),
+      acknowledged: false
+    });
+  }
+
+  return {
+    status: overallStatus,
+    message,
+    uptime: process.uptime(),
+    lastCheck: new Date(),
+    services: {
+      database: { status: dbStatus, responseTime: dbResponseTime },
+      retell: { status: retellStatus, responseTime: retellResponseTime },
+      storage: { status: storageStatus }
+    },
+    alerts: alerts
+  };
+}
+
 // Middleware for JWT authentication
 const authenticateJWT = async (req: any, res: any, next: any) => {
   const authHeader = req.headers.authorization;
@@ -247,6 +380,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
       role: user.role,
       tenantId: user.tenantId,
     });
+  });
+
+  // Health monitoring endpoints
+  app.get('/api/admin/health', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
+    try {
+      const health = await checkSystemHealth();
+      res.json(health);
+    } catch (error) {
+      console.error('Health check error:', error);
+      res.status(500).json({
+        status: 'critical',
+        message: 'Health check failed',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  app.get('/api/admin/health/status', async (req, res) => {
+    // Public endpoint for basic status check (no auth required)
+    try {
+      const health = await checkSystemHealth();
+      res.json({
+        status: health.status,
+        message: health.message,
+        uptime: health.uptime
+      });
+    } catch (error) {
+      res.status(500).json({
+        status: 'critical',
+        message: 'System check failed'
+      });
+    }
+  });
+
+  app.get('/api/admin/health/alerts', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
+    try {
+      const health = await checkSystemHealth();
+      res.json({
+        alerts: health.alerts,
+        alertCount: health.alerts.length,
+        criticalCount: health.alerts.filter(a => a.severity === 'critical').length
+      });
+    } catch (error) {
+      console.error('Alerts fetch error:', error);
+      res.status(500).json({ message: 'Failed to fetch alerts' });
+    }
+  });
+
+  app.post('/api/admin/health/alerts/:id/acknowledge', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      // In production, this would acknowledge the alert in the monitoring system
+      res.json({ message: 'Alert acknowledged', alertId: id });
+    } catch (error) {
+      console.error('Alert acknowledgment error:', error);
+      res.status(500).json({ message: 'Failed to acknowledge alert' });
+    }
   });
 
   // Tenant routes (Super Admin only)

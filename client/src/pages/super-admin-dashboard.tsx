@@ -3,9 +3,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+import SystemHealthStatus from "@/components/health/SystemHealthStatus";
 
 export default function SuperAdminDashboard() {
+  const [, setLocation] = useLocation();
+  
   const { data: tenants = [], isLoading } = useQuery<any[]>({
     queryKey: ['/api/admin/tenants'],
   });
@@ -34,6 +37,11 @@ export default function SuperAdminDashboard() {
 
   return (
     <div className="p-6" data-testid="super-admin-dashboard">
+      {/* Health Monitoring Card */}
+      <div className="mb-8">
+        <SystemHealthStatus onClick={() => setLocation('/health')} />
+      </div>
+
       {/* Key Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <Card>
