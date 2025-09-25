@@ -64,6 +64,7 @@ export interface IStorage {
   deleteContact(id: string): Promise<void>;
   searchContacts(tenantId: string, query: string): Promise<Contact[]>;
   getContactStats(tenantId: string): Promise<{ total: number; pending: number; confirmed: number; }>;
+  getAppointments(tenantId: string): Promise<Contact[]>;
 
   // Contact groups operations
   getContactGroup(id: string): Promise<ContactGroup | undefined>;
@@ -306,6 +307,18 @@ export class DatabaseStorage implements IStorage {
       pending: Number(stats.pending),
       confirmed: Number(stats.confirmed),
     };
+  }
+
+  async getAppointments(tenantId: string): Promise<Contact[]> {
+    return await db
+      .select()
+      .from(contacts)
+      .where(and(
+        eq(contacts.tenantId, tenantId),
+        eq(contacts.isActive, true),
+        sql`${contacts.appointmentTime} IS NOT NULL`
+      ))
+      .orderBy(asc(contacts.appointmentTime));
   }
 
   async getClientAnalytics(tenantId: string): Promise<{

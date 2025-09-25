@@ -411,6 +411,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Appointments endpoint
+  app.get('/api/appointments', authenticateJWT, async (req: any, res) => {
+    try {
+      const appointments = await storage.getAppointments(req.user.tenantId);
+      
+      // Transform contacts with appointments into appointment format
+      const serializedAppointments = appointments.map((contact: any) => ({
+        id: contact.id,
+        contactName: contact.name,
+        contactPhone: contact.phone,
+        appointmentTime: contact.appointmentTime ? contact.appointmentTime.toISOString() : null,
+        status: contact.appointmentStatus || 'pending',
+        notes: contact.notes
+      })).filter((apt: any) => apt.appointmentTime); // Only include contacts with appointment times
+
+      res.json(serializedAppointments);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch appointments' });
+    }
+  });
+
   app.get('/api/contacts/:id', authenticateJWT, requireContactAccess, async (req, res) => {
     try {
       const contact = await storage.getContact(req.params.id);
