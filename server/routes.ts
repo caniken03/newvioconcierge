@@ -1276,8 +1276,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const results = [];
       const callErrors = [];
 
-      // Process valid contacts for calling
-      for (const contact of validContacts) {
+      // Process valid contacts for calling (with delay to prevent Retell AI conflicts)
+      for (let i = 0; i < validContacts.length; i++) {
+        const contact = validContacts[i];
+        
+        // Add 2-second delay between calls to prevent Retell AI service conflicts
+        if (i > 0) {
+          console.log(`⏱️ Waiting 2 seconds before next call to prevent service conflicts...`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
         try {
           // Create call session
           const sessionId = `bulk_call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
