@@ -51,7 +51,10 @@ import {
   RefreshCw,
   ThumbsUp,
   ThumbsDown,
-  Info
+  Info,
+  Calendar,
+  Phone,
+  Tag
 } from "lucide-react";
 import type { Contact, ContactGroup } from "@/types";
 
@@ -2023,10 +2026,10 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
       return appointmentDateTime > new Date();
     });
 
-    const appointmentTypes = [...new Set(appointmentData
+    const appointmentTypes = Array.from(new Set(appointmentData
       .map(contact => contact.appointmentType)
       .filter(Boolean)
-    )];
+    ));
 
     const todayDate = new Date().toDateString();
     const appointmentsToday = upcomingAppointments.filter(contact => {
@@ -2240,6 +2243,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     const [appointmentsCreated, setAppointmentsCreated] = useState(0);
     const [remindersScheduled, setRemindersScheduled] = useState(0);
     const [importErrors, setImportErrors] = useState<string[]>([]);
+    const [createdContactIds, setCreatedContactIds] = useState<string[]>([]);
     
     const totalContacts = csvFile?.rowCount || 0;
     const appointmentData = csvFile ? csvFile.rows.map((row, index) => {
@@ -2276,39 +2280,119 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
       }
     })();
 
-    // Simulate import process (in real implementation, this would be actual API calls)
-    useEffect(() => {
-      if (currentPhase === 'contacts' && contactsImported < totalContacts) {
-        const timer = setTimeout(() => {
-          setContactsImported(prev => Math.min(prev + 1, totalContacts));
-        }, 100);
-        return () => clearTimeout(timer);
-      } else if (currentPhase === 'contacts' && contactsImported === totalContacts) {
+    // Real API mutations for import process
+    const importContactsMutation = useMutation({
+      mutationFn: async (contacts: any[]) => {
+        return apiRequest('/api/import/contacts', 'POST', { contacts });
+      },
+      onSuccess: (data: any) => {
+        setContactsImported(data.created);
+        setCreatedContactIds(data.contactIds || []);
+        if (data.errors && data.errors.length > 0) {
+          setImportErrors(prev => [...prev, ...data.errors.map((e: any) => e.error)]);
+        }
         setTimeout(() => setCurrentPhase('appointments'), 500);
+      },
+      onError: (error: any) => {
+        setImportErrors(prev => [...prev, 'Failed to import contacts: ' + error.message]);
+        setCurrentPhase('complete');
+      },
+    });
+
+    const importAppointmentsMutation = useMutation({
+      mutationFn: async (appointments: any[]) => {
+        return apiRequest('/api/import/appointments', 'POST', { appointments });
+      },
+      onSuccess: (data: any) => {
+        setAppointmentsCreated(data.created);
+        if (data.errors && data.errors.length > 0) {
+          setImportErrors(prev => [...prev, ...data.errors.map((e: any) => e.error)]);
+        }
+        setTimeout(() => setCurrentPhase('reminders'), 500);
+      },
+      onError: (error: any) => {
+        setImportErrors(prev => [...prev, 'Failed to create appointments: ' + error.message]);
+        setCurrentPhase('complete');
+      },
+    });
+
+    const importRemindersMutation = useMutation({
+      mutationFn: async (reminders: any[]) => {
+        return apiRequest('/api/import/reminders', 'POST', { reminders });
+      },
+      onSuccess: (data: any) => {
+        setRemindersScheduled(data.scheduled);
+        if (data.errors && data.errors.length > 0) {
+          setImportErrors(prev => [...prev, ...data.errors.map((e: any) => e.error)]);
+        }
+        setTimeout(() => setCurrentPhase('complete'), 500);
+      },
+      onError: (error: any) => {
+        setImportErrors(prev => [...prev, 'Failed to schedule reminders: ' + error.message]);
+        setCurrentPhase('complete');
+      },
+    });
+
+    // Start import process when component mounts
+    useEffect(() => {
+      if (currentPhase === 'contacts' && !importContactsMutation.isPending && contactsImported === 0) {
+        const contactsToImport = appointmentData.map(contact => ({
+          name: contact.name,
+          phone: contact.phone,
+          email: contact.email,
+          appointmentTime: contact.appointmentDate && contact.appointmentTime ? 
+            `${contact.appointmentDate} ${contact.appointmentTime}` : undefined,
+          appointmentType: contact.appointmentType,
+          appointmentDuration: contact.duration ? parseInt(contact.duration) : undefined,
+          specialInstructions: contact.specialInstructions,
+          notes: contact.notes,
+          priorityLevel: 'normal' as const,
+          preferredContactMethod: 'voice' as const,
+        }));
+
+        importContactsMutation.mutate(contactsToImport);
       }
-    }, [currentPhase, contactsImported, totalContacts]);
+    }, [currentPhase]);
 
     useEffect(() => {
-      if (currentPhase === 'appointments' && appointmentsCreated < upcomingAppointments.length) {
-        const timer = setTimeout(() => {
-          setAppointmentsCreated(prev => Math.min(prev + 1, upcomingAppointments.length));
-        }, 200);
-        return () => clearTimeout(timer);
-      } else if (currentPhase === 'appointments' && appointmentsCreated === upcomingAppointments.length) {
+      if (currentPhase === 'appointments' && !importAppointmentsMutation.isPending && appointmentsCreated === 0 && upcomingAppointments.length > 0 && createdContactIds.length > 0) {
+        // Create appointments using real contact IDs returned from import
+        const appointmentsToCreate = upcomingAppointments.slice(0, createdContactIds.length).map((contact, index) => ({
+          contactId: createdContactIds[index],
+          appointmentTime: `${contact.appointmentDate} ${contact.appointmentTime}`,
+          appointmentType: contact.appointmentType,
+          appointmentDuration: contact.appointmentDuration || 60,
+          calendarProvider: settingsData.calendarProvider || 'cal.com' as const,
+          eventTypeId: settingsData.eventTypeId || 'default',
+        }));
+
+        importAppointmentsMutation.mutate(appointmentsToCreate);
+      } else if (currentPhase === 'appointments' && upcomingAppointments.length === 0) {
+        // Skip appointment creation if no appointments
         setTimeout(() => setCurrentPhase('reminders'), 500);
       }
-    }, [currentPhase, appointmentsCreated, upcomingAppointments.length]);
+    }, [currentPhase, createdContactIds]);
 
     useEffect(() => {
-      if (currentPhase === 'reminders' && remindersScheduled < upcomingAppointments.length) {
-        const timer = setTimeout(() => {
-          setRemindersScheduled(prev => Math.min(prev + 1, upcomingAppointments.length));
-        }, 150);
-        return () => clearTimeout(timer);
-      } else if (currentPhase === 'reminders' && remindersScheduled === upcomingAppointments.length) {
+      if (currentPhase === 'reminders' && !importRemindersMutation.isPending && remindersScheduled === 0 && upcomingAppointments.length > 0 && createdContactIds.length > 0) {
+        const remindersToSchedule = upcomingAppointments.slice(0, createdContactIds.length).map((contact, index) => {
+          const appointmentDateTime = new Date(`${contact.appointmentDate} ${contact.appointmentTime}`);
+          const reminderTime = new Date(appointmentDateTime.getTime() - (settingsData.reminderMinutes || 24 * 60) * 60 * 1000);
+          
+          return {
+            contactId: createdContactIds[index], // Use actual contact IDs
+            reminderTime: reminderTime.toISOString(),
+            callBeforeHours: Math.round((settingsData.reminderMinutes || 24 * 60) / 60),
+            voiceSettings: settingsData.voiceSettings,
+          };
+        });
+
+        importRemindersMutation.mutate(remindersToSchedule);
+      } else if (currentPhase === 'reminders' && upcomingAppointments.length === 0) {
+        // Skip reminder scheduling if no appointments
         setTimeout(() => setCurrentPhase('complete'), 500);
       }
-    }, [currentPhase, remindersScheduled, upcomingAppointments.length]);
+    }, [currentPhase, createdContactIds]);
 
     return (
       <TooltipProvider>

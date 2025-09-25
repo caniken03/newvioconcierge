@@ -65,6 +65,7 @@ export interface IStorage {
   searchContacts(tenantId: string, query: string): Promise<Contact[]>;
   getContactStats(tenantId: string): Promise<{ total: number; pending: number; confirmed: number; }>;
   getAppointments(tenantId: string): Promise<Contact[]>;
+  bulkCreateContacts(tenantId: string, contactsData: Omit<InsertContact, 'tenantId'>[]): Promise<{ created: number; contactIds: string[]; errors: any[] }>;
 
   // Contact groups operations
   getContactGroup(id: string): Promise<ContactGroup | undefined>;
@@ -566,16 +567,19 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async bulkCreateContacts(tenantId: string, contactsData: Omit<InsertContact, 'tenantId'>[]): Promise<{ created: number; errors: any[] }> {
+  async bulkCreateContacts(tenantId: string, contactsData: Omit<InsertContact, 'tenantId'>[]): Promise<{ created: number; contactIds: string[]; errors: any[] }> {
     const errors: any[] = [];
+    const contactIds: string[] = [];
     let created = 0;
 
     for (const contactData of contactsData) {
       try {
-        await db.insert(contacts).values({
+        const [newContact] = await db.insert(contacts).values({
           ...contactData,
           tenantId,
-        });
+        }).returning({ id: contacts.id });
+        
+        contactIds.push(newContact.id);
         created++;
       } catch (error) {
         errors.push({
@@ -585,7 +589,7 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    return { created, errors };
+    return { created, contactIds, errors };
   }
 
   async exportContactsToCSV(tenantId: string): Promise<Contact[]> {

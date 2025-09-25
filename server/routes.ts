@@ -2121,6 +2121,188 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bulk CSV Import API routes
+  app.post('/api/import/contacts', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      const contactsSchema = z.array(z.object({
+        name: z.string().min(1),
+        phone: z.string().min(1),
+        email: z.string().email().optional(),
+        appointmentTime: z.string().optional(),
+        appointmentType: z.string().optional(),
+        appointmentDuration: z.number().optional(),
+        specialInstructions: z.string().optional(),
+        notes: z.string().optional(),
+        priorityLevel: z.enum(['normal', 'high', 'urgent']).optional(),
+        preferredContactMethod: z.enum(['voice', 'email', 'sms']).optional(),
+      }));
+
+      const contactsData = contactsSchema.parse(req.body.contacts);
+      const tenantId = req.user.tenantId;
+
+      // Transform CSV data to contact format
+      const transformedContacts = contactsData.map(contact => ({
+        ...contact,
+        appointmentTime: contact.appointmentTime ? new Date(contact.appointmentTime) : undefined,
+        appointmentStatus: 'pending' as const,
+        callBeforeHours: 24,
+        timezone: 'Europe/London',
+        bookingSource: 'manual' as const,
+        priorityLevel: contact.priorityLevel || 'normal' as const,
+        preferredContactMethod: contact.preferredContactMethod || 'voice' as const,
+      }));
+
+      const result = await storage.bulkCreateContacts(tenantId, transformedContacts);
+
+      res.json({
+        message: `Successfully imported ${result.created} contacts`,
+        created: result.created,
+        contactIds: result.contactIds || [], // Include created contact IDs
+        errors: result.errors,
+        totalRequested: contactsData.length,
+      });
+    } catch (error) {
+      console.error('Bulk contacts import error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Invalid contact data format', errors: error.errors });
+      }
+      res.status(500).json({ message: 'Failed to import contacts' });
+    }
+  });
+
+  app.post('/api/import/appointments', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      const appointmentsSchema = z.array(z.object({
+        contactId: z.string().uuid(),
+        appointmentTime: z.string(),
+        appointmentType: z.string().optional(),
+        appointmentDuration: z.number().optional(),
+        calendarProvider: z.enum(['cal.com', 'calendly']).optional(),
+        eventTypeId: z.string().optional(),
+      }));
+
+      const appointmentsData = appointmentsSchema.parse(req.body.appointments);
+      const tenantId = req.user.tenantId;
+      let created = 0;
+      const errors: any[] = [];
+
+      // Create appointment records by updating contacts with appointment details
+      for (const appointment of appointmentsData) {
+        try {
+          // SECURITY: Verify contact belongs to user's tenant before updating
+          const contact = await storage.getContact(appointment.contactId);
+          if (!contact || contact.tenantId !== tenantId) {
+            errors.push({
+              contactId: appointment.contactId,
+              error: 'Contact not found or access denied',
+            });
+            continue;
+          }
+
+          // Update contact with appointment information
+          await storage.updateContact(appointment.contactId, {
+            appointmentTime: new Date(appointment.appointmentTime),
+            appointmentType: appointment.appointmentType,
+            appointmentDuration: appointment.appointmentDuration || 60,
+            appointmentStatus: 'pending',
+            bookingSource: appointment.calendarProvider || 'manual',
+          });
+
+          // TODO: In production, integrate with external calendar providers
+          if (appointment.calendarProvider === 'cal.com') {
+            // Future: call calComService.createBooking() here
+            // const booking = await calComService.createBooking(...);
+          } else if (appointment.calendarProvider === 'calendly') {
+            // Future: call calendlyService.createEvent() here  
+            // const event = await calendlyService.createEvent(...);
+          }
+          
+          created++;
+        } catch (error) {
+          errors.push({
+            contactId: appointment.contactId,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+
+      res.json({
+        message: `Successfully scheduled ${created} appointments`,
+        created,
+        errors,
+        totalRequested: appointmentsData.length,
+      });
+    } catch (error) {
+      console.error('Bulk appointments creation error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Invalid appointment data format', errors: error.errors });
+      }
+      res.status(500).json({ message: 'Failed to create appointments' });
+    }
+  });
+
+  app.post('/api/import/reminders', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      const remindersSchema = z.array(z.object({
+        contactId: z.string().uuid(),
+        reminderTime: z.string(),
+        callBeforeHours: z.number().optional(),
+      }));
+
+      const remindersData = remindersSchema.parse(req.body.reminders);
+      const tenantId = req.user.tenantId;
+      let scheduled = 0;
+      const errors: any[] = [];
+
+      // Create follow-up tasks for voice reminders
+      for (const reminder of remindersData) {
+        try {
+          // SECURITY: Verify contact belongs to user's tenant before creating reminder
+          const contact = await storage.getContact(reminder.contactId);
+          if (!contact || contact.tenantId !== tenantId) {
+            errors.push({
+              contactId: reminder.contactId,
+              error: 'Contact not found or access denied',
+            });
+            continue;
+          }
+
+          const reminderDateTime = new Date(reminder.reminderTime);
+          
+          await storage.createFollowUpTask({
+            tenantId,
+            contactId: reminder.contactId,
+            scheduledTime: reminderDateTime,
+            taskType: 'initial_call',
+            autoExecution: true,
+            status: 'pending',
+            attempts: 0,
+          });
+          
+          scheduled++;
+        } catch (error) {
+          errors.push({
+            contactId: reminder.contactId,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+
+      res.json({
+        message: `Successfully scheduled ${scheduled} voice reminders`,
+        scheduled,
+        errors,
+        totalRequested: remindersData.length,
+      });
+    } catch (error) {
+      console.error('Bulk reminders scheduling error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Invalid reminder data format', errors: error.errors });
+      }
+      res.status(500).json({ message: 'Failed to schedule reminders' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
