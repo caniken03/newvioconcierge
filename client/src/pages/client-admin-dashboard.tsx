@@ -128,7 +128,11 @@ export default function ClientAdminDashboard() {
     <div className="p-6 space-y-6" data-testid="client-admin-dashboard">
       {/* Primary KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card>
+        <Card 
+          className="cursor-pointer hover:shadow-md transition-shadow" 
+          onClick={navigateToAppointments}
+          data-testid="card-todays-appointments"
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -141,14 +145,21 @@ export default function ClientAdminDashboard() {
                 <Calendar className="w-6 h-6" />
               </div>
             </div>
-            <div className="flex items-center mt-4">
-              <CheckCircle className="w-4 h-4 text-green-500 mr-1" />
-              <span className="text-xs text-green-500 font-medium">{contactStats.confirmed} confirmed</span>
+            <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center">
+                <CheckCircle className="w-4 h-4 text-green-500 mr-1" />
+                <span className="text-xs text-green-500 font-medium">{contactStats.confirmed} confirmed</span>
+              </div>
+              <ExternalLink className="w-4 h-4 text-muted-foreground" />
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card 
+          className="cursor-pointer hover:shadow-md transition-shadow" 
+          onClick={navigateToCalls}
+          data-testid="card-pending-calls"
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -161,14 +172,21 @@ export default function ClientAdminDashboard() {
                 <Phone className="w-6 h-6" />
               </div>
             </div>
-            <div className="flex items-center mt-4">
-              <Clock className="w-4 h-4 text-orange-500 mr-1" />
-              <span className="text-xs text-orange-500 font-medium">{Math.min(overdueCalls, contactStats.pending)} overdue</span>
+            <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center">
+                <Clock className="w-4 h-4 text-orange-500 mr-1" />
+                <span className="text-xs text-orange-500 font-medium">{Math.min(overdueCalls, contactStats.pending)} overdue</span>
+              </div>
+              <ExternalLink className="w-4 h-4 text-muted-foreground" />
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card 
+          className="cursor-pointer hover:shadow-md transition-shadow" 
+          onClick={navigateToAnalytics}
+          data-testid="card-success-rate"
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -181,15 +199,22 @@ export default function ClientAdminDashboard() {
                 <TrendingUp className="w-6 h-6" />
               </div>
             </div>
-            <div className="flex items-center mt-4">
-              <TrendingUp className="w-4 h-4 text-green-500 mr-1" />
-              <span className="text-xs text-green-500 font-medium">+{((callSuccessRate - 80) / 80 * 100).toFixed(1)}%</span>
-              <span className="text-xs text-muted-foreground ml-1">vs baseline</span>
+            <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center">
+                <TrendingUp className="w-4 h-4 text-green-500 mr-1" />
+                <span className="text-xs text-green-500 font-medium">+{((callSuccessRate - 80) / 80 * 100).toFixed(1)}%</span>
+                <span className="text-xs text-muted-foreground ml-1">vs baseline</span>
+              </div>
+              <ExternalLink className="w-4 h-4 text-muted-foreground" />
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card 
+          className="cursor-pointer hover:shadow-md transition-shadow" 
+          onClick={navigateToAnalytics}
+          data-testid="card-no-show-rate"
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -202,10 +227,13 @@ export default function ClientAdminDashboard() {
                 <TrendingDown className="w-6 h-6" />
               </div>
             </div>
-            <div className="flex items-center mt-4">
-              <TrendingDown className="w-4 h-4 text-green-500 mr-1" />
-              <span className="text-xs text-green-500 font-medium">-{((15 - noShowRate) / 15 * 100).toFixed(1)}%</span>
-              <span className="text-xs text-muted-foreground ml-1">vs baseline</span>
+            <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center">
+                <TrendingDown className="w-4 h-4 text-green-500 mr-1" />
+                <span className="text-xs text-green-500 font-medium">-{((15 - noShowRate) / 15 * 100).toFixed(1)}%</span>
+                <span className="text-xs text-muted-foreground ml-1">vs baseline</span>
+              </div>
+              <ExternalLink className="w-4 h-4 text-muted-foreground" />
             </div>
           </CardContent>
         </Card>
