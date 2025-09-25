@@ -12,6 +12,7 @@ import ClientAdminDashboard from "@/pages/client-admin-dashboard";
 import Contacts from "@/pages/contacts";
 import Appointments from "@/pages/appointments";
 import ContactAnalytics from "@/pages/contact-analytics";
+import Calls from "@/pages/calls";
 import TenantManagement from "@/pages/tenant-management";
 import SystemSettings from "@/pages/system-settings";
 import Profile from "@/pages/profile";
@@ -40,6 +41,7 @@ function Router() {
       <Route path="/super-admin" component={SuperAdminDashboard} />
       <Route path="/client-admin" component={ClientAdminDashboard} />
       <Route path="/contacts" component={Contacts} />
+      <Route path="/calls" component={Calls} />
       <Route path="/appointments" component={Appointments} />
       <Route path="/analytics" component={ContactAnalytics} />
       <Route path="/tenants" component={TenantManagement} />
