@@ -18,6 +18,7 @@ import SystemSettings from "@/pages/system-settings";
 import Profile from "@/pages/profile";
 import HealthMonitoring from "@/pages/health-monitoring";
 import AnalyticsCenter from "@/pages/analytics-center";
+import Compliance from "@/pages/compliance";
 
 function Router() {
   const { user, isLoading } = useAuth();
@@ -49,6 +50,7 @@ function Router() {
       <Route path="/analytics-center" component={AnalyticsCenter} />
       <Route path="/tenants" component={TenantManagement} />
       <Route path="/health" component={HealthMonitoring} />
+      <Route path="/compliance" component={Compliance} />
       <Route path="/system" component={SystemSettings} />
       <Route path="/profile" component={Profile} />
       <Route component={NotFound} />
