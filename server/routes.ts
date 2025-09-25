@@ -15,7 +15,12 @@ import { calComService } from "./services/cal-com";
 import { calendlyService } from "./services/calendly";
 import { businessTemplateService } from "./services/business-templates";
 
-const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "fallback_secret";
+const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET;
+
+if (!JWT_SECRET) {
+  console.error("CRITICAL: JWT_SECRET or SESSION_SECRET environment variable is required for security");
+  process.exit(1);
+}
 
 // Ensure upload directory exists
 const uploadDir = '/tmp/uploads/';
@@ -667,6 +672,164 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(tenant);
     } catch (error) {
       res.status(400).json({ message: 'Failed to update tenant' });
+    }
+  });
+
+  // ========================================
+  // ABUSE PROTECTION & SECURITY API ROUTES
+  // ========================================
+
+  // Abuse Protection Dashboard (Super Admin only)
+  app.get('/api/admin/abuse-protection/dashboard', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
+    try {
+      const dashboard = await storage.getAbuseProtectionDashboard();
+      res.json(dashboard);
+    } catch (error) {
+      console.error('Failed to fetch abuse protection dashboard:', error);
+      res.status(500).json({ message: 'Failed to fetch abuse protection dashboard' });
+    }
+  });
+
+  // Rate Limiting Management
+  app.get('/api/admin/abuse-protection/rate-limits/:tenantId', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
+    try {
+      const { tenantId } = req.params;
+      const rateLimitCheck = await storage.checkRateLimits(tenantId);
+      res.json(rateLimitCheck);
+    } catch (error) {
+      console.error('Failed to check rate limits:', error);
+      res.status(500).json({ message: 'Failed to check rate limits' });
+    }
+  });
+
+  app.post('/api/admin/abuse-protection/rate-limits/:tenantId/reset', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
+    try {
+      const { tenantId } = req.params;
+      const { timeWindow } = req.body;
+      
+      const validTimeWindows = ['15_minutes', '1_hour', '24_hours'];
+      if (!validTimeWindows.includes(timeWindow)) {
+        return res.status(400).json({ message: 'Invalid time window' });
+      }
+
+      await storage.resetRateLimitWindow(tenantId, timeWindow);
+      res.json({ message: `Rate limit window ${timeWindow} reset successfully` });
+    } catch (error) {
+      console.error('Failed to reset rate limit window:', error);
+      res.status(500).json({ message: 'Failed to reset rate limit window' });
+    }
+  });
+
+  // Comprehensive Protection Check
+  app.post('/api/admin/abuse-protection/check', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
+    try {
+      const checkSchema = z.object({
+        tenantId: z.string(),
+        phoneNumber: z.string().optional(),
+        scheduledTime: z.string().optional()
+      });
+
+      const { tenantId, phoneNumber, scheduledTime } = checkSchema.parse(req.body);
+      const callTime = scheduledTime ? new Date(scheduledTime) : undefined;
+
+      const protectionCheck = await storage.performComprehensiveProtectionCheck(tenantId, phoneNumber, callTime);
+      res.json(protectionCheck);
+    } catch (error) {
+      console.error('Failed to perform protection check:', error);
+      res.status(500).json({ message: 'Failed to perform protection check' });
+    }
+  });
+
+  // Abuse Detection Events Management
+  app.get('/api/admin/abuse-protection/events', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
+    try {
+      const { tenantId, severity, limit = 50 } = req.query;
+      const events = await storage.getAbuseDetectionEvents(
+        tenantId as string | undefined,
+        severity as string | undefined,
+        parseInt(limit as string)
+      );
+      res.json(events);
+    } catch (error) {
+      console.error('Failed to fetch abuse detection events:', error);
+      res.status(500).json({ message: 'Failed to fetch abuse detection events' });
+    }
+  });
+
+  app.post('/api/admin/abuse-protection/events', authenticateJWT, requireRole(['super_admin']), async (req: any, res) => {
+    try {
+      const eventSchema = z.object({
+        tenantId: z.string(),
+        eventType: z.string(),
+        severity: z.enum(['low', 'medium', 'high', 'critical']),
+        description: z.string(),
+        metadata: z.string().optional(),
+        autoBlocked: z.boolean().default(false)
+      });
+
+      const eventData = eventSchema.parse(req.body);
+      const event = await storage.createAbuseDetectionEvent(eventData);
+      res.json(event);
+    } catch (error) {
+      console.error('Failed to create abuse detection event:', error);
+      res.status(500).json({ message: 'Failed to create abuse detection event' });
+    }
+  });
+
+  app.patch('/api/admin/abuse-protection/events/:eventId/resolve', authenticateJWT, requireRole(['super_admin']), async (req: any, res) => {
+    try {
+      const { eventId } = req.params;
+      const resolvedEvent = await storage.resolveAbuseDetectionEvent(eventId, req.user.id);
+      res.json(resolvedEvent);
+    } catch (error) {
+      console.error('Failed to resolve abuse detection event:', error);
+      res.status(500).json({ message: 'Failed to resolve abuse detection event' });
+    }
+  });
+
+  // Tenant Suspension Management
+  app.post('/api/admin/abuse-protection/suspend', authenticateJWT, requireRole(['super_admin']), async (req: any, res) => {
+    try {
+      const suspensionSchema = z.object({
+        tenantId: z.string(),
+        suspensionType: z.enum(['automatic', 'manual', 'scheduled']),
+        reason: z.string(),
+        triggeredBy: z.enum(['abuse_detection', 'admin_action', 'system_maintenance']),
+        metadata: z.string().optional()
+      });
+
+      const suspensionData = suspensionSchema.parse(req.body);
+      const suspension = await storage.suspendTenant({
+        ...suspensionData,
+        suspendedBy: req.user.id,
+        isActive: true
+      });
+
+      res.json(suspension);
+    } catch (error) {
+      console.error('Failed to suspend tenant:', error);
+      res.status(500).json({ message: 'Failed to suspend tenant' });
+    }
+  });
+
+  app.post('/api/admin/abuse-protection/reactivate/:tenantId', authenticateJWT, requireRole(['super_admin']), async (req: any, res) => {
+    try {
+      const { tenantId } = req.params;
+      const reactivation = await storage.reactivateTenant(tenantId, req.user.id);
+      res.json(reactivation);
+    } catch (error) {
+      console.error('Failed to reactivate tenant:', error);
+      res.status(500).json({ message: 'Failed to reactivate tenant' });
+    }
+  });
+
+  app.get('/api/admin/abuse-protection/suspensions', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
+    try {
+      const activeSuspensions = await storage.getActiveSuspensions();
+      res.json(activeSuspensions);
+    } catch (error) {
+      console.error('Failed to fetch active suspensions:', error);
+      res.status(500).json({ message: 'Failed to fetch active suspensions' });
     }
   });
 
@@ -1558,9 +1721,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // ABUSE PROTECTION: Atomic tenant-level check and reserve before bulk processing
+      const globalProtectionCheck = await storage.checkAndReserveCall(
+        req.user.tenantId,
+        undefined, // No specific phone for tenant-level check
+        triggerTime ? new Date(triggerTime) : new Date()
+      );
+
+      if (!globalProtectionCheck.allowed) {
+        console.warn(`🛡️ Bulk call blocked by abuse protection for tenant ${req.user.tenantId}: ${globalProtectionCheck.violations.join(', ')}`);
+        
+        // Log abuse detection event for bulk call block
+        await storage.createAbuseDetectionEvent({
+          tenantId: req.user.tenantId,
+          eventType: 'bulk_call_blocked',
+          severity: 'high',
+          description: `Bulk call attempt blocked: ${globalProtectionCheck.violations.join(', ')}`,
+          metadata: JSON.stringify({
+            userId: req.user.id,
+            contactCount: contactIds.length,
+            violations: globalProtectionCheck.violations,
+            protectionStatus: globalProtectionCheck.protectionStatus,
+            triggeredFrom: 'bulk_call_api'
+          }),
+          triggeredBy: 'bulk_call'
+        });
+
+        return res.status(429).json({ 
+          success: false,
+          message: 'Bulk call blocked by abuse protection policies',
+          violations: globalProtectionCheck.violations,
+          protectionStatus: globalProtectionCheck.protectionStatus,
+          code: 'BULK_ABUSE_PROTECTION_BLOCKED'
+        });
+      }
+
       // Pre-validate all contacts belong to tenant (bulk validation)
       const validationErrors = [];
       const validContacts = [];
+      const protectionBlockedContacts = [];
       
       for (const contactId of contactIds) {
         try {
@@ -1888,6 +2087,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!tenantConfig?.retellApiKey || !tenantConfig?.retellAgentId || !tenantConfig?.retellAgentNumber) {
         return res.status(400).json({ 
           message: 'Retell AI not configured for this tenant. Please contact support to set up voice calling.' 
+        });
+      }
+
+      // ABUSE PROTECTION: Atomic check and reserve call (race condition safe)
+      const protectionCheck = await storage.checkAndReserveCall(
+        tenantId,
+        contact.phone,
+        new Date()
+      );
+
+      if (!protectionCheck.allowed) {
+        console.warn(`🛡️ Manual call blocked by abuse protection for contact ${contactId}: ${protectionCheck.violations.join(', ')}`);
+        
+        // Log abuse detection event
+        await storage.createAbuseDetectionEvent({
+          tenantId,
+          eventType: 'manual_call_blocked',
+          severity: 'medium',
+          description: `Manual call blocked: ${protectionCheck.violations.join(', ')}`,
+          metadata: JSON.stringify({
+            contactId,
+            userId: req.user.id,
+            phone: contact.phone,
+            violations: protectionCheck.violations,
+            protectionStatus: protectionCheck.protectionStatus,
+            triggeredFrom: 'manual_call_api'
+          }),
+          triggeredBy: 'manual_call'
+        });
+
+        return res.status(429).json({ 
+          success: false,
+          message: 'Call blocked by abuse protection policies',
+          violations: protectionCheck.violations,
+          protectionStatus: protectionCheck.protectionStatus,
+          code: 'ABUSE_PROTECTION_BLOCKED'
         });
       }
 

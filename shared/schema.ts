@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, uuid, time, decimal, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, uuid, time, decimal, primaryKey, unique, index } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -203,6 +203,112 @@ export const systemSettings = pgTable("system_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Rate limiting tracking for abuse protection
+export const rateLimitTracking = pgTable("rate_limit_tracking", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(),
+  timeWindow: varchar("time_window", { length: 20 }).notNull(), // "15_minutes", "1_hour", "24_hours"
+  windowStart: timestamp("window_start").notNull(),
+  callCount: integer("call_count").default(0),
+  lastCallTime: timestamp("last_call_time"),
+  isBlocked: boolean("is_blocked").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Abuse detection events and violations
+export const abuseDetectionEvents = pgTable("abuse_detection_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(),
+  eventType: varchar("event_type", { length: 50 }).notNull(), // rate_limit_violation, business_hours_violation, suspicious_pattern, etc.
+  severity: varchar("severity", { length: 20 }).notNull(), // low, medium, high, critical
+  description: text("description").notNull(),
+  metadata: text("metadata"), // JSON string with additional details
+  isResolved: boolean("is_resolved").default(false),
+  resolvedBy: uuid("resolved_by"), // User ID who resolved the issue
+  resolvedAt: timestamp("resolved_at"),
+  autoBlocked: boolean("auto_blocked").default(false), // Whether tenant was automatically paused
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Tenant suspension records for audit trail
+export const tenantSuspensions = pgTable("tenant_suspensions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(),
+  suspensionType: varchar("suspension_type", { length: 50 }).notNull(), // automatic, manual, scheduled
+  reason: text("reason").notNull(),
+  triggeredBy: varchar("triggered_by", { length: 50 }), // abuse_detection, admin_action, system_maintenance
+  suspendedBy: uuid("suspended_by"), // User ID who suspended (for manual suspensions)
+  suspendedAt: timestamp("suspended_at").defaultNow(),
+  reactivatedAt: timestamp("reactivated_at"),
+  reactivatedBy: uuid("reactivated_by"), // User ID who reactivated
+  isActive: boolean("is_active").default(true), // Current suspension status
+  metadata: text("metadata"), // JSON string with suspension details
+});
+
+// Business hours configuration for enhanced time-based protection
+export const businessHoursConfig = pgTable("business_hours_config", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().unique(),
+  timezone: varchar("timezone", { length: 100 }).default("Europe/London"),
+  
+  // Daily business hours (JSON arrays for each day)
+  mondayHours: text("monday_hours").default('{"start": "08:00", "end": "20:00", "enabled": true}'),
+  tuesdayHours: text("tuesday_hours").default('{"start": "08:00", "end": "20:00", "enabled": true}'),
+  wednesdayHours: text("wednesday_hours").default('{"start": "08:00", "end": "20:00", "enabled": true}'),
+  thursdayHours: text("thursday_hours").default('{"start": "08:00", "end": "20:00", "enabled": true}'),
+  fridayHours: text("friday_hours").default('{"start": "08:00", "end": "20:00", "enabled": true}'),
+  saturdayHours: text("saturday_hours").default('{"start": "08:00", "end": "20:00", "enabled": false}'),
+  sundayHours: text("sunday_hours").default('{"start": "08:00", "end": "20:00", "enabled": false}'),
+  
+  // Holiday and exception handling
+  respectBankHolidays: boolean("respect_bank_holidays").default(true),
+  customHolidays: text("custom_holidays").default("[]"), // JSON array of holiday dates
+  emergencyOverride: boolean("emergency_override").default(false), // Allow calls outside hours with admin approval
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Contact call history for harassment prevention
+export const contactCallHistory = pgTable("contact_call_history", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  phoneNumber: varchar("phone_number", { length: 50 }).notNull(), // E.164 format
+  tenantId: uuid("tenant_id").notNull(),
+  contactId: uuid("contact_id"),
+  lastCallTime: timestamp("last_call_time"),
+  callCount24h: integer("call_count_24h").default(0),
+  callCountTotal: integer("call_count_total").default(0),
+  lastCallOutcome: varchar("last_call_outcome", { length: 50 }),
+  isBlocked: boolean("is_blocked").default(false), // Blocked for harassment prevention
+  blockedUntil: timestamp("blocked_until"), // Temporary block expiry
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Call Reservations for Atomic Protection (CRITICAL for production)
+export const callReservations = pgTable("call_reservations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  reservationId: varchar("reservation_id", { length: 100 }).notNull().unique(), // External reservation ID
+  tenantId: uuid("tenant_id").notNull(),
+  phoneNumber: varchar("phone_number", { length: 50 }), // Optional - for contact-specific reservations
+  idempotencyKey: varchar("idempotency_key", { length: 100 }), // Prevent duplicate reservations
+  state: varchar("state", { length: 20 }).notNull().default("active"), // active, confirmed, released, expired
+  reservationType: varchar("reservation_type", { length: 30 }).notNull(), // tenant_rate_limit, contact_limit, bulk_operation
+  expiresAt: timestamp("expires_at").notNull(), // TTL for auto-cleanup
+  reservedQuota: integer("reserved_quota").default(1), // How much quota was reserved
+  metadata: text("metadata"), // JSON with reservation details
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  // Unique constraint for active reservations per tenant/phone to prevent duplicates
+  uniqueActiveReservation: unique("unique_active_reservation").on(table.tenantId, table.phoneNumber, table.state),
+  // Index for efficient TTL cleanup
+  expiresAtIdx: index("call_reservations_expires_at_idx").on(table.expiresAt),
+  // Index for idempotency checks
+  idempotencyIdx: index("call_reservations_idempotency_idx").on(table.idempotencyKey),
+}));
+
 // Relations
 export const usersRelations = relations(users, ({ one }) => ({
   tenant: one(tenants, {
@@ -314,6 +420,58 @@ export const callLogsRelations = relations(callLogs, ({ one }) => ({
   }),
 }));
 
+// Abuse protection table relations
+export const rateLimitTrackingRelations = relations(rateLimitTracking, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [rateLimitTracking.tenantId],
+    references: [tenants.id],
+  }),
+}));
+
+export const abuseDetectionEventsRelations = relations(abuseDetectionEvents, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [abuseDetectionEvents.tenantId],
+    references: [tenants.id],
+  }),
+  resolvedByUser: one(users, {
+    fields: [abuseDetectionEvents.resolvedBy],
+    references: [users.id],
+  }),
+}));
+
+export const tenantSuspensionsRelations = relations(tenantSuspensions, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [tenantSuspensions.tenantId],
+    references: [tenants.id],
+  }),
+  suspendedByUser: one(users, {
+    fields: [tenantSuspensions.suspendedBy],
+    references: [users.id],
+  }),
+  reactivatedByUser: one(users, {
+    fields: [tenantSuspensions.reactivatedBy],
+    references: [users.id],
+  }),
+}));
+
+export const businessHoursConfigRelations = relations(businessHoursConfig, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [businessHoursConfig.tenantId],
+    references: [tenants.id],
+  }),
+}));
+
+export const contactCallHistoryRelations = relations(contactCallHistory, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [contactCallHistory.tenantId],
+    references: [tenants.id],
+  }),
+  contact: one(contacts, {
+    fields: [contactCallHistory.contactId],
+    references: [contacts.id],
+  }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -378,6 +536,35 @@ export const insertLocationSchema = createInsertSchema(locations).omit({
   updatedAt: true,
 });
 
+// Abuse protection insert schemas
+export const insertRateLimitTrackingSchema = createInsertSchema(rateLimitTracking).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertAbuseDetectionEventSchema = createInsertSchema(abuseDetectionEvents).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertTenantSuspensionSchema = createInsertSchema(tenantSuspensions).omit({
+  id: true,
+  suspendedAt: true,
+});
+
+export const insertBusinessHoursConfigSchema = createInsertSchema(businessHoursConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertContactCallHistorySchema = createInsertSchema(contactCallHistory).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -411,3 +598,19 @@ export type InsertGroupMembership = z.infer<typeof insertGroupMembershipSchema>;
 
 export type Location = typeof locations.$inferSelect;
 export type InsertLocation = z.infer<typeof insertLocationSchema>;
+
+// Abuse protection types
+export type RateLimitTracking = typeof rateLimitTracking.$inferSelect;
+export type InsertRateLimitTracking = z.infer<typeof insertRateLimitTrackingSchema>;
+
+export type AbuseDetectionEvent = typeof abuseDetectionEvents.$inferSelect;
+export type InsertAbuseDetectionEvent = z.infer<typeof insertAbuseDetectionEventSchema>;
+
+export type TenantSuspension = typeof tenantSuspensions.$inferSelect;
+export type InsertTenantSuspension = z.infer<typeof insertTenantSuspensionSchema>;
+
+export type BusinessHoursConfig = typeof businessHoursConfig.$inferSelect;
+export type InsertBusinessHoursConfig = z.infer<typeof insertBusinessHoursConfigSchema>;
+
+export type ContactCallHistory = typeof contactCallHistory.$inferSelect;
+export type InsertContactCallHistory = z.infer<typeof insertContactCallHistorySchema>;

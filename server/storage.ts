@@ -10,6 +10,11 @@ import {
   contactGroups,
   groupMembership,
   locations,
+  rateLimitTracking,
+  abuseDetectionEvents,
+  tenantSuspensions,
+  businessHoursConfig,
+  contactCallHistory,
   type User,
   type InsertUser,
   type Tenant,
@@ -32,6 +37,16 @@ import {
   type InsertGroupMembership,
   type Location,
   type InsertLocation,
+  type RateLimitTracking,
+  type InsertRateLimitTracking,
+  type AbuseDetectionEvent,
+  type InsertAbuseDetectionEvent,
+  type TenantSuspension,
+  type InsertTenantSuspension,
+  type BusinessHoursConfig,
+  type InsertBusinessHoursConfig,
+  type ContactCallHistory,
+  type InsertContactCallHistory,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, count, sql, gt, lt, like, inArray } from "drizzle-orm";
@@ -233,6 +248,73 @@ export interface IStorage {
 
   // Authentication
   authenticateUser(email: string, password: string): Promise<User | null>;
+  
+  // Abuse Protection & Rate Limiting
+  getRateLimitTracking(tenantId: string, timeWindow: string): Promise<RateLimitTracking | undefined>;
+  updateRateLimitTracking(tenantId: string, timeWindow: string, incrementBy?: number): Promise<RateLimitTracking>;
+  checkRateLimits(tenantId: string): Promise<{ allowed: boolean; violations: string[]; usage: any }>;
+  resetRateLimitWindow(tenantId: string, timeWindow: string): Promise<void>;
+  
+  // Abuse Detection Events
+  createAbuseDetectionEvent(event: InsertAbuseDetectionEvent): Promise<AbuseDetectionEvent>;
+  getAbuseDetectionEvents(tenantId?: string, severity?: string, limit?: number): Promise<AbuseDetectionEvent[]>;
+  resolveAbuseDetectionEvent(eventId: string, resolvedBy: string): Promise<AbuseDetectionEvent>;
+  getUnresolvedAbuseEvents(): Promise<AbuseDetectionEvent[]>;
+  
+  // Tenant Suspension Management
+  suspendTenant(suspension: InsertTenantSuspension): Promise<TenantSuspension>;
+  reactivateTenant(tenantId: string, reactivatedBy: string): Promise<TenantSuspension>;
+  getTenantSuspensions(tenantId: string): Promise<TenantSuspension[]>;
+  getActiveSuspensions(): Promise<TenantSuspension[]>;
+  
+  // Business Hours Configuration
+  getBusinessHoursConfig(tenantId: string): Promise<BusinessHoursConfig | undefined>;
+  createBusinessHoursConfig(config: InsertBusinessHoursConfig): Promise<BusinessHoursConfig>;
+  updateBusinessHoursConfig(tenantId: string, updates: Partial<InsertBusinessHoursConfig>): Promise<BusinessHoursConfig>;
+  validateBusinessHours(tenantId: string, callTime: Date): Promise<{ allowed: boolean; reason?: string; nextAllowedTime?: Date }>;
+  
+  // Contact Call History (Harassment Prevention)
+  getContactCallHistory(phoneNumber: string): Promise<ContactCallHistory | undefined>;
+  updateContactCallHistory(phoneNumber: string, tenantId: string, contactId?: string): Promise<ContactCallHistory>;
+  checkContactCallLimits(phoneNumber: string): Promise<{ allowed: boolean; reason?: string; blockedUntil?: Date }>;
+  
+  // Comprehensive Protection Checks
+  performComprehensiveProtectionCheck(tenantId: string, phoneNumber?: string, scheduledTime?: Date): Promise<{
+    allowed: boolean;
+    violations: string[];
+    protectionStatus: {
+      rateLimits: any;
+      businessHours: any;
+      contactLimits: any;
+      tenantStatus: any;
+    };
+  }>;
+
+  // ATOMIC: Check and Reserve Call (Race Condition Safe)
+  checkAndReserveCall(tenantId: string, phoneNumber?: string, scheduledTime?: Date): Promise<{
+    allowed: boolean;
+    violations: string[];
+    reservationId?: string;
+    protectionStatus: {
+      rateLimits: any;
+      businessHours: any;
+      contactLimits: any;
+      tenantStatus: any;
+    };
+  }>;
+
+  // Confirm or Release Call Reservation
+  confirmCallReservation(reservationId: string): Promise<void>;
+  releaseCallReservation(reservationId: string): Promise<void>;
+  
+  // Admin Dashboard Analytics
+  getAbuseProtectionDashboard(): Promise<{
+    totalViolations: number;
+    activeSuspensions: number;
+    riskTenants: number;
+    recentEvents: AbuseDetectionEvent[];
+    protectionMetrics: any;
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2254,6 +2336,834 @@ export class DatabaseStorage implements IStorage {
     }
 
     return user;
+  }
+
+  // ========================================
+  // ABUSE PROTECTION SYSTEM IMPLEMENTATION
+  // ========================================
+
+  // Rate Limiting Operations
+  async getRateLimitTracking(tenantId: string, timeWindow: string): Promise<RateLimitTracking | undefined> {
+    const now = new Date();
+    const [tracking] = await db
+      .select()
+      .from(rateLimitTracking)
+      .where(
+        and(
+          eq(rateLimitTracking.tenantId, tenantId),
+          eq(rateLimitTracking.timeWindow, timeWindow),
+          gt(rateLimitTracking.windowStart, new Date(now.getTime() - this.getTimeWindowDuration(timeWindow)))
+        )
+      )
+      .orderBy(desc(rateLimitTracking.windowStart))
+      .limit(1);
+
+    return tracking;
+  }
+
+  async updateRateLimitTracking(tenantId: string, timeWindow: string, incrementBy: number = 1): Promise<RateLimitTracking> {
+    const now = new Date();
+    const windowStart = this.getWindowStart(now, timeWindow);
+    
+    // Try to find existing tracking for this window
+    const existing = await db
+      .select()
+      .from(rateLimitTracking)
+      .where(
+        and(
+          eq(rateLimitTracking.tenantId, tenantId),
+          eq(rateLimitTracking.timeWindow, timeWindow),
+          eq(rateLimitTracking.windowStart, windowStart)
+        )
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      // Update existing tracking
+      const [updated] = await db
+        .update(rateLimitTracking)
+        .set({
+          callCount: (existing[0].callCount || 0) + incrementBy,
+          lastCallTime: now,
+          updatedAt: now
+        })
+        .where(eq(rateLimitTracking.id, existing[0].id))
+        .returning();
+      
+      return updated;
+    } else {
+      // Create new tracking record
+      const [newTracking] = await db
+        .insert(rateLimitTracking)
+        .values({
+          tenantId,
+          timeWindow,
+          windowStart,
+          callCount: incrementBy,
+          lastCallTime: now,
+          isBlocked: false
+        })
+        .returning();
+      
+      return newTracking;
+    }
+  }
+
+  async checkRateLimits(tenantId: string): Promise<{ allowed: boolean; violations: string[]; usage: any }> {
+    const now = new Date();
+    const violations: string[] = [];
+    const usage: any = {};
+
+    // Get tenant config for rate limits
+    const config = await this.getTenantConfig(tenantId);
+    const limits = {
+      '15_minutes': config?.maxCallsPer15Min || 25,
+      '1_hour': 100,
+      '24_hours': config?.maxCallsPerDay || 300
+    };
+
+    // Check each time window
+    for (const [timeWindow, limit] of Object.entries(limits)) {
+      const tracking = await this.getRateLimitTracking(tenantId, timeWindow);
+      const callCount = tracking?.callCount || 0;
+      
+      usage[timeWindow] = {
+        current: callCount,
+        limit: limit,
+        percentage: Math.round((callCount / limit) * 100)
+      };
+
+      if (callCount >= limit) {
+        violations.push(`${timeWindow} rate limit exceeded (${callCount}/${limit})`);
+      }
+    }
+
+    return {
+      allowed: violations.length === 0,
+      violations,
+      usage
+    };
+  }
+
+  async resetRateLimitWindow(tenantId: string, timeWindow: string): Promise<void> {
+    await db
+      .delete(rateLimitTracking)
+      .where(
+        and(
+          eq(rateLimitTracking.tenantId, tenantId),
+          eq(rateLimitTracking.timeWindow, timeWindow)
+        )
+      );
+  }
+
+  // Abuse Detection Events
+  async createAbuseDetectionEvent(event: InsertAbuseDetectionEvent): Promise<AbuseDetectionEvent> {
+    const [newEvent] = await db.insert(abuseDetectionEvents).values(event).returning();
+    
+    // Auto-suspend tenant for critical violations
+    if (event.severity === 'critical' && event.autoBlocked) {
+      await this.suspendTenant({
+        tenantId: event.tenantId,
+        suspensionType: 'automatic',
+        reason: `Critical abuse detected: ${event.description}`,
+        triggeredBy: 'abuse_detection',
+        isActive: true,
+        metadata: JSON.stringify({ eventId: newEvent.id, autoSuspended: true })
+      });
+    }
+
+    return newEvent;
+  }
+
+  async getAbuseDetectionEvents(tenantId?: string, severity?: string, limit: number = 50): Promise<AbuseDetectionEvent[]> {
+    const conditions = [];
+    if (tenantId) {
+      conditions.push(eq(abuseDetectionEvents.tenantId, tenantId));
+    }
+    if (severity) {
+      conditions.push(eq(abuseDetectionEvents.severity, severity));
+    }
+
+    if (conditions.length > 0) {
+      return await db
+        .select()
+        .from(abuseDetectionEvents)
+        .where(and(...conditions))
+        .orderBy(desc(abuseDetectionEvents.createdAt))
+        .limit(limit);
+    } else {
+      return await db
+        .select()
+        .from(abuseDetectionEvents)
+        .orderBy(desc(abuseDetectionEvents.createdAt))
+        .limit(limit);
+    }
+  }
+
+  async resolveAbuseDetectionEvent(eventId: string, resolvedBy: string): Promise<AbuseDetectionEvent> {
+    const [resolved] = await db
+      .update(abuseDetectionEvents)
+      .set({
+        isResolved: true,
+        resolvedBy,
+        resolvedAt: new Date()
+      })
+      .where(eq(abuseDetectionEvents.id, eventId))
+      .returning();
+
+    if (!resolved) {
+      throw new Error('Abuse detection event not found');
+    }
+
+    return resolved;
+  }
+
+  async getUnresolvedAbuseEvents(): Promise<AbuseDetectionEvent[]> {
+    return await db
+      .select()
+      .from(abuseDetectionEvents)
+      .where(eq(abuseDetectionEvents.isResolved, false))
+      .orderBy(desc(abuseDetectionEvents.createdAt));
+  }
+
+  // Tenant Suspension Management
+  async suspendTenant(suspension: InsertTenantSuspension): Promise<TenantSuspension> {
+    // First create the suspension record
+    const [newSuspension] = await db.insert(tenantSuspensions).values(suspension).returning();
+    
+    // Update tenant config to pause operations
+    await this.updateTenantConfig(suspension.tenantId, { isPaused: true });
+
+    return newSuspension;
+  }
+
+  async reactivateTenant(tenantId: string, reactivatedBy: string): Promise<TenantSuspension> {
+    // Mark current active suspension as inactive
+    const [reactivated] = await db
+      .update(tenantSuspensions)
+      .set({
+        isActive: false,
+        reactivatedAt: new Date(),
+        reactivatedBy
+      })
+      .where(
+        and(
+          eq(tenantSuspensions.tenantId, tenantId),
+          eq(tenantSuspensions.isActive, true)
+        )
+      )
+      .returning();
+
+    if (!reactivated) {
+      throw new Error('No active suspension found for tenant');
+    }
+
+    // Update tenant config to resume operations
+    await this.updateTenantConfig(tenantId, { isPaused: false });
+
+    return reactivated;
+  }
+
+  async getTenantSuspensions(tenantId: string): Promise<TenantSuspension[]> {
+    return await db
+      .select()
+      .from(tenantSuspensions)
+      .where(eq(tenantSuspensions.tenantId, tenantId))
+      .orderBy(desc(tenantSuspensions.suspendedAt));
+  }
+
+  async getActiveSuspensions(): Promise<TenantSuspension[]> {
+    return await db
+      .select()
+      .from(tenantSuspensions)
+      .where(eq(tenantSuspensions.isActive, true))
+      .orderBy(desc(tenantSuspensions.suspendedAt));
+  }
+
+  // Business Hours Configuration
+  async getBusinessHoursConfig(tenantId: string): Promise<BusinessHoursConfig | undefined> {
+    const [config] = await db
+      .select()
+      .from(businessHoursConfig)
+      .where(eq(businessHoursConfig.tenantId, tenantId))
+      .limit(1);
+
+    return config;
+  }
+
+  async createBusinessHoursConfig(config: InsertBusinessHoursConfig): Promise<BusinessHoursConfig> {
+    const [newConfig] = await db.insert(businessHoursConfig).values(config).returning();
+    return newConfig;
+  }
+
+  async updateBusinessHoursConfig(tenantId: string, updates: Partial<InsertBusinessHoursConfig>): Promise<BusinessHoursConfig> {
+    const [updated] = await db
+      .update(businessHoursConfig)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(businessHoursConfig.tenantId, tenantId))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Business hours configuration not found');
+    }
+
+    return updated;
+  }
+
+  async validateBusinessHours(tenantId: string, callTime: Date): Promise<{ allowed: boolean; reason?: string; nextAllowedTime?: Date }> {
+    const config = await this.getBusinessHoursConfig(tenantId);
+    
+    if (!config) {
+      // Default business hours if no config found
+      return this.validateDefaultBusinessHours(callTime);
+    }
+
+    // Check if emergency override is enabled
+    if (config.emergencyOverride) {
+      return { allowed: true };
+    }
+
+    const dayOfWeek = callTime.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const timeString = callTime.toTimeString().slice(0, 5); // HH:MM format
+
+    // Get the appropriate day configuration
+    const dayConfigs = [
+      JSON.parse(config.sundayHours || '{"enabled": false}'),
+      JSON.parse(config.mondayHours || '{"enabled": true, "start": "08:00", "end": "20:00"}'),
+      JSON.parse(config.tuesdayHours || '{"enabled": true, "start": "08:00", "end": "20:00"}'),
+      JSON.parse(config.wednesdayHours || '{"enabled": true, "start": "08:00", "end": "20:00"}'),
+      JSON.parse(config.thursdayHours || '{"enabled": true, "start": "08:00", "end": "20:00"}'),
+      JSON.parse(config.fridayHours || '{"enabled": true, "start": "08:00", "end": "20:00"}'),
+      JSON.parse(config.saturdayHours || '{"enabled": false}')
+    ];
+
+    const dayConfig = dayConfigs[dayOfWeek];
+
+    if (!dayConfig.enabled) {
+      return {
+        allowed: false,
+        reason: 'Calling not allowed on this day of the week',
+        nextAllowedTime: this.getNextBusinessDay(callTime, dayConfigs)
+      };
+    }
+
+    if (timeString < dayConfig.start || timeString > dayConfig.end) {
+      return {
+        allowed: false,
+        reason: `Outside business hours (${dayConfig.start} - ${dayConfig.end})`,
+        nextAllowedTime: this.getNextBusinessHour(callTime, dayConfig, dayConfigs)
+      };
+    }
+
+    return { allowed: true };
+  }
+
+  // Contact Call History (Harassment Prevention)
+  async getContactCallHistory(phoneNumber: string): Promise<ContactCallHistory | undefined> {
+    const [history] = await db
+      .select()
+      .from(contactCallHistory)
+      .where(eq(contactCallHistory.phoneNumber, phoneNumber))
+      .limit(1);
+
+    return history;
+  }
+
+  async updateContactCallHistory(phoneNumber: string, tenantId: string, contactId?: string): Promise<ContactCallHistory> {
+    const now = new Date();
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    const existing = await this.getContactCallHistory(phoneNumber);
+
+    if (existing) {
+      // Update existing record
+      const newCount24h = existing.lastCallTime && existing.lastCallTime > twentyFourHoursAgo 
+        ? (existing.callCount24h || 0) + 1 
+        : 1;
+
+      const [updated] = await db
+        .update(contactCallHistory)
+        .set({
+          lastCallTime: now,
+          callCount24h: newCount24h,
+          callCountTotal: (existing.callCountTotal || 0) + 1,
+          updatedAt: now,
+          ...(contactId && { contactId })
+        })
+        .where(eq(contactCallHistory.id, existing.id))
+        .returning();
+
+      return updated;
+    } else {
+      // Create new record
+      const [newHistory] = await db
+        .insert(contactCallHistory)
+        .values({
+          phoneNumber,
+          tenantId,
+          contactId,
+          lastCallTime: now,
+          callCount24h: 1,
+          callCountTotal: 1,
+          isBlocked: false
+        })
+        .returning();
+
+      return newHistory;
+    }
+  }
+
+  async checkContactCallLimits(phoneNumber: string): Promise<{ allowed: boolean; reason?: string; blockedUntil?: Date }> {
+    const history = await this.getContactCallHistory(phoneNumber);
+
+    if (!history) {
+      return { allowed: true };
+    }
+
+    // Check if temporarily blocked
+    if (history.isBlocked && history.blockedUntil && history.blockedUntil > new Date()) {
+      return {
+        allowed: false,
+        reason: 'Contact temporarily blocked for harassment prevention',
+        blockedUntil: history.blockedUntil
+      };
+    }
+
+    // Check 24-hour call limit (max 2 calls per phone number per day)
+    if ((history.callCount24h || 0) >= 2) {
+      return {
+        allowed: false,
+        reason: 'Daily call limit exceeded for this phone number (max 2 calls/day)'
+      };
+    }
+
+    // Check minimum time gap (8 hours between calls to same number)
+    if (history.lastCallTime) {
+      const eightHoursAgo = new Date(Date.now() - 8 * 60 * 60 * 1000);
+      if (history.lastCallTime > eightHoursAgo) {
+        return {
+          allowed: false,
+          reason: 'Minimum retry gap not met (8 hours required between calls to same number)'
+        };
+      }
+    }
+
+    return { allowed: true };
+  }
+
+  // Comprehensive Protection Check
+  async performComprehensiveProtectionCheck(tenantId: string, phoneNumber?: string, scheduledTime?: Date): Promise<{
+    allowed: boolean;
+    violations: string[];
+    protectionStatus: {
+      rateLimits: any;
+      businessHours: any;
+      contactLimits: any;
+      tenantStatus: any;
+    };
+  }> {
+    const violations: string[] = [];
+    const callTime = scheduledTime || new Date();
+
+    // 1. Check if tenant is suspended
+    const activeSuspensions = await this.getTenantSuspensions(tenantId);
+    const isCurrentlySuspended = activeSuspensions.some(s => s.isActive);
+    
+    const tenantStatus = {
+      suspended: isCurrentlySuspended,
+      suspensionReason: isCurrentlySuspended ? activeSuspensions.find(s => s.isActive)?.reason : null
+    };
+
+    if (isCurrentlySuspended) {
+      violations.push('Tenant is currently suspended');
+    }
+
+    // 2. Check rate limits
+    const rateLimitCheck = await this.checkRateLimits(tenantId);
+    if (!rateLimitCheck.allowed) {
+      violations.push(...rateLimitCheck.violations);
+    }
+
+    // 3. Check business hours
+    const businessHoursCheck = await this.validateBusinessHours(tenantId, callTime);
+    if (!businessHoursCheck.allowed) {
+      violations.push(businessHoursCheck.reason || 'Outside business hours');
+    }
+
+    // 4. Check contact-specific limits (if phone number provided)
+    let contactLimitsCheck: { allowed: boolean; reason?: string; blockedUntil?: Date } = { allowed: true };
+    if (phoneNumber) {
+      contactLimitsCheck = await this.checkContactCallLimits(phoneNumber);
+      if (!contactLimitsCheck.allowed) {
+        violations.push(contactLimitsCheck.reason || 'Contact call limit exceeded');
+      }
+    }
+
+    return {
+      allowed: violations.length === 0,
+      violations,
+      protectionStatus: {
+        rateLimits: rateLimitCheck,
+        businessHours: businessHoursCheck,
+        contactLimits: contactLimitsCheck,
+        tenantStatus
+      }
+    };
+  }
+
+  // ATOMIC: Check and Reserve Call (Race Condition Safe)
+  async checkAndReserveCall(tenantId: string, phoneNumber?: string, scheduledTime?: Date): Promise<{
+    allowed: boolean;
+    violations: string[];
+    reservationId?: string;
+    protectionStatus: {
+      rateLimits: any;
+      businessHours: any;
+      contactLimits: any;
+      tenantStatus: any;
+    };
+  }> {
+    const callTime = scheduledTime || new Date();
+    const reservationId = `res_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    return await db.transaction(async (tx) => {
+      const violations: string[] = [];
+
+      // 1. Check if tenant is suspended (read-only check)
+      const activeSuspensions = await tx
+        .select()
+        .from(tenantSuspensions)
+        .where(and(eq(tenantSuspensions.tenantId, tenantId), eq(tenantSuspensions.isActive, true)));
+      
+      const isCurrentlySuspended = activeSuspensions.length > 0;
+      const tenantStatus = {
+        suspended: isCurrentlySuspended,
+        suspensionReason: isCurrentlySuspended ? activeSuspensions[0]?.reason : null
+      };
+
+      if (isCurrentlySuspended) {
+        violations.push('Tenant is currently suspended');
+        return {
+          allowed: false,
+          violations,
+          protectionStatus: { rateLimits: {}, businessHours: {}, contactLimits: {}, tenantStatus }
+        };
+      }
+
+      // 2. Check business hours (read-only check)
+      const businessHoursCheck = await this.validateBusinessHours(tenantId, callTime);
+      if (!businessHoursCheck.allowed) {
+        violations.push(businessHoursCheck.reason || 'Outside business hours');
+        return {
+          allowed: false,
+          violations,
+          protectionStatus: { rateLimits: {}, businessHours: businessHoursCheck, contactLimits: {}, tenantStatus }
+        };
+      }
+
+      // 3. ATOMIC: Check and increment rate limits
+      const rateLimitResult = await this.atomicRateLimitCheck(tx, tenantId);
+      if (!rateLimitResult.allowed) {
+        violations.push(...rateLimitResult.violations);
+        return {
+          allowed: false,
+          violations,
+          protectionStatus: { rateLimits: rateLimitResult, businessHours: businessHoursCheck, contactLimits: {}, tenantStatus }
+        };
+      }
+
+      // 4. ATOMIC: Check and update contact call history (if phone provided)
+      let contactLimitsCheck: any = { allowed: true };
+      if (phoneNumber) {
+        contactLimitsCheck = await this.atomicContactLimitCheck(tx, phoneNumber, tenantId);
+        if (!contactLimitsCheck.allowed) {
+          violations.push(contactLimitsCheck.reason || 'Contact call limit exceeded');
+          return {
+            allowed: false,
+            violations,
+            protectionStatus: { rateLimits: rateLimitResult, businessHours: businessHoursCheck, contactLimits: contactLimitsCheck, tenantStatus }
+          };
+        }
+      }
+
+      // All checks passed - reservation successful
+      return {
+        allowed: true,
+        violations: [],
+        reservationId,
+        protectionStatus: {
+          rateLimits: rateLimitResult,
+          businessHours: businessHoursCheck,
+          contactLimits: contactLimitsCheck,
+          tenantStatus
+        }
+      };
+    });
+  }
+
+  // Atomic rate limit check and increment
+  private async atomicRateLimitCheck(tx: any, tenantId: string): Promise<{ allowed: boolean; violations: string[]; usage: any }> {
+    const violations: string[] = [];
+    const usage: any = {};
+
+    // Get tenant config for rate limits
+    const config = await this.getTenantConfig(tenantId);
+    const limits = {
+      '15_minutes': config?.maxCallsPer15Min || 25,
+      '1_hour': 100,
+      '24_hours': config?.maxCallsPerDay || 300
+    };
+
+    // Check each time window atomically
+    for (const [timeWindow, limit] of Object.entries(limits)) {
+      // Use PostgreSQL's atomic increment and check
+      const result = await tx.execute(sql`
+        INSERT INTO ${rateLimitTracking} (tenant_id, time_window, call_count, window_start)
+        VALUES (${tenantId}, ${timeWindow}, 1, NOW())
+        ON CONFLICT (tenant_id, time_window) 
+        DO UPDATE SET 
+          call_count = CASE 
+            WHEN ${rateLimitTracking.windowStart} < NOW() - INTERVAL '${timeWindow === '15_minutes' ? '15 minutes' : timeWindow === '1_hour' ? '1 hour' : '24 hours'}' 
+            THEN 1
+            ELSE ${rateLimitTracking.callCount} + 1
+          END,
+          window_start = CASE
+            WHEN ${rateLimitTracking.windowStart} < NOW() - INTERVAL '${timeWindow === '15_minutes' ? '15 minutes' : timeWindow === '1_hour' ? '1 hour' : '24 hours'}'
+            THEN NOW()
+            ELSE ${rateLimitTracking.windowStart}
+          END,
+          updated_at = NOW()
+        RETURNING call_count
+      `);
+      
+      const callCount = result.rows[0]?.call_count || 0;
+      
+      usage[timeWindow] = {
+        current: callCount,
+        limit: limit,
+        percentage: Math.round((callCount / limit) * 100)
+      };
+
+      if (callCount > limit) {
+        violations.push(`${timeWindow} rate limit exceeded (${callCount}/${limit})`);
+      }
+    }
+
+    return {
+      allowed: violations.length === 0,
+      violations,
+      usage
+    };
+  }
+
+  // Atomic contact limit check and update
+  private async atomicContactLimitCheck(tx: any, phoneNumber: string, tenantId: string): Promise<{ allowed: boolean; reason?: string }> {
+    // Use PostgreSQL's atomic increment and check
+    const result = await tx.execute(sql`
+      INSERT INTO ${contactCallHistory} (phone_number, tenant_id, call_count_24h, last_call_time, updated_at)
+      VALUES (${phoneNumber}, ${tenantId}, 1, NOW(), NOW())
+      ON CONFLICT (phone_number) 
+      DO UPDATE SET 
+        call_count_24h = CASE 
+          WHEN ${contactCallHistory.lastCallTime} < NOW() - INTERVAL '24 hours' 
+          THEN 1
+          ELSE ${contactCallHistory.callCount24h} + 1
+        END,
+        last_call_time = NOW(),
+        updated_at = NOW()
+      RETURNING call_count_24h, last_call_time, is_blocked, blocked_until
+    `);
+    
+    const history = result.rows[0];
+    
+    if (!history) {
+      return { allowed: true };
+    }
+
+    // Check if temporarily blocked
+    if (history.is_blocked && history.blocked_until && new Date(history.blocked_until) > new Date()) {
+      return {
+        allowed: false,
+        reason: 'Contact temporarily blocked for harassment prevention'
+      };
+    }
+
+    // Check 24-hour call limit (max 2 calls per phone number per day)
+    if (history.call_count_24h > 2) {
+      return {
+        allowed: false,
+        reason: 'Daily call limit exceeded for this phone number (max 2 calls/day)'
+      };
+    }
+
+    return { allowed: true };
+  }
+
+  // Confirm or Release Call Reservation (for future use)
+  async confirmCallReservation(reservationId: string): Promise<void> {
+    // Implementation for confirming successful call
+    console.log(`Call reservation confirmed: ${reservationId}`);
+  }
+
+  async releaseCallReservation(reservationId: string): Promise<void> {
+    // Implementation for releasing failed call reservation
+    console.log(`Call reservation released: ${reservationId}`);
+  }
+
+  // Admin Dashboard Analytics
+  async getAbuseProtectionDashboard(): Promise<{
+    totalViolations: number;
+    activeSuspensions: number;
+    riskTenants: number;
+    recentEvents: AbuseDetectionEvent[];
+    protectionMetrics: any;
+  }> {
+    // Get total violation count
+    const [violationCount] = await db
+      .select({ count: count() })
+      .from(abuseDetectionEvents)
+      .where(eq(abuseDetectionEvents.isResolved, false));
+
+    // Get active suspensions count
+    const [suspensionCount] = await db
+      .select({ count: count() })
+      .from(tenantSuspensions)
+      .where(eq(tenantSuspensions.isActive, true));
+
+    // Get recent events (last 10)
+    const recentEvents = await this.getAbuseDetectionEvents(undefined, undefined, 10);
+
+    // Calculate risk tenants (tenants with unresolved high/critical events)
+    const [riskCount] = await db
+      .select({ count: count(sql`DISTINCT ${abuseDetectionEvents.tenantId}`) })
+      .from(abuseDetectionEvents)
+      .where(
+        and(
+          eq(abuseDetectionEvents.isResolved, false),
+          inArray(abuseDetectionEvents.severity, ['high', 'critical'])
+        )
+      );
+
+    // Protection metrics
+    const protectionMetrics = {
+      rateLimit: {
+        tenantsNearLimit: 0, // Could be calculated based on current usage
+        totalChecks: 0 // Could be tracked
+      },
+      businessHours: {
+        blockedCallsToday: 0,
+        configuredTenants: 0
+      }
+    };
+
+    return {
+      totalViolations: violationCount.count,
+      activeSuspensions: suspensionCount.count,
+      riskTenants: riskCount.count,
+      recentEvents,
+      protectionMetrics
+    };
+  }
+
+  // ========================================
+  // HELPER METHODS FOR ABUSE PROTECTION
+  // ========================================
+
+  private getTimeWindowDuration(timeWindow: string): number {
+    switch (timeWindow) {
+      case '15_minutes': return 15 * 60 * 1000;
+      case '1_hour': return 60 * 60 * 1000;
+      case '24_hours': return 24 * 60 * 60 * 1000;
+      default: return 60 * 60 * 1000;
+    }
+  }
+
+  private getWindowStart(now: Date, timeWindow: string): Date {
+    switch (timeWindow) {
+      case '15_minutes':
+        const minutes = Math.floor(now.getMinutes() / 15) * 15;
+        return new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), minutes, 0, 0);
+      case '1_hour':
+        return new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0, 0, 0);
+      case '24_hours':
+        return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      default:
+        return new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0, 0, 0);
+    }
+  }
+
+  private validateDefaultBusinessHours(callTime: Date): { allowed: boolean; reason?: string; nextAllowedTime?: Date } {
+    const dayOfWeek = callTime.getDay();
+    const hour = callTime.getHours();
+
+    // Weekend check (Saturday = 6, Sunday = 0)
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      return {
+        allowed: false,
+        reason: 'Weekend calling not allowed',
+        nextAllowedTime: this.getNextMonday(callTime)
+      };
+    }
+
+    // Business hours check (8 AM - 8 PM)
+    if (hour < 8 || hour >= 20) {
+      return {
+        allowed: false,
+        reason: 'Outside business hours (8:00 - 20:00)',
+        nextAllowedTime: this.getNext8AM(callTime)
+      };
+    }
+
+    return { allowed: true };
+  }
+
+  private getNextMonday(date: Date): Date {
+    const nextMonday = new Date(date);
+    nextMonday.setDate(date.getDate() + (8 - date.getDay()) % 7);
+    nextMonday.setHours(8, 0, 0, 0);
+    return nextMonday;
+  }
+
+  private getNext8AM(date: Date): Date {
+    const next8AM = new Date(date);
+    if (date.getHours() >= 20) {
+      next8AM.setDate(date.getDate() + 1);
+    }
+    next8AM.setHours(8, 0, 0, 0);
+    return next8AM;
+  }
+
+  private getNextBusinessDay(callTime: Date, dayConfigs: any[]): Date {
+    let nextDay = new Date(callTime);
+    nextDay.setDate(nextDay.getDate() + 1);
+    
+    for (let i = 0; i < 7; i++) {
+      const dayOfWeek = nextDay.getDay();
+      if (dayConfigs[dayOfWeek].enabled) {
+        const startTime = dayConfigs[dayOfWeek].start || '08:00';
+        const [hours, minutes] = startTime.split(':').map(Number);
+        nextDay.setHours(hours, minutes, 0, 0);
+        return nextDay;
+      }
+      nextDay.setDate(nextDay.getDate() + 1);
+    }
+    
+    return nextDay; // Fallback
+  }
+
+  private getNextBusinessHour(callTime: Date, dayConfig: any, dayConfigs: any[]): Date {
+    const startTime = dayConfig.start || '08:00';
+    const [hours, minutes] = startTime.split(':').map(Number);
+    
+    if (callTime.getHours() < hours) {
+      // Same day, but before start time
+      const nextTime = new Date(callTime);
+      nextTime.setHours(hours, minutes, 0, 0);
+      return nextTime;
+    } else {
+      // After end time, so next business day
+      return this.getNextBusinessDay(callTime, dayConfigs);
+    }
   }
 }
 

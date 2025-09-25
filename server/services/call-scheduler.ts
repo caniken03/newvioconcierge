@@ -115,6 +115,39 @@ export class CallSchedulerService {
         return;
       }
 
+      // ABUSE PROTECTION: Atomic check and reserve call (race condition safe)
+      const protectionCheck = await storage.checkAndReserveCall(
+        task.tenantId,
+        contact.phone,
+        new Date()
+      );
+
+      if (!protectionCheck.allowed) {
+        console.warn(`🛡️ Call blocked by abuse protection for task ${task.id}: ${protectionCheck.violations.join(', ')}`);
+        
+        // Log abuse detection event
+        await storage.createAbuseDetectionEvent({
+          tenantId: task.tenantId,
+          eventType: 'rate_limit_exceeded',
+          severity: 'medium',
+          description: `Call blocked: ${protectionCheck.violations.join(', ')}`,
+          metadata: JSON.stringify({
+            taskId: task.id,
+            contactId: contact.id,
+            phone: contact.phone,
+            violations: protectionCheck.violations,
+            protectionStatus: protectionCheck.protectionStatus
+          }),
+          triggeredBy: 'call_scheduler'
+        });
+
+        // Mark task as failed with reason
+        await storage.updateFollowUpTask(task.id, {
+          status: 'failed'
+        });
+        return;
+      }
+
       // Create call session to track this call
       const callSession = await storage.createCallSession({
         tenantId: task.tenantId,

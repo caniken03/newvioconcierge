@@ -185,6 +185,13 @@ export default function Sidebar() {
             <NavLink href="/compliance" icon="fas fa-shield-alt" testId="nav-compliance">
               Compliance & Security
             </NavLink>
+            <NavLink 
+              href="/abuse-protection" 
+              icon="fas fa-user-shield" 
+              testId="nav-abuse-protection"
+            >
+              Abuse Protection
+            </NavLink>
             <NavLink href="/system" icon="fas fa-cog" testId="nav-system-settings">
               System Settings
             </NavLink>
