@@ -11,6 +11,8 @@ import {
   TrendingUp, Users, Calendar, Phone, Target, BarChart3, 
   CheckCircle, Clock, AlertTriangle, PhoneCall
 } from 'lucide-react';
+import Sidebar from '@/components/layout/sidebar';
+import Header from '@/components/layout/header';
 
 // Chart color schemes
 const statusColors = {
@@ -193,34 +195,32 @@ export default function ContactAnalytics() {
     queryKey: ['/api/contacts/analytics'],
   });
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-sm text-muted-foreground">Loading analytics...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-2" />
-          <p className="text-sm text-red-600">Failed to load analytics data</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!analytics) {
-    return null;
-  }
-
   return (
-    <div className="space-y-6 p-6" data-testid="contact-analytics-dashboard">
+    <div className="flex h-screen bg-background">
+      <Sidebar />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Header />
+        <main className="flex-1 overflow-auto bg-background p-6">
+          {isLoading && (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="mt-2 text-sm text-muted-foreground">Loading analytics...</p>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-2" />
+                <p className="text-sm text-red-600">Failed to load analytics data</p>
+              </div>
+            </div>
+          )}
+
+          {analytics && (
+            <div className="space-y-6" data-testid="contact-analytics-dashboard">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -483,7 +483,11 @@ export default function ContactAnalytics() {
             </CardContent>
           </Card>
         </TabsContent>
-      </Tabs>
+            </Tabs>
+            </div>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
