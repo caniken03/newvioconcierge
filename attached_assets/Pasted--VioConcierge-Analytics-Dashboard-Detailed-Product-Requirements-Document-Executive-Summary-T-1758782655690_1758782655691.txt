@@ -1,0 +1,2152 @@
+# VioConcierge Analytics Dashboard - Detailed Product Requirements Document
+
+## Executive Summary
+
+The **VioConcierge Analytics Dashboard** provides comprehensive business intelligence and performance insights for appointment-based businesses. The system aggregates data from multiple sources to deliver real-time metrics, trend analysis, and actionable insights that help businesses optimize their appointment management and reduce no-shows.
+
+---
+
+## 🎯 **Analytics Dashboard Architecture**
+
+### **Dashboard Purpose & Business Rationale**
+
+```typescript
+AnalyticsDashboardPurpose {
+  primary_objectives: {
+    no_show_reduction_measurement: "Track and measure the impact of voice reminders on appointment attendance",
+    call_performance_optimization: "Monitor voice call success rates and optimize calling strategies", 
+    business_efficiency_tracking: "Measure time savings and operational efficiency gains",
+    revenue_impact_analysis: "Calculate revenue protection from reduced no-shows",
+    customer_experience_monitoring: "Track customer satisfaction and response patterns"
+  },
+  
+  target_users: {
+    business_owners: "High-level performance overview and ROI metrics",
+    practice_managers: "Operational metrics and staff performance tracking",
+    reception_staff: "Daily activity monitoring and immediate action items",
+    system_administrators: "Technical performance and system health metrics"
+  },
+  
+  design_philosophy: {
+    real_time_first: "Live data updates every 30 seconds for immediate insights",
+    mobile_responsive: "Full functionality on mobile devices for on-the-go monitoring",
+    actionable_insights: "Every metric includes suggested actions and optimization opportunities",
+    privacy_compliant: "HIPAA-safe aggregated data with no individual patient information"
+  }
+}
+```
+
+### **Dashboard Layout & Information Architecture**
+
+```typescript
+DashboardStructure {
+  layout_sections: {
+    performance_overview: {
+      position: "top_section",
+      purpose: "Key performance indicators at-a-glance",
+      refresh_rate: "30_seconds",
+      priority: "P0_critical_metrics"
+    },
+    
+    call_activity: {
+      position: "middle_left",
+      purpose: "Real-time call monitoring and activity tracking", 
+      refresh_rate: "real_time",
+      priority: "P0_operational_awareness"
+    },
+    
+    appointment_insights: {
+      position: "middle_right", 
+      purpose: "Appointment confirmation trends and patterns",
+      refresh_rate: "5_minutes",
+      priority: "P1_business_intelligence"
+    },
+    
+    contact_analytics: {
+      position: "bottom_left",
+      purpose: "Contact database growth and management metrics",
+      refresh_rate: "10_minutes", 
+      priority: "P1_growth_tracking"
+    },
+    
+    system_health: {
+      position: "bottom_right",
+      purpose: "Technical system performance and reliability metrics",
+      refresh_rate: "1_minute",
+      priority: "P2_system_monitoring"
+    }
+  }
+}
+```
+
+---
+
+## 📊 **1. Performance Overview Section**
+
+### **Key Performance Indicators (KPIs)**
+
+```typescript
+PerformanceOverviewMetrics {
+  // Primary Success Metrics
+  call_success_rate: {
+    metric_name: "Call Success Rate",
+    description: "Percentage of calls that result in customer engagement (answered)",
+    calculation: "(answered_calls / total_calls_attempted) * 100",
+    data_source: "call_sessions table",
+    query: `
+      SELECT 
+        COUNT(*) FILTER (WHERE call_outcome IN ('answered', 'completed')) as answered_calls,
+        COUNT(*) as total_calls,
+        ROUND((COUNT(*) FILTER (WHERE call_outcome IN ('answered', 'completed'))::DECIMAL / COUNT(*)) * 100, 2) as success_rate
+      FROM call_sessions 
+      WHERE tenant_id = $1 
+      AND trigger_time >= $2
+    `,
+    target_value: ">80%",
+    warning_threshold: "<60%",
+    critical_threshold: "<40%",
+    display_format: "percentage_with_trend_arrow"
+  },
+  
+  appointment_confirmation_rate: {
+    metric_name: "Appointment Confirmation Rate", 
+    description: "Percentage of calls that result in appointment confirmation",
+    calculation: "(confirmed_appointments / total_calls_answered) * 100",
+    data_source: "call_sessions table + contacts table",
+    query: `
+      SELECT 
+        COUNT(*) FILTER (WHERE appointment_action = 'confirmed') as confirmed,
+        COUNT(*) FILTER (WHERE call_outcome = 'answered') as answered,
+        ROUND((COUNT(*) FILTER (WHERE appointment_action = 'confirmed')::DECIMAL / 
+               COUNT(*) FILTER (WHERE call_outcome = 'answered')) * 100, 2) as confirmation_rate
+      FROM call_sessions 
+      WHERE tenant_id = $1 
+      AND trigger_time >= $2
+    `,
+    target_value: ">70%",
+    warning_threshold: "<50%",
+    critical_threshold: "<30%",
+    display_format: "percentage_with_comparison_to_previous_period"
+  },
+  
+  no_show_reduction: {
+    metric_name: "No-Show Reduction",
+    description: "Reduction in appointment no-shows compared to baseline (before VioConcierge)",
+    calculation: "((baseline_no_show_rate - current_no_show_rate) / baseline_no_show_rate) * 100",
+    data_source: "contacts table + appointment_status tracking",
+    query: `
+      SELECT 
+        COUNT(*) FILTER (WHERE appointment_status = 'confirmed') as confirmed,
+        COUNT(*) FILTER (WHERE appointment_status IN ('confirmed', 'completed', 'attended')) as total_trackable,
+        COUNT(*) FILTER (WHERE appointment_status = 'no_show') as no_shows,
+        ROUND((COUNT(*) FILTER (WHERE appointment_status IN ('confirmed', 'completed'))::DECIMAL / 
+               COUNT(*) FILTER (WHERE appointment_time IS NOT NULL)) * 100, 2) as attendance_rate
+      FROM contacts 
+      WHERE tenant_id = $1 
+      AND appointment_time >= $2
+    `,
+    baseline_comparison: "compare_to_pre_vioconcierge_period_if_available",
+    target_value: ">50% reduction",
+    display_format: "percentage_improvement_with_revenue_impact"
+  },
+  
+  daily_call_volume: {
+    metric_name: "Daily Call Volume",
+    description: "Number of appointment reminder calls made today",
+    calculation: "COUNT(calls_today)",
+    data_source: "call_sessions table",
+    query: `
+      SELECT COUNT(*) as calls_today
+      FROM call_sessions 
+      WHERE tenant_id = $1 
+      AND DATE(trigger_time) = CURRENT_DATE
+    `,
+    comparison: "compare_to_yesterday_and_average",
+    display_format: "number_with_trend_and_target_progress"
+  },
+  
+  revenue_protection: {
+    metric_name: "Estimated Revenue Protection",
+    description: "Estimated revenue saved through no-show reduction",
+    calculation: "(no_shows_prevented * average_appointment_value)",
+    data_source: "derived_metric_from_confirmation_rates",
+    requires_configuration: "average_appointment_value_setting",
+    display_format: "currency_with_monthly_projection",
+    note: "Requires tenant to configure average appointment value"
+  }
+}
+```
+
+### **Performance Overview Data Sources**
+
+```python
+class PerformanceOverviewDataProvider:
+    """
+    Provides data for the performance overview section
+    """
+    
+    async def get_performance_overview(self, tenant_id: str, time_period: int = 30) -> dict:
+        """
+        Aggregate performance data from multiple sources
+        """
+        
+        end_date = datetime.now(timezone.utc)
+        start_date = end_date - timedelta(days=time_period)
+        
+        # DATA SOURCE 1: Call Sessions Table
+        call_performance = await self.get_call_performance_metrics(tenant_id, start_date, end_date)
+        
+        # DATA SOURCE 2: Contacts Table  
+        appointment_metrics = await self.get_appointment_metrics(tenant_id, start_date, end_date)
+        
+        # DATA SOURCE 3: Follow-up Tasks Table
+        automation_metrics = await self.get_automation_metrics(tenant_id, start_date, end_date)
+        
+        # DATA SOURCE 4: Tenant Configuration
+        business_context = await self.get_business_context(tenant_id)
+        
+        return {
+            "call_performance": call_performance,
+            "appointment_metrics": appointment_metrics,
+            "automation_metrics": automation_metrics,
+            "business_context": business_context,
+            "time_period": time_period,
+            "last_updated": datetime.now(timezone.utc).isoformat()
+        }
+    
+    async def get_call_performance_metrics(self, tenant_id: str, start_date: datetime, end_date: datetime) -> dict:
+        """
+        Extract call performance data from call_sessions table
+        """
+        
+        # Direct Supabase query for call performance
+        call_stats_query = supabase.table('call_sessions').select(
+            'status, call_outcome, appointment_action, call_duration, trigger_time'
+        ).eq('tenant_id', tenant_id).gte('trigger_time', start_date.isoformat()).lte('trigger_time', end_date.isoformat()).execute()
+        
+        calls = call_stats_query.data or []
+        
+        if not calls:
+            return self.get_empty_call_metrics()
+        
+        # Calculate metrics from raw call data
+        total_calls = len(calls)
+        answered_calls = len([c for c in calls if c.get('call_outcome') in ['answered', 'completed']])
+        confirmed_calls = len([c for c in calls if c.get('appointment_action') == 'confirmed'])
+        cancelled_calls = len([c for c in calls if c.get('appointment_action') == 'cancelled'])
+        rescheduled_calls = len([c for c in calls if c.get('appointment_action') == 'rescheduled'])
+        
+        # Calculate success rates
+        call_success_rate = (answered_calls / total_calls * 100) if total_calls > 0 else 0
+        confirmation_rate = (confirmed_calls / answered_calls * 100) if answered_calls > 0 else 0
+        
+        # Calculate average call duration
+        completed_calls = [c for c in calls if c.get('call_duration')]
+        avg_duration = sum(c['call_duration'] for c in completed_calls) / len(completed_calls) if completed_calls else 0
+        
+        return {
+            "total_calls": total_calls,
+            "answered_calls": answered_calls,
+            "call_success_rate": round(call_success_rate, 2),
+            "confirmation_rate": round(confirmation_rate, 2),
+            "confirmed_appointments": confirmed_calls,
+            "cancelled_appointments": cancelled_calls,
+            "rescheduled_appointments": rescheduled_calls,
+            "average_call_duration": round(avg_duration, 1),
+            "data_source": "call_sessions_table",
+            "query_period": f"{start_date.isoformat()} to {end_date.isoformat()}"
+        }
+```
+
+---
+
+## 📞 **2. Call Activity Section**
+
+### **Real-Time Call Monitoring**
+
+```typescript
+CallActivityMetrics {
+  // Active Call Tracking
+  active_calls: {
+    metric_name: "Active Calls",
+    description: "Calls currently in progress",
+    data_source: "call_sessions table + active_calls table",
+    query: `
+      SELECT COUNT(*) as active_count
+      FROM call_sessions 
+      WHERE tenant_id = $1 
+      AND status IN ('ringing', 'answered', 'in_progress')
+      AND trigger_time >= NOW() - INTERVAL '10 minutes'
+    `,
+    real_time: true,
+    refresh_rate: "5_seconds",
+    display_format: "live_counter_with_call_details"
+  },
+  
+  // Today's Call Activity
+  todays_call_summary: {
+    calls_attempted_today: {
+      description: "Total calls attempted today",
+      data_source: "call_sessions table",
+      query: `
+        SELECT COUNT(*) as calls_today
+        FROM call_sessions
+        WHERE tenant_id = $1 
+        AND DATE(trigger_time) = CURRENT_DATE
+      `
+    },
+    
+    calls_completed_today: {
+      description: "Calls completed successfully today",
+      data_source: "call_sessions table", 
+      query: `
+        SELECT COUNT(*) as completed_today
+        FROM call_sessions
+        WHERE tenant_id = $1
+        AND DATE(trigger_time) = CURRENT_DATE
+        AND status = 'completed'
+      `
+    },
+    
+    appointments_confirmed_today: {
+      description: "Appointments confirmed through calls today",
+      data_source: "call_sessions table",
+      query: `
+        SELECT COUNT(*) as confirmed_today
+        FROM call_sessions  
+        WHERE tenant_id = $1
+        AND DATE(trigger_time) = CURRENT_DATE
+        AND appointment_action = 'confirmed'
+      `
+    },
+    
+    pending_calls: {
+      description: "Calls scheduled but not yet attempted",
+      data_source: "follow_up_tasks table",
+      query: `
+        SELECT COUNT(*) as pending_calls
+        FROM follow_up_tasks
+        WHERE tenant_id = $1
+        AND status = 'pending'
+        AND scheduled_time <= NOW() + INTERVAL '24 hours'
+      `
+    }
+  },
+  
+  // Call Outcome Distribution
+  outcome_breakdown: {
+    description: "Visual breakdown of call outcomes",
+    chart_type: "donut_chart",
+    data_source: "call_sessions table",
+    query: `
+      SELECT 
+        call_outcome,
+        COUNT(*) as count,
+        ROUND((COUNT(*)::DECIMAL / SUM(COUNT(*)) OVER()) * 100, 1) as percentage
+      FROM call_sessions
+      WHERE tenant_id = $1
+      AND trigger_time >= $2
+      GROUP BY call_outcome
+      ORDER BY count DESC
+    `,
+    display_categories: {
+      answered: { color: "#10B981", label: "Answered", icon: "✅" },
+      no_answer: { color: "#F59E0B", label: "No Answer", icon: "📞" },
+      voicemail: { color: "#3B82F6", label: "Voicemail", icon: "📧" },
+      busy: { color: "#8B5CF6", label: "Busy", icon: "📶" },
+      failed: { color: "#EF4444", label: "Failed", icon: "❌" }
+    }
+  }
+}
+```
+
+### **Call Activity Data Providers**
+
+```python
+class CallActivityDataProvider:
+    """
+    Provides real-time call activity data for the analytics dashboard
+    """
+    
+    async def get_real_time_call_activity(self, tenant_id: str) -> dict:
+        """
+        Get real-time call activity metrics
+        DATA SOURCES: call_sessions, follow_up_tasks, active_calls tables
+        """
+        
+        now = datetime.now(timezone.utc)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # DATA SOURCE 1: Active Calls (Real-time)
+        active_calls_query = supabase.table('call_sessions').select('*').eq('tenant_id', tenant_id).in_('status', ['ringing', 'answered', 'in_progress']).gte('trigger_time', (now - timedelta(minutes=10)).isoformat()).execute()
+        active_calls = active_calls_query.data or []
+        
+        # DATA SOURCE 2: Today's Call Statistics
+        todays_calls_query = supabase.table('call_sessions').select('status, call_outcome, appointment_action, call_duration').eq('tenant_id', tenant_id).gte('trigger_time', today_start.isoformat()).execute()
+        todays_calls = todays_calls_query.data or []
+        
+        # DATA SOURCE 3: Pending Call Queue
+        pending_calls_query = supabase.table('follow_up_tasks').select('*').eq('tenant_id', tenant_id).eq('status', 'pending').lte('scheduled_time', (now + timedelta(hours=24)).isoformat()).execute()
+        pending_calls = pending_calls_query.data or []
+        
+        # DATA SOURCE 4: Call Outcome Distribution (Last 7 days)
+        week_start = now - timedelta(days=7)
+        outcome_distribution_query = supabase.table('call_sessions').select('call_outcome').eq('tenant_id', tenant_id).gte('trigger_time', week_start.isoformat()).execute()
+        outcome_calls = outcome_distribution_query.data or []
+        
+        # Process and calculate metrics
+        call_activity = {
+            # Real-time metrics
+            "active_calls": {
+                "count": len(active_calls),
+                "details": [
+                    {
+                        "contact_name": call.get("contact_name"),
+                        "status": call.get("status"),
+                        "duration": calculate_call_duration(call.get("trigger_time")),
+                        "phone": mask_phone_number(call.get("contact_phone"))
+                    }
+                    for call in active_calls
+                ],
+                "data_source": "call_sessions.status IN ('ringing', 'answered', 'in_progress')"
+            },
+            
+            # Today's summary
+            "todays_activity": {
+                "total_calls": len(todays_calls),
+                "completed_calls": len([c for c in todays_calls if c.get('status') == 'completed']),
+                "answered_calls": len([c for c in todays_calls if c.get('call_outcome') in ['answered', 'completed']]),
+                "confirmed_appointments": len([c for c in todays_calls if c.get('appointment_action') == 'confirmed']),
+                "average_duration": calculate_average_duration(todays_calls),
+                "data_source": "call_sessions.trigger_time >= today_start"
+            },
+            
+            # Call queue status
+            "call_queue": {
+                "pending_calls": len(pending_calls),
+                "due_now": len([c for c in pending_calls if datetime.fromisoformat(c['scheduled_time'].replace('Z', '+00:00')) <= now]),
+                "due_today": len([c for c in pending_calls if datetime.fromisoformat(c['scheduled_time'].replace('Z', '+00:00')).date() == now.date()]),
+                "due_tomorrow": len([c for c in pending_calls if datetime.fromisoformat(c['scheduled_time'].replace('Z', '+00:00')).date() == (now + timedelta(days=1)).date()]),
+                "data_source": "follow_up_tasks.status = 'pending'"
+            },
+            
+            # Outcome distribution
+            "outcome_distribution": self.calculate_outcome_distribution(outcome_calls),
+            
+            "last_updated": now.isoformat(),
+            "refresh_rate": "30_seconds"
+        }
+        
+        return call_activity
+    
+    def calculate_outcome_distribution(self, calls: List[dict]) -> dict:
+        """Calculate call outcome distribution for visualization"""
+        
+        if not calls:
+            return {}
+        
+        # Count outcomes
+        outcomes = {}
+        for call in calls:
+            outcome = call.get('call_outcome', 'unknown')
+            outcomes[outcome] = outcomes.get(outcome, 0) + 1
+        
+        # Calculate percentages
+        total = len(calls)
+        distribution = {}
+        for outcome, count in outcomes.items():
+            percentage = (count / total * 100) if total > 0 else 0
+            distribution[outcome] = {
+                "count": count,
+                "percentage": round(percentage, 1),
+                "label": outcome.replace('_', ' ').title()
+            }
+        
+        return {
+            "total_calls": total,
+            "distribution": distribution,
+            "data_source": "call_sessions.call_outcome (last 7 days)"
+        }
+```
+
+---
+
+## 📅 **3. Appointment Insights Section**
+
+### **Appointment Analytics & Trends**
+
+```typescript
+AppointmentInsightsMetrics {
+  // Appointment Status Tracking
+  appointment_status_overview: {
+    total_appointments: {
+      description: "Total appointments scheduled",
+      data_source: "contacts table",
+      query: `
+        SELECT COUNT(*) as total_appointments
+        FROM contacts 
+        WHERE tenant_id = $1 
+        AND appointment_time IS NOT NULL
+        AND appointment_time >= $2
+      `,
+      display_format: "large_number_with_growth_indicator"
+    },
+    
+    status_breakdown: {
+      description: "Breakdown of appointment statuses",
+      data_source: "contacts table",
+      query: `
+        SELECT 
+          appointment_status,
+          COUNT(*) as count,
+          ROUND((COUNT(*)::DECIMAL / SUM(COUNT(*)) OVER()) * 100, 1) as percentage
+        FROM contacts
+        WHERE tenant_id = $1 
+        AND appointment_time IS NOT NULL
+        AND appointment_time >= $2
+        GROUP BY appointment_status
+        ORDER BY count DESC
+      `,
+      chart_type: "horizontal_bar_chart",
+      status_colors: {
+        confirmed: "#10B981",    // Green
+        pending: "#F59E0B",      // Orange  
+        cancelled: "#EF4444",    // Red
+        rescheduled: "#3B82F6",  // Blue
+        completed: "#6B7280",    // Gray
+        no_show: "#7C2D12"       // Dark red
+      }
+    }
+  },
+  
+  // Appointment Timing Analysis
+  appointment_timing_insights: {
+    optimal_call_timing: {
+      description: "Analysis of most effective call timing",
+      data_source: "call_sessions table + follow_up_tasks table",
+      query: `
+        SELECT 
+          ft.call_before_hours,
+          COUNT(*) as total_calls,
+          COUNT(*) FILTER (WHERE cs.appointment_action = 'confirmed') as confirmed_calls,
+          ROUND((COUNT(*) FILTER (WHERE cs.appointment_action = 'confirmed')::DECIMAL / COUNT(*)) * 100, 2) as success_rate
+        FROM follow_up_tasks ft
+        JOIN call_sessions cs ON ft.session_id = cs.session_id
+        WHERE ft.tenant_id = $1
+        AND ft.completed_at >= $2
+        GROUP BY ft.call_before_hours
+        ORDER BY success_rate DESC
+      `,
+      visualization: "bar_chart_with_success_rates",
+      recommendation_engine: "suggest_optimal_timing_based_on_data"
+    },
+    
+    appointment_trends: {
+      description: "Appointment booking and confirmation trends over time",
+      data_source: "contacts table + call_sessions table",
+      query: `
+        SELECT 
+          DATE(c.created_at) as date,
+          COUNT(c.id) as appointments_created,
+          COUNT(cs.id) FILTER (WHERE cs.appointment_action = 'confirmed') as appointments_confirmed,
+          COUNT(cs.id) FILTER (WHERE cs.appointment_action = 'cancelled') as appointments_cancelled
+        FROM contacts c
+        LEFT JOIN call_sessions cs ON c.id = cs.contact_id
+        WHERE c.tenant_id = $1
+        AND c.created_at >= $2
+        GROUP BY DATE(c.created_at)
+        ORDER BY date
+      `,
+      chart_type: "line_chart",
+      trend_analysis: "identify_patterns_and_seasonal_effects"
+    }
+  },
+  
+  // Customer Behavior Insights
+  customer_behavior: {
+    response_patterns: {
+      description: "How customers typically respond to reminder calls",
+      data_source: "call_sessions table",
+      query: `
+        SELECT 
+          appointment_action,
+          COUNT(*) as count,
+          AVG(call_duration) as avg_duration,
+          ROUND((COUNT(*)::DECIMAL / SUM(COUNT(*)) OVER()) * 100, 1) as percentage
+        FROM call_sessions
+        WHERE tenant_id = $1
+        AND call_outcome = 'answered'
+        AND trigger_time >= $2
+        GROUP BY appointment_action
+      `,
+      insights: [
+        "Most common customer response",
+        "Average call duration by response type",
+        "Optimal call script length recommendations"
+      ]
+    },
+    
+    retry_effectiveness: {
+      description: "Effectiveness of retry calls vs first attempts",
+      data_source: "follow_up_tasks table + call_sessions table",
+      query: `
+        SELECT 
+          CASE WHEN ft.retry_count = 0 THEN 'first_attempt' ELSE 'retry_attempt' END as attempt_type,
+          COUNT(*) as total_attempts,
+          COUNT(*) FILTER (WHERE cs.appointment_action = 'confirmed') as confirmed,
+          ROUND((COUNT(*) FILTER (WHERE cs.appointment_action = 'confirmed')::DECIMAL / COUNT(*)) * 100, 2) as success_rate
+        FROM follow_up_tasks ft
+        JOIN call_sessions cs ON ft.session_id = cs.session_id
+        WHERE ft.tenant_id = $1
+        AND ft.completed_at >= $2
+        GROUP BY attempt_type
+      `,
+      comparison: "first_attempt_vs_retry_success_rates"
+    }
+  }
+}
+```
+
+### **Appointment Insights Data Implementation**
+
+```python
+class AppointmentInsightsProvider:
+    """
+    Provides appointment analytics and trend analysis
+    """
+    
+    async def get_appointment_insights(self, tenant_id: str, days: int = 30) -> dict:
+        """
+        Generate comprehensive appointment insights
+        DATA SOURCES: contacts, call_sessions, follow_up_tasks tables
+        """
+        
+        end_date = datetime.now(timezone.utc)
+        start_date = end_date - timedelta(days=days)
+        
+        # DATA SOURCE 1: Appointment Status Distribution
+        status_distribution = await self.get_appointment_status_distribution(tenant_id, start_date)
+        
+        # DATA SOURCE 2: Appointment Timing Analysis
+        timing_analysis = await self.get_appointment_timing_analysis(tenant_id, start_date)
+        
+        # DATA SOURCE 3: Customer Response Patterns
+        response_patterns = await self.get_customer_response_patterns(tenant_id, start_date)
+        
+        # DATA SOURCE 4: No-Show Analysis
+        no_show_analysis = await self.get_no_show_analysis(tenant_id, start_date)
+        
+        return {
+            "appointment_overview": status_distribution,
+            "timing_insights": timing_analysis,
+            "customer_behavior": response_patterns,
+            "no_show_analysis": no_show_analysis,
+            "analysis_period": days,
+            "data_quality": self.assess_data_quality(tenant_id, start_date),
+            "last_updated": datetime.now(timezone.utc).isoformat()
+        }
+    
+    async def get_appointment_status_distribution(self, tenant_id: str, start_date: datetime) -> dict:
+        """
+        Get appointment status breakdown from contacts table
+        """
+        
+        # Query contacts table for appointment statuses
+        contacts_query = supabase.table('contacts').select('appointment_status, created_at, appointment_time').eq('tenant_id', tenant_id).gte('created_at', start_date.isoformat()).execute()
+        contacts = contacts_query.data or []
+        
+        # Calculate status distribution
+        status_counts = {}
+        for contact in contacts:
+            status = contact.get('appointment_status', 'unknown')
+            status_counts[status] = status_counts.get(status, 0) + 1
+        
+        total_appointments = len(contacts)
+        
+        # Build status distribution with percentages
+        status_distribution = {}
+        for status, count in status_counts.items():
+            percentage = (count / total_appointments * 100) if total_appointments > 0 else 0
+            status_distribution[status] = {
+                "count": count,
+                "percentage": round(percentage, 1),
+                "label": status.replace('_', ' ').title()
+            }
+        
+        return {
+            "total_appointments": total_appointments,
+            "status_distribution": status_distribution,
+            "data_source": "contacts.appointment_status",
+            "calculation_basis": f"appointments created since {start_date.isoformat()}"
+        }
+    
+    async def get_appointment_timing_analysis(self, tenant_id: str, start_date: datetime) -> dict:
+        """
+        Analyze optimal call timing effectiveness
+        DATA SOURCES: follow_up_tasks + call_sessions (joined)
+        """
+        
+        # Join follow_up_tasks with call_sessions to correlate timing with outcomes
+        timing_analysis_query = """
+        SELECT 
+          ft.call_before_hours,
+          COUNT(*) as total_calls,
+          COUNT(*) FILTER (WHERE cs.call_outcome = 'answered') as answered_calls,
+          COUNT(*) FILTER (WHERE cs.appointment_action = 'confirmed') as confirmed_calls,
+          AVG(cs.call_duration) as avg_duration
+        FROM follow_up_tasks ft
+        LEFT JOIN call_sessions cs ON ft.session_id = cs.session_id  
+        WHERE ft.tenant_id = %s
+        AND ft.completed_at >= %s
+        AND ft.call_before_hours IS NOT NULL
+        GROUP BY ft.call_before_hours
+        ORDER BY ft.call_before_hours
+        """
+        
+        # Execute query via direct database connection if available
+        timing_results = await execute_analytics_query(timing_analysis_query, [tenant_id, start_date])
+        
+        # Process results for visualization
+        timing_insights = {}
+        best_timing = None
+        best_success_rate = 0
+        
+        for result in timing_results:
+            hours_before = result['call_before_hours']
+            total_calls = result['total_calls'] 
+            answered_calls = result['answered_calls']
+            confirmed_calls = result['confirmed_calls']
+            
+            success_rate = (answered_calls / total_calls * 100) if total_calls > 0 else 0
+            confirmation_rate = (confirmed_calls / answered_calls * 100) if answered_calls > 0 else 0
+            
+            timing_insights[f"{hours_before}_hours"] = {
+                "hours_before": hours_before,
+                "total_calls": total_calls,
+                "success_rate": round(success_rate, 2),
+                "confirmation_rate": round(confirmation_rate, 2),
+                "average_duration": round(result['avg_duration'] or 0, 1),
+                "recommendation": self.get_timing_recommendation(hours_before, success_rate)
+            }
+            
+            if success_rate > best_success_rate:
+                best_success_rate = success_rate
+                best_timing = hours_before
+        
+        return {
+            "timing_analysis": timing_insights,
+            "optimal_timing": {
+                "hours_before": best_timing,
+                "success_rate": best_success_rate,
+                "recommendation": f"Consider using {best_timing} hours before appointments for optimal results"
+            },
+            "data_source": "follow_up_tasks JOIN call_sessions"
+        }
+```
+
+---
+
+## 👥 **4. Contact Analytics Section**
+
+### **Contact Database Insights**
+
+```typescript
+ContactAnalyticsMetrics {
+  // Contact Growth Tracking
+  contact_growth: {
+    total_contacts: {
+      description: "Total contacts in database",
+      data_source: "contacts table",
+      query: "SELECT COUNT(*) FROM contacts WHERE tenant_id = $1",
+      comparison: "growth_compared_to_previous_period"
+    },
+    
+    new_contacts_trend: {
+      description: "New contacts added over time",
+      data_source: "contacts table",
+      query: `
+        SELECT 
+          DATE(created_at) as date,
+          COUNT(*) as new_contacts
+        FROM contacts
+        WHERE tenant_id = $1
+        AND created_at >= $2
+        GROUP BY DATE(created_at)
+        ORDER BY date
+      `,
+      chart_type: "area_chart",
+      trend_analysis: "growth_rate_calculation"
+    },
+    
+    contact_sources: {
+      description: "How contacts are being added to the system",
+      data_source: "contacts table",
+      query: `
+        SELECT 
+          COALESCE(booking_source, 'manual') as source,
+          COUNT(*) as count,
+          ROUND((COUNT(*)::DECIMAL / SUM(COUNT(*)) OVER()) * 100, 1) as percentage
+        FROM contacts
+        WHERE tenant_id = $1
+        AND created_at >= $2
+        GROUP BY booking_source
+      `,
+      source_categories: {
+        manual: { label: "Manual Entry", icon: "✏️", color: "#3B82F6" },
+        calcom: { label: "Cal.com Integration", icon: "📅", color: "#10B981" },
+        calendly: { label: "Calendly Integration", icon: "🗓️", color: "#8B5CF6" },
+        csv_import: { label: "CSV Import", icon: "📊", color: "#F59E0B" },
+        api: { label: "API Integration", icon: "🔗", color: "#6B7280" }
+      }
+    }
+  },
+  
+  // Contact Engagement Analysis
+  contact_engagement: {
+    contact_responsiveness: {
+      description: "How responsive contacts are to voice calls",
+      data_source: "contacts table + call_sessions table",
+      query: `
+        SELECT 
+          CASE 
+            WHEN cs.call_outcome = 'answered' AND cs.appointment_action = 'confirmed' THEN 'highly_responsive'
+            WHEN cs.call_outcome = 'answered' THEN 'responsive'  
+            WHEN cs.call_outcome IN ('no_answer', 'voicemail') THEN 'low_responsive'
+            ELSE 'uncontacted'
+          END as responsiveness_level,
+          COUNT(DISTINCT c.id) as contact_count
+        FROM contacts c
+        LEFT JOIN call_sessions cs ON c.id = cs.contact_id
+        WHERE c.tenant_id = $1
+        GROUP BY responsiveness_level
+      `,
+      segmentation: "categorize_contacts_by_engagement_level"
+    },
+    
+    appointment_types_popularity: {
+      description: "Most popular appointment types",
+      data_source: "contacts table",
+      query: `
+        SELECT 
+          appointment_type,
+          COUNT(*) as count,
+          AVG(appointment_duration) as avg_duration
+        FROM contacts
+        WHERE tenant_id = $1
+        AND appointment_type IS NOT NULL
+        AND created_at >= $2
+        GROUP BY appointment_type
+        ORDER BY count DESC
+        LIMIT 10
+      `,
+      visualization: "bar_chart_with_duration_overlay"
+    }
+  },
+  
+  // Contact Quality Metrics
+  contact_data_quality: {
+    data_completeness: {
+      description: "Percentage of contacts with complete information",
+      data_source: "contacts table",
+      calculation: "measure_field_completion_rates",
+      fields_analyzed: [
+        "name", "phone", "email", "appointment_time", 
+        "appointment_type", "owner_name", "special_instructions"
+      ],
+      quality_score: "weighted_average_of_field_completion"
+    },
+    
+    duplicate_analysis: {
+      description: "Potential duplicate contacts identified",
+      data_source: "contacts table",
+      query: `
+        SELECT 
+          phone,
+          COUNT(*) as duplicate_count,
+          STRING_AGG(name, ', ') as names
+        FROM contacts
+        WHERE tenant_id = $1
+        GROUP BY phone
+        HAVING COUNT(*) > 1
+      `,
+      action_required: "review_and_merge_duplicates"
+    }
+  }
+}
+```
+
+### **Contact Analytics Data Provider**
+
+```python
+class ContactAnalyticsProvider:
+    """
+    Provides contact database analytics and insights
+    """
+    
+    async def get_contact_analytics(self, tenant_id: str, days: int = 30) -> dict:
+        """
+        Generate comprehensive contact analytics
+        DATA SOURCES: contacts, call_sessions, follow_up_tasks tables
+        """
+        
+        end_date = datetime.now(timezone.utc)
+        start_date = end_date - timedelta(days=days)
+        
+        # DATA SOURCE 1: Contact Growth Metrics
+        growth_metrics = await self.calculate_contact_growth(tenant_id, start_date, end_date)
+        
+        # DATA SOURCE 2: Contact Source Analysis  
+        source_analysis = await self.analyze_contact_sources(tenant_id, start_date)
+        
+        # DATA SOURCE 3: Contact Engagement Levels
+        engagement_analysis = await self.analyze_contact_engagement(tenant_id, start_date)
+        
+        # DATA SOURCE 4: Data Quality Assessment
+        quality_metrics = await self.assess_contact_data_quality(tenant_id)
+        
+        return {
+            "contact_growth": growth_metrics,
+            "contact_sources": source_analysis,
+            "engagement_analysis": engagement_analysis,
+            "data_quality": quality_metrics,
+            "summary": {
+                "total_contacts": growth_metrics["current_total"],
+                "growth_rate": growth_metrics["growth_rate_percentage"],
+                "data_completeness": quality_metrics["overall_completeness_score"],
+                "engagement_score": engagement_analysis["overall_engagement_score"]
+            },
+            "recommendations": self.generate_contact_recommendations(growth_metrics, source_analysis, engagement_analysis),
+            "data_sources": [
+                "contacts table (primary)",
+                "call_sessions table (engagement)",
+                "follow_up_tasks table (automation)"
+            ]
+        }
+    
+    async def calculate_contact_growth(self, tenant_id: str, start_date: datetime, end_date: datetime) -> dict:
+        """
+        Calculate contact database growth metrics
+        """
+        
+        # Current total contacts
+        total_contacts_query = supabase.table('contacts').select('id', count='exact').eq('tenant_id', tenant_id).execute()
+        current_total = total_contacts_query.count or 0
+        
+        # New contacts in period
+        new_contacts_query = supabase.table('contacts').select('id', count='exact').eq('tenant_id', tenant_id).gte('created_at', start_date.isoformat()).execute()
+        new_contacts = new_contacts_query.count or 0
+        
+        # Previous period for comparison
+        previous_period_start = start_date - timedelta(days=(end_date - start_date).days)
+        previous_contacts_query = supabase.table('contacts').select('id', count='exact').eq('tenant_id', tenant_id).gte('created_at', previous_period_start.isoformat()).lt('created_at', start_date.isoformat()).execute()
+        previous_period_contacts = previous_contacts_query.count or 0
+        
+        # Calculate growth rate
+        if previous_period_contacts > 0:
+            growth_rate = ((new_contacts - previous_period_contacts) / previous_period_contacts * 100)
+        else:
+            growth_rate = 100 if new_contacts > 0 else 0
+        
+        # Daily breakdown for trend chart
+        daily_growth_query = supabase.table('contacts').select('created_at').eq('tenant_id', tenant_id).gte('created_at', start_date.isoformat()).execute()
+        daily_contacts = daily_growth_query.data or []
+        
+        # Group by date
+        daily_breakdown = {}
+        for contact in daily_contacts:
+            date_key = contact['created_at'][:10]  # YYYY-MM-DD
+            daily_breakdown[date_key] = daily_breakdown.get(date_key, 0) + 1
+        
+        return {
+            "current_total": current_total,
+            "new_contacts": new_contacts,
+            "previous_period_contacts": previous_period_contacts,
+            "growth_rate_percentage": round(growth_rate, 2),
+            "daily_breakdown": daily_breakdown,
+            "average_daily_growth": round(new_contacts / max(1, (end_date - start_date).days), 1),
+            "data_source": "contacts.created_at aggregation"
+        }
+```
+
+---
+
+## 📈 **5. Business Intelligence & Trends**
+
+### **Advanced Analytics & Reporting**
+
+```typescript
+BusinessIntelligenceMetrics {
+  // ROI & Revenue Impact
+  roi_analysis: {
+    revenue_protection: {
+      description: "Revenue saved through reduced no-shows",
+      calculation_method: "no_shows_prevented * average_appointment_value",
+      data_sources: [
+        "appointment_confirmation_rates",
+        "historical_no_show_baseline", 
+        "tenant_configured_appointment_value"
+      ],
+      requires_configuration: {
+        average_appointment_value: "tenant_must_configure_in_settings",
+        baseline_no_show_rate: "calculated_from_pre_vioconcierge_data_or_industry_average"
+      },
+      display_format: "currency_with_monthly_annual_projections"
+    },
+    
+    time_savings: {
+      description: "Staff time saved through automation",
+      calculation_method: "manual_calls_replaced * average_call_duration * staff_hourly_rate",
+      data_sources: [
+        "automated_calls_count",
+        "average_call_duration",
+        "staff_efficiency_metrics"
+      ],
+      assumptions: {
+        manual_call_time: "3_minutes_per_call_including_dialing_and_notes",
+        staff_hourly_rate: "configurable_or_default_15_gbp_per_hour"
+      }
+    }
+  },
+  
+  // Operational Efficiency
+  efficiency_metrics: {
+    automation_effectiveness: {
+      description: "How well the automation system is performing",
+      data_source: "follow_up_tasks table + call_sessions table",
+      metrics: {
+        automation_success_rate: "percentage_of_scheduled_calls_that_execute_successfully",
+        average_processing_time: "time_from_scheduled_to_executed",
+        retry_effectiveness: "success_rate_of_retry_attempts_vs_first_attempts",
+        queue_efficiency: "average_queue_depth_and_processing_speed"
+      }
+    },
+    
+    staff_productivity: {
+      description: "Impact on staff productivity and workload",
+      data_source: "user_activity_logs + manual_call_tracking",
+      metrics: {
+        manual_calls_reduction: "reduction_in_manual_calling_workload",
+        contact_management_efficiency: "time_spent_on_contact_management_tasks",
+        administrative_time_savings: "reduction_in_administrative_overhead"
+      }
+    }
+  },
+  
+  // Customer Experience Analytics
+  customer_experience: {
+    customer_satisfaction: {
+      description: "Customer satisfaction with voice reminder system",
+      data_source: "call_sessions.customer_sentiment + optional_feedback",
+      metrics: {
+        positive_sentiment_rate: "percentage_of_calls_with_positive_customer_sentiment",
+        complaint_rate: "customer_complaints_about_voice_calls", 
+        opt_out_rate: "customers_requesting_to_stop_voice_reminders"
+      }
+    },
+    
+    response_quality: {
+      description: "Quality and effectiveness of customer responses",
+      data_source: "call_sessions table",
+      metrics: {
+        immediate_confirmation_rate: "customers_who_confirm_during_call",
+        callback_rate: "customers_who_call_back_after_reminder",
+        reschedule_patterns: "common_reschedule_timing_requests"
+      }
+    }
+  }
+}
+```
+
+### **Business Intelligence Data Provider**
+
+```python
+class BusinessIntelligenceProvider:
+    """
+    Provides advanced business intelligence and ROI analytics
+    """
+    
+    async def generate_business_intelligence_report(self, tenant_id: str, period_days: int = 30) -> dict:
+        """
+        Generate comprehensive business intelligence report
+        DATA SOURCES: Multiple tables with complex calculations
+        """
+        
+        # DATA SOURCE 1: Revenue Impact Analysis
+        revenue_analysis = await self.calculate_revenue_impact(tenant_id, period_days)
+        
+        # DATA SOURCE 2: Operational Efficiency Metrics
+        efficiency_metrics = await self.calculate_operational_efficiency(tenant_id, period_days)
+        
+        # DATA SOURCE 3: Customer Experience Analysis
+        cx_analysis = await self.analyze_customer_experience(tenant_id, period_days)
+        
+        # DATA SOURCE 4: Comparative Benchmarking
+        benchmark_data = await self.get_industry_benchmarks(tenant_id)
+        
+        return {
+            "revenue_impact": revenue_analysis,
+            "operational_efficiency": efficiency_metrics,
+            "customer_experience": cx_analysis,
+            "industry_benchmarks": benchmark_data,
+            "summary_insights": self.generate_executive_summary(revenue_analysis, efficiency_metrics, cx_analysis),
+            "recommendations": self.generate_optimization_recommendations(tenant_id, revenue_analysis, efficiency_metrics),
+            "report_metadata": {
+                "period_analyzed": period_days,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "data_quality_score": await self.assess_data_completeness(tenant_id)
+            }
+        }
+    
+    async def calculate_revenue_impact(self, tenant_id: str, days: int) -> dict:
+        """
+        Calculate revenue impact from no-show reduction
+        DATA SOURCES: contacts, call_sessions, tenant_config
+        """
+        
+        # Get tenant's average appointment value (if configured)
+        tenant_config = await db.tenant_config.find_one({"tenant_id": tenant_id})
+        avg_appointment_value = tenant_config.get("average_appointment_value") if tenant_config else None
+        
+        if not avg_appointment_value:
+            return {
+                "revenue_impact_available": False,
+                "configuration_required": "Please configure average appointment value in tenant settings",
+                "data_source": "tenant_config.average_appointment_value (missing)"
+            }
+        
+        # Calculate confirmation and no-show rates
+        end_date = datetime.now(timezone.utc)
+        start_date = end_date - timedelta(days=days)
+        
+        # Get appointment outcomes
+        appointment_outcomes_query = supabase.table('contacts').select('appointment_status, appointment_time').eq('tenant_id', tenant_id).gte('appointment_time', start_date.isoformat()).execute()
+        appointments = appointment_outcomes_query.data or []
+        
+        # Calculate metrics
+        total_appointments = len(appointments)
+        confirmed_appointments = len([a for a in appointments if a.get('appointment_status') == 'confirmed'])
+        cancelled_appointments = len([a for a in appointments if a.get('appointment_status') == 'cancelled'])
+        no_show_appointments = len([a for a in appointments if a.get('appointment_status') == 'no_show'])
+        
+        # Estimate revenue protection
+        if total_appointments > 0:
+            confirmation_rate = confirmed_appointments / total_appointments
+            estimated_no_shows_without_vioconcierge = total_appointments * 0.25  # 25% industry average
+            actual_no_shows = no_show_appointments
+            no_shows_prevented = max(0, estimated_no_shows_without_vioconcierge - actual_no_shows)
+            revenue_protected = no_shows_prevented * avg_appointment_value
+        else:
+            confirmation_rate = 0
+            no_shows_prevented = 0
+            revenue_protected = 0
+        
+        return {
+            "revenue_impact_available": True,
+            "period_analyzed": days,
+            "total_appointments": total_appointments,
+            "confirmed_appointments": confirmed_appointments,
+            "confirmation_rate": round(confirmation_rate * 100, 2),
+            "no_shows_prevented": round(no_shows_prevented, 1),
+            "revenue_protected": round(revenue_protected, 2),
+            "monthly_projection": round(revenue_protected * (30 / days), 2),
+            "annual_projection": round(revenue_protected * (365 / days), 2),
+            "data_sources": [
+                "contacts.appointment_status",
+                "tenant_config.average_appointment_value",
+                "industry_baseline_no_show_rate"
+            ]
+        }
+```
+
+---
+
+## 🏥 **6. HIPAA-Compliant Analytics**
+
+### **Medical Practice Analytics (Privacy-Protected)**
+
+```typescript
+HIPAACompliantAnalytics {
+  // Aggregated-Only Medical Analytics
+  medical_practice_metrics: {
+    patient_volume_trends: {
+      description: "Aggregated patient appointment trends (no individual data)",
+      data_source: "contacts table (aggregated only)",
+      query: `
+        SELECT 
+          DATE_TRUNC('week', appointment_time) as week,
+          COUNT(*) as appointment_count,
+          COUNT(*) FILTER (WHERE appointment_status = 'confirmed') as confirmed_count
+        FROM contacts
+        WHERE tenant_id = $1
+        AND appointment_time >= $2
+        GROUP BY DATE_TRUNC('week', appointment_time)
+        ORDER BY week
+      `,
+      privacy_protection: "no_individual_patient_information_displayed",
+      aggregation_minimum: "minimum_5_appointments_per_period_for_display"
+    },
+    
+    appointment_confirmation_effectiveness: {
+      description: "Effectiveness of voice reminders for medical appointments",
+      data_source: "call_sessions table (aggregated)",
+      hipaa_compliant_metrics: [
+        "overall_confirmation_rate_percentage",
+        "call_success_rate_percentage", 
+        "average_call_duration_seconds",
+        "retry_attempt_success_rates"
+      ],
+      prohibited_metrics: [
+        "individual_patient_call_details",
+        "specific_appointment_information",
+        "patient_names_or_identifiers",
+        "medical_appointment_types_if_specific"
+      ]
+    },
+    
+    compliance_reporting: {
+      description: "HIPAA compliance metrics for audit purposes",
+      data_source: "audit_logs + system_access_logs",
+      metrics: {
+        phi_protection_incidents: "count_of_potential_phi_exposures_prevented",
+        consent_compliance: "percentage_of_patients_with_documented_voice_consent",
+        access_audit_trail: "comprehensive_logging_of_patient_data_access",
+        data_retention_compliance: "adherence_to_configured_retention_policies"
+      }
+    }
+  },
+  
+  // Privacy Protection in Analytics Display
+  privacy_safeguards: {
+    data_minimization: {
+      display_rules: [
+        "Never show individual patient names",
+        "Never show specific appointment details",
+        "Never show medical conditions or procedures",
+        "Aggregate data only with minimum thresholds"
+      ]
+    },
+    
+    access_controls: {
+      role_based_analytics: "different_analytics_views_based_on_user_role",
+      audit_analytics_access: "log_who_views_analytics_and_when",
+      export_restrictions: "limit_analytics_export_for_medical_practices"
+    }
+  }
+}
+```
+
+---
+
+## 🔧 **7. Technical System Health Analytics**
+
+### **System Performance Monitoring**
+
+```typescript
+SystemHealthMetrics {
+  // System Performance Indicators  
+  technical_performance: {
+    call_system_health: {
+      description: "Health and performance of the voice calling system",
+      data_source: "call_sessions + follow_up_tasks + system_health_logs",
+      metrics: {
+        call_initiation_success_rate: {
+          query: "percentage_of_calls_that_successfully_initiate_vs_fail_at_api_level",
+          target: ">98%",
+          data_source: "call_sessions.status = 'initiated' vs 'failed'"
+        },
+        
+        average_call_processing_time: {
+          query: "average_time_from_scheduled_time_to_actual_call_execution",
+          target: "<60_seconds",
+          data_source: "follow_up_tasks.scheduled_time vs call_sessions.trigger_time"
+        },
+        
+        retell_api_reliability: {
+          query: "percentage_of_successful_retell_api_calls",
+          target: ">99%", 
+          data_source: "retell_api_response_codes_and_errors"
+        },
+        
+        webhook_delivery_success: {
+          query: "percentage_of_call_outcome_webhooks_successfully_processed",
+          target: ">99%",
+          data_source: "webhook_processing_logs"
+        }
+      }
+    },
+    
+    database_performance: {
+      description: "Database query performance and data integrity",
+      data_source: "system_performance_logs + query_analytics",
+      metrics: {
+        average_query_response_time: "average_database_query_execution_time",
+        database_connection_health: "database_connection_success_rate", 
+        data_consistency_score: "data_integrity_and_consistency_checks"
+      }
+    },
+    
+    integration_health: {
+      description: "Health of external integrations",
+      data_source: "integration_status_logs + api_health_checks",
+      integrations_monitored: {
+        retell_ai_integration: "api_response_times_and_success_rates",
+        calcom_integration: "webhook_processing_and_sync_success",
+        calendly_integration: "api_polling_success_and_data_sync",
+        supabase_database: "connection_health_and_query_performance"
+      }
+    }
+  }
+}
+```
+
+### **System Health Data Provider**
+
+```python
+class SystemHealthAnalyticsProvider:
+    """
+    Provides system health and technical performance analytics
+    """
+    
+    async def get_system_health_analytics(self, tenant_id: str) -> dict:
+        """
+        Generate system health metrics for analytics dashboard
+        DATA SOURCES: System logs, performance metrics, integration status
+        """
+        
+        # DATA SOURCE 1: Call System Performance
+        call_system_health = await self.analyze_call_system_performance(tenant_id)
+        
+        # DATA SOURCE 2: Database Performance
+        database_health = await self.analyze_database_performance(tenant_id)
+        
+        # DATA SOURCE 3: Integration Status
+        integration_health = await self.check_integration_health(tenant_id)
+        
+        # DATA SOURCE 4: Automation System Health
+        automation_health = await self.analyze_automation_system_health(tenant_id)
+        
+        return {
+            "overall_system_status": self.determine_overall_health_status(call_system_health, database_health, integration_health),
+            "call_system": call_system_health,
+            "database_performance": database_health,
+            "integrations": integration_health,
+            "automation_system": automation_health,
+            "last_health_check": datetime.now(timezone.utc).isoformat(),
+            "next_health_check": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+        }
+    
+    async def analyze_call_system_performance(self, tenant_id: str) -> dict:
+        """
+        Analyze call system performance metrics
+        """
+        
+        # Last 24 hours of call data
+        yesterday = datetime.now(timezone.utc) - timedelta(hours=24)
+        
+        # Query call performance data
+        call_performance_query = supabase.table('call_sessions').select('status, call_outcome, trigger_time, call_duration').eq('tenant_id', tenant_id).gte('trigger_time', yesterday.isoformat()).execute()
+        recent_calls = call_performance_query.data or []
+        
+        if not recent_calls:
+            return {"status": "no_data", "message": "No recent call data available"}
+        
+        # Calculate performance metrics
+        total_calls = len(recent_calls)
+        successful_initiations = len([c for c in recent_calls if c.get('status') not in ['failed', 'error']])
+        answered_calls = len([c for c in recent_calls if c.get('call_outcome') == 'answered'])
+        
+        # Calculate averages
+        call_durations = [c.get('call_duration', 0) for c in recent_calls if c.get('call_duration')]
+        avg_duration = sum(call_durations) / len(call_durations) if call_durations else 0
+        
+        # Performance scoring
+        initiation_success_rate = (successful_initiations / total_calls * 100) if total_calls > 0 else 0
+        answer_rate = (answered_calls / total_calls * 100) if total_calls > 0 else 0
+        
+        return {
+            "status": "healthy" if initiation_success_rate > 95 else "degraded" if initiation_success_rate > 85 else "unhealthy",
+            "total_calls_24h": total_calls,
+            "initiation_success_rate": round(initiation_success_rate, 2),
+            "answer_rate": round(answer_rate, 2),
+            "average_call_duration": round(avg_duration, 1),
+            "performance_score": round((initiation_success_rate + answer_rate) / 2, 1),
+            "data_source": "call_sessions (last 24 hours)"
+        }
+```
+
+---
+
+## 📊 **Analytics Data Source Architecture**
+
+### **Complete Data Source Mapping**
+
+```typescript
+AnalyticsDataSources {
+  // Primary Database Tables
+  core_data_tables: {
+    contacts: {
+      purpose: "Contact database and appointment information",
+      analytics_usage: [
+        "contact_growth_trends",
+        "appointment_status_distribution", 
+        "contact_source_analysis",
+        "appointment_type_popularity",
+        "data_quality_metrics"
+      ],
+      key_fields: [
+        "id", "tenant_id", "name", "phone", "appointment_time", 
+        "appointment_status", "appointment_type", "booking_source", 
+        "created_at", "updated_at"
+      ]
+    },
+    
+    call_sessions: {
+      purpose: "Call execution and outcome tracking",
+      analytics_usage: [
+        "call_success_rates",
+        "call_outcome_distribution",
+        "call_duration_analysis",
+        "appointment_confirmation_tracking",
+        "retry_effectiveness_analysis"
+      ],
+      key_fields: [
+        "id", "session_id", "contact_id", "tenant_id", "status", 
+        "call_outcome", "appointment_action", "call_duration",
+        "trigger_time", "retell_call_id"
+      ]
+    },
+    
+    follow_up_tasks: {
+      purpose: "Call scheduling and automation tracking",
+      analytics_usage: [
+        "automation_effectiveness",
+        "call_timing_analysis", 
+        "retry_pattern_analysis",
+        "queue_depth_monitoring",
+        "scheduling_accuracy_metrics"
+      ],
+      key_fields: [
+        "id", "tenant_id", "contact_id", "scheduled_time", "status",
+        "auto_execution", "retry_count", "call_before_hours",
+        "completed_at", "created_at"
+      ]
+    },
+    
+    tenant_config: {
+      purpose: "Business configuration and settings",
+      analytics_usage: [
+        "business_type_segmentation",
+        "integration_usage_analysis",
+        "feature_adoption_tracking",
+        "configuration_completeness"
+      ],
+      key_fields: [
+        "tenant_id", "business_type", "retell_agent_id", 
+        "cal_api_key", "calendly_api_key", "average_appointment_value",
+        "follow_up_hours", "timezone"
+      ]
+    }
+  },
+  
+  // Derived/Calculated Metrics
+  computed_metrics: {
+    no_show_reduction: {
+      calculation: "Compare current no-show rate to baseline or industry average",
+      data_sources: ["contacts.appointment_status", "industry_benchmarks"],
+      requires: "baseline_period_data_or_industry_average"
+    },
+    
+    revenue_impact: {
+      calculation: "no_shows_prevented * average_appointment_value",
+      data_sources: ["appointment_confirmations", "tenant_config.average_appointment_value"],
+      requires: "tenant_configuration_of_appointment_value"
+    },
+    
+    efficiency_gains: {
+      calculation: "automated_calls * manual_call_time_saved * staff_hourly_rate",
+      data_sources: ["call_sessions.method = 'automated'", "staff_productivity_assumptions"],
+      assumptions: "manual_call_time_3_minutes_staff_rate_15_gbp_hour"
+    }
+  }
+}
+```
+
+---
+
+## 📱 **Analytics Dashboard UI Implementation**
+
+### **Dashboard Layout & Components**
+
+```typescript
+AnalyticsDashboardUI {
+  // Dashboard Header Section
+  dashboard_header: {
+    time_period_selector: {
+      options: [
+        { value: 7, label: "Last 7 days" },
+        { value: 30, label: "Last 30 days", default: true },
+        { value: 90, label: "Last 3 months" },
+        { value: 365, label: "Last year" }
+      ],
+      affects: "all_dashboard_metrics_and_calculations"
+    },
+    
+    business_context_indicator: {
+      business_name: "display_tenant_company_name",
+      business_type: "display_business_type_with_icon",
+      last_updated: "real_time_last_update_timestamp",
+      data_quality_indicator: "visual_indicator_of_data_completeness"
+    },
+    
+    quick_action_buttons: [
+      { action: "export_analytics", label: "Export Report", icon: "📊" },
+      { action: "schedule_report", label: "Schedule Report", icon: "📅" },
+      { action: "refresh_data", label: "Refresh", icon: "🔄" }
+    ]
+  },
+  
+  // KPI Cards Section
+  kpi_cards_layout: {
+    card_structure: {
+      primary_metric: "large_number_with_unit",
+      trend_indicator: "arrow_with_percentage_change",
+      comparison_period: "vs_previous_period_text",
+      target_progress: "progress_bar_to_target_if_applicable",
+      drill_down_action: "click_to_see_detailed_breakdown"
+    },
+    
+    responsive_grid: {
+      desktop: "4_cards_per_row",
+      tablet: "2_cards_per_row", 
+      mobile: "1_card_per_row_stacked"
+    }
+  },
+  
+  // Charts & Visualizations Section
+  charts_section: {
+    call_activity_chart: {
+      chart_type: "line_chart_with_area_fill",
+      data_points: "hourly_call_volume_last_24_hours",
+      y_axis: "number_of_calls",
+      x_axis: "time_of_day",
+      overlays: ["business_hours_shading", "optimal_calling_times"]
+    },
+    
+    outcome_distribution_chart: {
+      chart_type: "donut_chart", 
+      data_points: "call_outcome_percentages",
+      color_coding: "outcome_specific_colors",
+      center_display: "total_calls_count",
+      hover_details: "count_and_percentage_per_outcome"
+    },
+    
+    appointment_trends_chart: {
+      chart_type: "combination_line_and_bar_chart",
+      primary_axis: "appointments_created_per_day",
+      secondary_axis: "confirmation_rate_percentage",
+      time_period: "configurable_based_on_header_selector"
+    }
+  }
+}
+```
+
+### **Real-Time Data Updates**
+
+```python
+class RealTimeAnalyticsUpdater:
+    """
+    Handles real-time updates for analytics dashboard
+    """
+    
+    def __init__(self):
+        self.update_intervals = {
+            "active_calls": 5,      # 5 seconds
+            "kpi_metrics": 30,      # 30 seconds  
+            "charts": 60,           # 1 minute
+            "trends": 300,          # 5 minutes
+            "reports": 900          # 15 minutes
+        }
+    
+    async def get_real_time_dashboard_data(self, tenant_id: str) -> dict:
+        """
+        Get real-time analytics data for dashboard updates
+        """
+        
+        # Parallel data fetching for performance
+        tasks = [
+            self.get_active_call_status(tenant_id),
+            self.get_current_kpi_values(tenant_id),
+            self.get_today_activity_summary(tenant_id),
+            self.get_system_health_status(tenant_id)
+        ]
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        return {
+            "active_calls": results[0] if not isinstance(results[0], Exception) else {},
+            "kpi_values": results[1] if not isinstance(results[1], Exception) else {},
+            "today_summary": results[2] if not isinstance(results[2], Exception) else {},
+            "system_health": results[3] if not isinstance(results[3], Exception) else {},
+            "update_timestamp": datetime.now(timezone.utc).isoformat(),
+            "next_update": (datetime.now(timezone.utc) + timedelta(seconds=30)).isoformat()
+        }
+    
+    async def get_active_call_status(self, tenant_id: str) -> dict:
+        """
+        Get real-time active call information
+        DATA SOURCE: call_sessions table (last 10 minutes)
+        """
+        
+        ten_minutes_ago = datetime.now(timezone.utc) - timedelta(minutes=10)
+        
+        active_calls_query = supabase.table('call_sessions').select('*').eq('tenant_id', tenant_id).in_('status', ['initiating', 'ringing', 'answered']).gte('trigger_time', ten_minutes_ago.isoformat()).execute()
+        active_calls = active_calls_query.data or []
+        
+        # Process active call details
+        call_details = []
+        for call in active_calls:
+            call_duration = self.calculate_current_call_duration(call.get('trigger_time'))
+            call_details.append({
+                "session_id": call.get('session_id'),
+                "contact_name": self.mask_contact_name_for_privacy(call.get('contact_name')),
+                "status": call.get('status'),
+                "duration": call_duration,
+                "expected_completion": self.estimate_call_completion_time(call)
+            })
+        
+        return {
+            "active_call_count": len(active_calls),
+            "call_details": call_details,
+            "system_capacity": self.calculate_system_capacity_usage(len(active_calls)),
+            "data_source": "call_sessions (last 10 minutes, active statuses)"
+        }
+
+    def mask_contact_name_for_privacy(self, contact_name: str) -> str:
+        """Mask contact names for privacy in analytics display"""
+        if not contact_name:
+            return "Unknown Contact"
+        
+        # Show first name + last initial for privacy
+        name_parts = contact_name.split()
+        if len(name_parts) >= 2:
+            return f"{name_parts[0]} {name_parts[1][0]}."
+        else:
+            return name_parts[0] if name_parts else "Contact"
+```
+
+---
+
+## 📈 **8. Advanced Analytics & Insights**
+
+### **Predictive Analytics & Recommendations**
+
+```typescript
+AdvancedAnalyticsFeatures {
+  // Predictive Insights
+  predictive_analytics: {
+    optimal_call_timing_prediction: {
+      description: "ML-based prediction of best call times for individual contacts",
+      data_source: "historical_call_success_data + contact_response_patterns",
+      algorithm: "analyze_individual_contact_response_history_to_predict_optimal_timing",
+      output: "recommended_call_time_per_contact"
+    },
+    
+    no_show_risk_scoring: {
+      description: "Predict likelihood of no-show for upcoming appointments",
+      data_source: "contact_history + appointment_characteristics + call_response_patterns",
+      risk_factors: [
+        "previous_no_show_history",
+        "response_rate_to_calls",
+        "appointment_type_no_show_rates",
+        "time_since_booking",
+        "day_of_week_patterns"
+      ],
+      output: "risk_score_per_appointment_with_recommended_actions"
+    },
+    
+    capacity_planning: {
+      description: "Predict future call volume and system capacity needs",
+      data_source: "appointment_booking_trends + seasonal_patterns",
+      predictions: [
+        "expected_daily_call_volume",
+        "peak_calling_periods",
+        "system_capacity_requirements",
+        "staff_scheduling_recommendations"
+      ]
+    }
+  },
+  
+  // Business Optimization Insights
+  optimization_recommendations: {
+    call_timing_optimization: {
+      analysis: "identify_most_effective_call_timing_for_business_type",
+      data_source: "call_success_rates_by_timing + business_type_benchmarks",
+      recommendations: [
+        "adjust_default_call_timing_to_optimal_hours",
+        "use_different_timing_for_different_appointment_types",
+        "consider_customer_preference_patterns"
+      ]
+    },
+    
+    script_optimization: {
+      analysis: "analyze_call_duration_vs_success_rate_correlation",
+      data_source: "call_duration + appointment_confirmation_rates",
+      insights: [
+        "optimal_call_length_for_confirmation",
+        "script_elements_that_improve_response",
+        "personalization_elements_that_increase_engagement"
+      ]
+    },
+    
+    operational_efficiency: {
+      analysis: "identify_process_improvements_and_automation_opportunities", 
+      data_source: "manual_vs_automated_task_performance",
+      recommendations: [
+        "increase_automation_coverage",
+        "optimize_retry_logic",
+        "improve_integration_efficiency"
+      ]
+    }
+  }
+}
+```
+
+### **Analytics Recommendation Engine**
+
+```python
+class AnalyticsRecommendationEngine:
+    """
+    Generates actionable recommendations based on analytics data
+    """
+    
+    async def generate_recommendations(self, tenant_id: str, analytics_data: dict) -> List[Recommendation]:
+        """
+        Generate actionable recommendations based on analytics patterns
+        """
+        
+        recommendations = []
+        
+        # Call Success Rate Recommendations
+        call_success_rate = analytics_data.get("call_performance", {}).get("call_success_rate", 0)
+        
+        if call_success_rate < 60:
+            recommendations.append(Recommendation(
+                category="call_performance",
+                priority="high",
+                title="Improve Call Success Rate",
+                description=f"Current call success rate is {call_success_rate}%, below optimal range of 70-80%",
+                suggested_actions=[
+                    "Review call timing - try calling 2-4 hours before appointments",
+                    "Check phone number quality - remove invalid numbers",
+                    "Consider adjusting call script length",
+                    "Review business hours settings for calling times"
+                ],
+                data_source="call_sessions.call_outcome analysis",
+                expected_impact="10-20% improvement in call success rate"
+            ))
+        
+        # Confirmation Rate Recommendations
+        confirmation_rate = analytics_data.get("call_performance", {}).get("confirmation_rate", 0)
+        
+        if confirmation_rate < 50:
+            recommendations.append(Recommendation(
+                category="customer_engagement",
+                priority="medium",
+                title="Improve Appointment Confirmation Rate",
+                description=f"Only {confirmation_rate}% of answered calls result in confirmations",
+                suggested_actions=[
+                    "Review voice script personalization settings",
+                    "Ensure special instructions are being included in calls",
+                    "Consider shorter, more direct call scripts",
+                    "Add appointment preparation instructions to increase engagement"
+                ],
+                data_source="call_sessions.appointment_action analysis"
+            ))
+        
+        # Contact Growth Recommendations
+        contact_growth = analytics_data.get("contact_analytics", {}).get("growth_rate_percentage", 0)
+        
+        if contact_growth < 10:  # Less than 10% growth
+            recommendations.append(Recommendation(
+                category="business_growth",
+                priority="low",
+                title="Accelerate Contact Database Growth", 
+                description=f"Contact growth rate is {contact_growth}% - consider growth strategies",
+                suggested_actions=[
+                    "Set up calendar integrations (Cal.com, Calendly) for automatic contact creation",
+                    "Import existing customer databases",
+                    "Enable referral tracking for new customer sources",
+                    "Review marketing campaigns driving appointment bookings"
+                ],
+                data_source="contacts.created_at trend analysis"
+            ))
+        
+        # System Performance Recommendations
+        system_health = analytics_data.get("system_health", {}).get("performance_score", 100)
+        
+        if system_health < 85:
+            recommendations.append(Recommendation(
+                category="system_performance",
+                priority="high",
+                title="Address System Performance Issues",
+                description=f"System performance score is {system_health}% - optimization needed",
+                suggested_actions=[
+                    "Contact support for system performance review",
+                    "Review call volume vs system capacity",
+                    "Check integration health and connectivity",
+                    "Consider upgrading plan for higher call volumes"
+                ],
+                data_source="system_health_metrics analysis"
+            ))
+        
+        return recommendations
+
+@dataclass
+class Recommendation:
+    category: str
+    priority: str  # high, medium, low
+    title: str
+    description: str
+    suggested_actions: List[str]
+    data_source: str
+    expected_impact: Optional[str] = None
+    implementation_difficulty: Optional[str] = None
+```
+
+---
+
+## 🔄 **Real-Time Analytics Updates**
+
+### **Live Data Refresh Implementation**
+
+```python
+class RealTimeAnalyticsManager:
+    """
+    Manages real-time updates for analytics dashboard
+    """
+    
+    def __init__(self):
+        self.websocket_connections = {}  # Track connected clients
+        self.update_schedulers = {}      # Background update tasks
+        
+    async def start_real_time_analytics(self, tenant_id: str, websocket = None):
+        """
+        Start real-time analytics updates for tenant
+        """
+        
+        if websocket:
+            self.websocket_connections[tenant_id] = websocket
+        
+        # Start background update tasks
+        await self.schedule_analytics_updates(tenant_id)
+        
+    async def schedule_analytics_updates(self, tenant_id: str):
+        """
+        Schedule periodic analytics updates
+        """
+        
+        # Schedule different update frequencies for different metrics
+        update_tasks = [
+            asyncio.create_task(self.update_active_calls_loop(tenant_id)),      # Every 5 seconds
+            asyncio.create_task(self.update_kpi_metrics_loop(tenant_id)),       # Every 30 seconds
+            asyncio.create_task(self.update_charts_loop(tenant_id)),            # Every 60 seconds
+            asyncio.create_task(self.update_trends_loop(tenant_id))             # Every 5 minutes
+        ]
+        
+        # Run all update loops concurrently
+        await asyncio.gather(*update_tasks, return_exceptions=True)
+    
+    async def update_active_calls_loop(self, tenant_id: str):
+        """
+        Update active calls every 5 seconds
+        """
+        while tenant_id in self.websocket_connections:
+            try:
+                # Get current active call data
+                active_call_data = await self.get_active_call_status(tenant_id)
+                
+                # Send update via websocket
+                await self.send_analytics_update(tenant_id, {
+                    "type": "active_calls_update",
+                    "data": active_call_data,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                })
+                
+                await asyncio.sleep(5)  # Wait 5 seconds
+                
+            except Exception as e:
+                logger.error(f"❌ Active calls update error: {e}")
+                await asyncio.sleep(10)  # Longer wait on error
+    
+    async def send_analytics_update(self, tenant_id: str, update_data: dict):
+        """
+        Send real-time update to connected analytics dashboard
+        """
+        
+        websocket = self.websocket_connections.get(tenant_id)
+        if websocket:
+            try:
+                await websocket.send_json(update_data)
+                logger.debug(f"📊 Sent real-time analytics update to {tenant_id}")
+            except Exception as e:
+                logger.error(f"❌ Failed to send analytics update: {e}")
+                # Remove disconnected websocket
+                if tenant_id in self.websocket_connections:
+                    del self.websocket_connections[tenant_id]
+
+# WebSocket endpoint for real-time analytics
+@api_router.websocket("/analytics/realtime/{tenant_id}")
+async def analytics_websocket_endpoint(websocket: WebSocket, tenant_id: str):
+    """
+    WebSocket endpoint for real-time analytics updates
+    """
+    await websocket.accept()
+    
+    try:
+        # Start real-time analytics for this tenant
+        analytics_manager = RealTimeAnalyticsManager()
+        await analytics_manager.start_real_time_analytics(tenant_id, websocket)
+        
+    except WebSocketDisconnect:
+        logger.info(f"📱 Analytics websocket disconnected for tenant {tenant_id}")
+    except Exception as e:
+        logger.error(f"❌ Analytics websocket error: {e}")
+    finally:
+        # Cleanup
+        if tenant_id in analytics_manager.websocket_connections:
+            del analytics_manager.websocket_connections[tenant_id]
+```
+
+---
+
+## 📊 **Analytics Export & Reporting**
+
+### **Export Functionality**
+
+```typescript
+AnalyticsExportFeatures {
+  // Export Options
+  export_formats: {
+    csv_export: {
+      description: "Excel-compatible CSV with all analytics data",
+      includes: [
+        "kpi_summary_sheet",
+        "call_activity_details", 
+        "appointment_trends_data",
+        "contact_analytics_summary"
+      ],
+      privacy_filtering: "automatic_hipaa_compliance_for_medical_practices"
+    },
+    
+    pdf_report: {
+      description: "Executive summary report with charts and insights",
+      template: "professional_business_report_template",
+      sections: [
+        "executive_summary",
+        "key_performance_indicators",
+        "trends_and_insights", 
+        "recommendations",
+        "appendix_with_technical_details"
+      ]
+    },
+    
+    json_api: {
+      description: "Raw analytics data in JSON format for further processing",
+      use_cases: ["integration_with_business_intelligence_tools", "custom_reporting"],
+      structure: "complete_analytics_object_with_metadata"
+    }
+  },
+  
+  // Scheduled Reporting
+  automated_reports: {
+    daily_summary: {
+      delivery_time: "09:00_business_timezone",
+      content: "yesterday_activity_summary_with_key_metrics",
+      format: "email_with_embedded_charts"
+    },
+    
+    weekly_performance: {
+      delivery_time: "monday_09:00",
+      content: "comprehensive_weekly_performance_report",
+      format: "pdf_attachment_with_detailed_analytics"
+    },
+    
+    monthly_business_review: {
+      delivery_time: "first_monday_of_month_09:00",
+      content: "executive_level_business_review_with_recommendations",
+      format: "professional_pdf_report"
+    }
+  }
+}
+```
+
+---
+
+## 🎯 **Analytics Dashboard Design Rationale**
+
+### **Why the Analytics Page Was Created This Way**
+
+```typescript
+DesignRationale {
+  // Business Requirements Driving Design
+  business_drivers: {
+    immediate_visibility: {
+      requirement: "Business owners need immediate visibility into appointment confirmation performance",
+      solution: "Real-time KPI cards at top of dashboard with 30-second refresh",
+      rationale: "Appointment-based businesses have immediate financial impact from no-shows"
+    },
+    
+    actionable_insights: {
+      requirement: "Data must drive immediate business decisions and actions",
+      solution: "Each metric includes recommended actions and optimization suggestions",
+      rationale: "Analytics only valuable if they lead to business improvements"
+    },
+    
+    mobile_accessibility: {
+      requirement: "Business owners and managers need access while away from desk",
+      solution: "Fully responsive design with mobile-optimized charts and navigation",
+      rationale: "Modern business management requires mobility and flexibility"
+    },
+    
+    privacy_compliance: {
+      requirement: "Medical practices require HIPAA-compliant analytics display",
+      solution: "Automatic aggregation with no individual patient data display",
+      rationale: "Regulatory compliance is non-negotiable for healthcare analytics"
+    }
+  },
+  
+  // User Experience Design Decisions
+  ux_decisions: {
+    information_hierarchy: {
+      decision: "Most critical metrics (KPIs) at top, detailed breakdowns below",
+      rationale: "Executive overview first, drill-down details second",
+      implementation: "Large KPI cards → Charts → Detailed tables"
+    },
+    
+    color_coding_system: {
+      decision: "Consistent color scheme across all charts and metrics",
+      rationale: "Visual consistency improves data comprehension",
+      implementation: {
+        success: "#10B981",      // Green for positive outcomes
+        warning: "#F59E0B",      // Orange for attention needed
+        error: "#EF4444",        // Red for problems
+        neutral: "#6B7280",      // Gray for informational
+        primary: "#3B82F6"       // Blue for primary actions
+      }
+    },
+    
+    progressive_disclosure: {
+      decision: "Summary first, details on demand via drill-down",
+      rationale: "Prevent information overload while providing access to details",
+      implementation: "Clickable cards and charts that expand to show detailed breakdowns"
+    }
+  },
+  
+  // Technical Architecture Decisions
+  technical_decisions: {
+    real_time_updates: {
+      decision: "Different refresh rates for different metric types",
+      rationale: "Balance between data freshness and system performance",
+      implementation: {
+        active_calls: "5_seconds",     // Critical operational data
+        kpis: "30_seconds",           // Important but not urgent
+        trends: "5_minutes",          // Historical data changes slowly
+        reports: "15_minutes"         // Comprehensive data aggregation
+      }
+    },
+    
+    database_query_optimization: {
+      decision: "Pre-calculated aggregations for expensive queries",
+      rationale: "Dashboard must load quickly regardless of data volume",
+      implementation: [
+        "materialized_views_for_complex_aggregations",
+        "indexed_queries_for_real_time_data",
+        "caching_for_frequently_accessed_metrics"
+      ]
+    },
+    
+    scalability_considerations: {
+      decision: "Pagination and data limits for large datasets",
+      rationale: "Dashboard performance must remain consistent as data grows",
+      implementation: [
+        "limit_detailed_views_to_recent_data",
+        "paginate_large_result_sets", 
+        "aggregate_older_data_for_trends"
+      ]
+    }
+  }
+}
+```
+
+---
+
+## 🚀 **Analytics Implementation Summary**
+
+### **Complete Analytics System Architecture**
+
+| Section | Data Sources | Update Frequency | Business Purpose |
+|---------|-------------|------------------|------------------|
+| **Performance Overview** | call_sessions, contacts, follow_up_tasks | 30 seconds | Executive KPI monitoring |
+| **Call Activity** | call_sessions, active_calls | 5 seconds | Real-time operational awareness |
+| **Appointment Insights** | contacts, call_sessions | 5 minutes | Business intelligence & trends |
+| **Contact Analytics** | contacts, user_activity | 10 minutes | Growth and data quality tracking |
+| **System Health** | system_logs, performance_metrics | 1 minute | Technical monitoring |
+| **Business Intelligence** | All tables + calculations | 15 minutes | Strategic insights & ROI |
+
+### **Data Source Dependencies**
+
+```typescript
+DataSourceDependencies {
+  // Primary Tables (Core Analytics)
+  required_tables: {
+    contacts: "Essential for all contact and appointment analytics",
+    call_sessions: "Essential for all call performance and outcome analytics", 
+    follow_up_tasks: "Essential for automation and scheduling analytics",
+    tenant_config: "Essential for business context and configuration analytics"
+  },
+  
+  // Secondary Tables (Enhanced Analytics)
+  optional_tables: {
+    user_activity_logs: "For staff productivity and usage analytics",
+    integration_logs: "For integration performance analytics",
+    system_health_logs: "For technical performance monitoring",
+    audit_logs: "For compliance and security analytics"
+  },
+  
+  // External Data Sources
+  external_dependencies: {
+    retell_ai_webhooks: "For real-time call outcome data",
+    calendar_integrations: "For appointment source tracking",
+    industry_benchmarks: "For comparative performance analysis"
+  }
+}
+```
+
+### **Analytics Performance Specifications**
+
+```typescript
+AnalyticsPerformanceSpecs {
+  response_times: {
+    dashboard_initial_load: "<2_seconds_for_complete_dashboard",
+    kpi_refresh: "<500ms_for_key_metrics_update",
+    chart_data_load: "<1_second_for_chart_rendering",
+    export_generation: "<30_seconds_for_comprehensive_reports"
+  },
+  
+  scalability_limits: {
+    concurrent_dashboard_users: "100+_simultaneous_users_per_tenant",
+    data_retention_for_analytics: "12_months_detailed_data",
+    real_time_updates: "100+_tenants_with_real_time_updates",
+    export_size_limits: "up_to_100k_records_per_export"
+  },
+  
+  data_accuracy: {
+    real_time_metrics: "accurate_within_30_seconds",
+    trend_calculations: "accurate_within_5_minutes", 
+    historical_reports: "100%_accurate_for_available_data",
+    predictive_analytics: "based_on_available_historical_patterns"
+  }
+}
+```
+
+**The VioConcierge Analytics Dashboard provides comprehensive, real-time business intelligence with data sourced from multiple database tables, processed through sophisticated aggregation logic, and presented through an intuitive, actionable interface designed for appointment-based business optimization.** 🎯
