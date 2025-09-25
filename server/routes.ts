@@ -824,6 +824,192 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bulk priority update endpoint
+  app.patch('/api/contacts/bulk/priority', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      const { contactIds, priorityLevel } = req.body;
+
+      // Validate required fields
+      if (!contactIds || !Array.isArray(contactIds) || contactIds.length === 0) {
+        return res.status(400).json({ message: 'Contact IDs array is required and cannot be empty' });
+      }
+
+      if (!priorityLevel || !['low', 'normal', 'high', 'urgent'].includes(priorityLevel)) {
+        return res.status(400).json({ message: 'Valid priority level is required (low, normal, high, urgent)' });
+      }
+
+      // Enforce bulk operation limits for safety
+      if (contactIds.length > 500) {
+        return res.status(400).json({ message: 'Bulk operations limited to 500 contacts at once' });
+      }
+
+      const result = await storage.bulkUpdateContactPriority(
+        req.user.tenantId, 
+        contactIds, 
+        priorityLevel
+      );
+
+      res.json({
+        message: `Successfully updated priority for ${result.updatedCount} contacts to ${priorityLevel}`,
+        updatedCount: result.updatedCount,
+        errors: result.errors,
+        totalRequested: contactIds.length,
+      });
+    } catch (error) {
+      console.error('Bulk priority update error:', error);
+      res.status(500).json({ message: 'Failed to update contact priority' });
+    }
+  });
+
+  // Bulk contact method update endpoint
+  app.patch('/api/contacts/bulk/contact-method', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      const { contactIds, preferredContactMethod } = req.body;
+
+      // Validate required fields
+      if (!contactIds || !Array.isArray(contactIds) || contactIds.length === 0) {
+        return res.status(400).json({ message: 'Contact IDs array is required and cannot be empty' });
+      }
+
+      if (!preferredContactMethod || !['phone', 'email', 'sms', 'any'].includes(preferredContactMethod)) {
+        return res.status(400).json({ message: 'Valid contact method is required (phone, email, sms, any)' });
+      }
+
+      // Enforce bulk operation limits for safety
+      if (contactIds.length > 500) {
+        return res.status(400).json({ message: 'Bulk operations limited to 500 contacts at once' });
+      }
+
+      const result = await storage.bulkUpdateContactMethod(
+        req.user.tenantId, 
+        contactIds, 
+        preferredContactMethod
+      );
+
+      res.json({
+        message: `Successfully updated contact method for ${result.updatedCount} contacts to ${preferredContactMethod}`,
+        updatedCount: result.updatedCount,
+        errors: result.errors,
+        totalRequested: contactIds.length,
+      });
+    } catch (error) {
+      console.error('Bulk contact method update error:', error);
+      res.status(500).json({ message: 'Failed to update contact method' });
+    }
+  });
+
+  // Bulk notes update endpoint
+  app.patch('/api/contacts/bulk/notes', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      const { contactIds, notes, action } = req.body;
+
+      // Validate required fields
+      if (!contactIds || !Array.isArray(contactIds) || contactIds.length === 0) {
+        return res.status(400).json({ message: 'Contact IDs array is required and cannot be empty' });
+      }
+
+      if (!notes || typeof notes !== 'string' || notes.trim().length === 0) {
+        return res.status(400).json({ message: 'Notes content is required' });
+      }
+
+      if (!action || !['add', 'replace'].includes(action)) {
+        return res.status(400).json({ message: 'Valid action is required (add, replace)' });
+      }
+
+      // Enforce bulk operation limits for safety
+      if (contactIds.length > 500) {
+        return res.status(400).json({ message: 'Bulk operations limited to 500 contacts at once' });
+      }
+
+      const result = await storage.bulkUpdateContactNotes(
+        req.user.tenantId, 
+        contactIds, 
+        notes.trim(),
+        action
+      );
+
+      res.json({
+        message: `Successfully ${action === 'add' ? 'added notes to' : 'updated notes for'} ${result.updatedCount} contacts`,
+        updatedCount: result.updatedCount,
+        errors: result.errors,
+        totalRequested: contactIds.length,
+      });
+    } catch (error) {
+      console.error('Bulk notes update error:', error);
+      res.status(500).json({ message: 'Failed to update contact notes' });
+    }
+  });
+
+  // Bulk timezone update endpoint
+  app.patch('/api/contacts/bulk/timezone', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      const { contactIds, timezone } = req.body;
+
+      // Validate required fields
+      if (!contactIds || !Array.isArray(contactIds) || contactIds.length === 0) {
+        return res.status(400).json({ message: 'Contact IDs array is required and cannot be empty' });
+      }
+
+      if (!timezone || typeof timezone !== 'string' || timezone.trim().length === 0) {
+        return res.status(400).json({ message: 'Timezone is required' });
+      }
+
+      // Enforce bulk operation limits for safety
+      if (contactIds.length > 500) {
+        return res.status(400).json({ message: 'Bulk operations limited to 500 contacts at once' });
+      }
+
+      const result = await storage.bulkUpdateContactTimezone(
+        req.user.tenantId, 
+        contactIds, 
+        timezone.trim()
+      );
+
+      res.json({
+        message: `Successfully updated timezone for ${result.updatedCount} contacts to ${timezone}`,
+        updatedCount: result.updatedCount,
+        errors: result.errors,
+        totalRequested: contactIds.length,
+      });
+    } catch (error) {
+      console.error('Bulk timezone update error:', error);
+      res.status(500).json({ message: 'Failed to update contact timezone' });
+    }
+  });
+
+  // Bulk delete endpoint
+  app.delete('/api/contacts/bulk', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      const { contactIds, preserveHistory } = req.body;
+
+      // Validate required fields
+      if (!contactIds || !Array.isArray(contactIds) || contactIds.length === 0) {
+        return res.status(400).json({ message: 'Contact IDs array is required and cannot be empty' });
+      }
+
+      // Enforce bulk operation limits for safety
+      if (contactIds.length > 500) {
+        return res.status(400).json({ message: 'Bulk operations limited to 500 contacts at once' });
+      }
+
+      const result = await storage.bulkDeleteContacts(
+        req.user.tenantId, 
+        contactIds, 
+        preserveHistory || false
+      );
+
+      res.json({
+        message: `Successfully deleted ${result.deletedCount} contacts${preserveHistory ? ' (call history preserved)' : ' (completely removed)'}`,
+        deletedCount: result.deletedCount,
+        errors: result.errors,
+        totalRequested: contactIds.length,
+      });
+    } catch (error) {
+      console.error('Bulk delete error:', error);
+      res.status(500).json({ message: 'Failed to delete contacts' });
+    }
+  });
+
   app.get('/api/contacts/export', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
     let csvFilePath: string | undefined;
     

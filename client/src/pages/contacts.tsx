@@ -10,6 +10,11 @@ import ContactModal from "@/components/modals/contact-modal";
 import ContactGroupsModal from "@/components/modals/contact-groups-modal";
 import ContactGroupAssignment from "@/components/contact-group-assignment";
 import BulkStatusUpdateModal from "@/components/modals/bulk-status-update-modal";
+import BulkPriorityUpdateModal from "@/components/modals/bulk-priority-update-modal";
+import BulkContactMethodUpdateModal from "@/components/modals/bulk-contact-method-update-modal";
+import BulkNotesModal from "@/components/modals/bulk-notes-modal";
+import BulkTimezoneModal from "@/components/modals/bulk-timezone-modal";
+import BulkDeleteModal from "@/components/modals/bulk-delete-modal";
 import { ContactTimeline } from "@/components/contact-timeline";
 import CallNowModal from "@/components/call-now-modal";
 import { GroupMemberViewer } from "@/components/group-member-viewer";
@@ -2021,6 +2026,62 @@ export default function Contacts() {
             onClose={() => setBulkStatusModalOpen(false)}
             selectedContactIds={selectedContacts}
             onStatusUpdated={() => {
+              queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/contacts/stats'] });
+              setSelectedContacts([]);
+            }}
+          />
+
+          {/* Bulk Priority Update Modal */}
+          <BulkPriorityUpdateModal
+            isOpen={bulkPriorityModalOpen}
+            onClose={() => setBulkPriorityModalOpen(false)}
+            selectedContactIds={selectedContacts}
+            onPriorityUpdated={() => {
+              queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
+              setSelectedContacts([]);
+            }}
+          />
+
+          {/* Bulk Contact Method Update Modal */}
+          <BulkContactMethodUpdateModal
+            isOpen={bulkContactMethodModalOpen}
+            onClose={() => setBulkContactMethodModalOpen(false)}
+            selectedContactIds={selectedContacts}
+            onContactMethodUpdated={() => {
+              queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
+              setSelectedContacts([]);
+            }}
+          />
+
+          {/* Bulk Notes Modal */}
+          <BulkNotesModal
+            isOpen={bulkNotesModalOpen}
+            onClose={() => setBulkNotesModalOpen(false)}
+            selectedContactIds={selectedContacts}
+            onNotesUpdated={() => {
+              queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
+              setSelectedContacts([]);
+            }}
+          />
+
+          {/* Bulk Timezone Modal */}
+          <BulkTimezoneModal
+            isOpen={bulkTimezoneModalOpen}
+            onClose={() => setBulkTimezoneModalOpen(false)}
+            selectedContactIds={selectedContacts}
+            onTimezoneUpdated={() => {
+              queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
+              setSelectedContacts([]);
+            }}
+          />
+
+          {/* Bulk Delete Modal */}
+          <BulkDeleteModal
+            isOpen={bulkDeleteModalOpen}
+            onClose={() => setBulkDeleteModalOpen(false)}
+            selectedContactIds={selectedContacts}
+            onContactsDeleted={() => {
               queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
               queryClient.invalidateQueries({ queryKey: ['/api/contacts/stats'] });
               setSelectedContacts([]);

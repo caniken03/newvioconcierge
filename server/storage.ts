@@ -660,6 +660,332 @@ export class DatabaseStorage implements IStorage {
     return { updatedCount, errors };
   }
 
+  // Bulk update contact priority
+  async bulkUpdateContactPriority(
+    tenantId: string, 
+    contactIds: string[], 
+    priorityLevel: 'low' | 'normal' | 'high' | 'urgent'
+  ): Promise<{ updatedCount: number; errors: any[] }> {
+    const errors: any[] = [];
+    let updatedCount = 0;
+
+    await db.transaction(async (tx) => {
+      for (const contactId of contactIds) {
+        try {
+          const [contact] = await tx
+            .select({ id: contacts.id })
+            .from(contacts)
+            .where(and(
+              eq(contacts.id, contactId),
+              eq(contacts.tenantId, tenantId),
+              eq(contacts.isActive, true)
+            ));
+
+          if (!contact) {
+            errors.push({
+              contactId,
+              error: 'Contact not found or access denied'
+            });
+            continue;
+          }
+
+          const result = await tx
+            .update(contacts)
+            .set({ 
+              priorityLevel,
+              updatedAt: new Date()
+            })
+            .where(and(
+              eq(contacts.id, contactId),
+              eq(contacts.tenantId, tenantId)
+            ))
+            .returning({ id: contacts.id });
+
+          if (result.length > 0) {
+            updatedCount++;
+          } else {
+            errors.push({
+              contactId,
+              error: 'Update failed - contact not found'
+            });
+          }
+        } catch (error) {
+          errors.push({
+            contactId,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+    });
+
+    return { updatedCount, errors };
+  }
+
+  // Bulk update contact method
+  async bulkUpdateContactMethod(
+    tenantId: string, 
+    contactIds: string[], 
+    preferredContactMethod: 'phone' | 'email' | 'sms' | 'any'
+  ): Promise<{ updatedCount: number; errors: any[] }> {
+    const errors: any[] = [];
+    let updatedCount = 0;
+
+    await db.transaction(async (tx) => {
+      for (const contactId of contactIds) {
+        try {
+          const [contact] = await tx
+            .select({ id: contacts.id })
+            .from(contacts)
+            .where(and(
+              eq(contacts.id, contactId),
+              eq(contacts.tenantId, tenantId),
+              eq(contacts.isActive, true)
+            ));
+
+          if (!contact) {
+            errors.push({
+              contactId,
+              error: 'Contact not found or access denied'
+            });
+            continue;
+          }
+
+          const result = await tx
+            .update(contacts)
+            .set({ 
+              preferredContactMethod,
+              updatedAt: new Date()
+            })
+            .where(and(
+              eq(contacts.id, contactId),
+              eq(contacts.tenantId, tenantId)
+            ))
+            .returning({ id: contacts.id });
+
+          if (result.length > 0) {
+            updatedCount++;
+          } else {
+            errors.push({
+              contactId,
+              error: 'Update failed - contact not found'
+            });
+          }
+        } catch (error) {
+          errors.push({
+            contactId,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+    });
+
+    return { updatedCount, errors };
+  }
+
+  // Bulk update contact notes
+  async bulkUpdateContactNotes(
+    tenantId: string, 
+    contactIds: string[], 
+    notes: string,
+    action: 'add' | 'replace'
+  ): Promise<{ updatedCount: number; errors: any[] }> {
+    const errors: any[] = [];
+    let updatedCount = 0;
+
+    await db.transaction(async (tx) => {
+      for (const contactId of contactIds) {
+        try {
+          const [contact] = await tx
+            .select({ id: contacts.id, notes: contacts.notes })
+            .from(contacts)
+            .where(and(
+              eq(contacts.id, contactId),
+              eq(contacts.tenantId, tenantId),
+              eq(contacts.isActive, true)
+            ));
+
+          if (!contact) {
+            errors.push({
+              contactId,
+              error: 'Contact not found or access denied'
+            });
+            continue;
+          }
+
+          let updatedNotes = notes;
+          if (action === 'add' && contact.notes) {
+            updatedNotes = `${contact.notes}\n\n${notes}`;
+          }
+
+          const result = await tx
+            .update(contacts)
+            .set({ 
+              notes: updatedNotes,
+              updatedAt: new Date()
+            })
+            .where(and(
+              eq(contacts.id, contactId),
+              eq(contacts.tenantId, tenantId)
+            ))
+            .returning({ id: contacts.id });
+
+          if (result.length > 0) {
+            updatedCount++;
+          } else {
+            errors.push({
+              contactId,
+              error: 'Update failed - contact not found'
+            });
+          }
+        } catch (error) {
+          errors.push({
+            contactId,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+    });
+
+    return { updatedCount, errors };
+  }
+
+  // Bulk update contact timezone
+  async bulkUpdateContactTimezone(
+    tenantId: string, 
+    contactIds: string[], 
+    timezone: string
+  ): Promise<{ updatedCount: number; errors: any[] }> {
+    const errors: any[] = [];
+    let updatedCount = 0;
+
+    await db.transaction(async (tx) => {
+      for (const contactId of contactIds) {
+        try {
+          const [contact] = await tx
+            .select({ id: contacts.id })
+            .from(contacts)
+            .where(and(
+              eq(contacts.id, contactId),
+              eq(contacts.tenantId, tenantId),
+              eq(contacts.isActive, true)
+            ));
+
+          if (!contact) {
+            errors.push({
+              contactId,
+              error: 'Contact not found or access denied'
+            });
+            continue;
+          }
+
+          const result = await tx
+            .update(contacts)
+            .set({ 
+              timezone,
+              updatedAt: new Date()
+            })
+            .where(and(
+              eq(contacts.id, contactId),
+              eq(contacts.tenantId, tenantId)
+            ))
+            .returning({ id: contacts.id });
+
+          if (result.length > 0) {
+            updatedCount++;
+          } else {
+            errors.push({
+              contactId,
+              error: 'Update failed - contact not found'
+            });
+          }
+        } catch (error) {
+          errors.push({
+            contactId,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+    });
+
+    return { updatedCount, errors };
+  }
+
+  // Bulk delete contacts
+  async bulkDeleteContacts(
+    tenantId: string, 
+    contactIds: string[], 
+    preserveHistory: boolean = false
+  ): Promise<{ deletedCount: number; errors: any[] }> {
+    const errors: any[] = [];
+    let deletedCount = 0;
+
+    await db.transaction(async (tx) => {
+      for (const contactId of contactIds) {
+        try {
+          const [contact] = await tx
+            .select({ id: contacts.id })
+            .from(contacts)
+            .where(and(
+              eq(contacts.id, contactId),
+              eq(contacts.tenantId, tenantId),
+              eq(contacts.isActive, true)
+            ));
+
+          if (!contact) {
+            errors.push({
+              contactId,
+              error: 'Contact not found or access denied'
+            });
+            continue;
+          }
+
+          if (preserveHistory) {
+            // Soft delete - mark as inactive and anonymize personal data
+            const result = await tx
+              .update(contacts)
+              .set({ 
+                isActive: false,
+                name: `[DELETED-${contactId.slice(-6)}]`,
+                phone: '',
+                email: '',
+                notes: '[Personal data removed]',
+                updatedAt: new Date()
+              })
+              .where(and(
+                eq(contacts.id, contactId),
+                eq(contacts.tenantId, tenantId)
+              ))
+              .returning({ id: contacts.id });
+
+            if (result.length > 0) {
+              deletedCount++;
+            }
+          } else {
+            // Hard delete - remove completely
+            const result = await tx
+              .delete(contacts)
+              .where(and(
+                eq(contacts.id, contactId),
+                eq(contacts.tenantId, tenantId)
+              ))
+              .returning({ id: contacts.id });
+
+            if (result.length > 0) {
+              deletedCount++;
+            }
+          }
+        } catch (error) {
+          errors.push({
+            contactId,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+    });
+
+    return { deletedCount, errors };
+  }
+
   // Contact Timeline method
   async getContactTimeline(contactId: string, tenantId: string): Promise<{
     contactId: string;
@@ -831,13 +1157,32 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // Sort by timestamp (newest first)
-    timelineEvents.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    // Sort by timestamp (newest first), handling null timestamps
+    timelineEvents.sort((a, b) => {
+      const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return bTime - aTime;
+    });
+
+    // Filter out events with null timestamps and ensure proper typing
+    const validEvents = timelineEvents
+      .filter(event => event.timestamp !== null)
+      .map(event => ({
+        id: event.id,
+        type: event.type,
+        timestamp: event.timestamp!,
+        title: event.title,
+        description: event.description,
+        status: event.status || 'unknown',
+        outcome: 'outcome' in event ? event.outcome || undefined : undefined,
+        duration: 'duration' in event ? event.duration || undefined : undefined,
+        metadata: event.metadata
+      }));
 
     return {
       contactId,
-      totalEvents: timelineEvents.length,
-      events: timelineEvents
+      totalEvents: validEvents.length,
+      events: validEvents
     };
   }
 
