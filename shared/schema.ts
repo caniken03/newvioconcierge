@@ -154,6 +154,11 @@ export const tenantConfig = pgTable("tenant_config", {
   retellAgentNumber: varchar("retell_agent_number", { length: 50 }),
   retellApiKey: text("retell_api_key"),
   retellWebhookSecret: text("retell_webhook_secret"),
+  // Retail AI configuration
+  retailAgentId: varchar("retail_agent_id", { length: 255 }),
+  retailAgentNumber: varchar("retail_agent_number", { length: 50 }),
+  retailApiKey: text("retail_api_key"),
+  retailWebhookSecret: text("retail_webhook_secret"),
   // Calendar integration
   calApiKey: text("cal_api_key"),
   calEventTypeId: integer("cal_event_type_id"),

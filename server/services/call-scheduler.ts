@@ -1,5 +1,6 @@
 import { storage } from "../storage";
 import { retellService } from "./retell";
+import { retailService } from "./retail";
 import { businessTemplateService } from "./business-templates";
 import type { FollowUpTask, Contact, TenantConfig } from "@shared/schema";
 
@@ -118,10 +119,15 @@ export class CallSchedulerService {
         return;
       }
 
-      // Get tenant configuration for Retell AI settings
+      // Get tenant configuration for AI service settings
       const tenantConfig = await storage.getTenantConfig(task.tenantId);
-      if (!tenantConfig || !tenantConfig.retellApiKey) {
-        console.error(`❌ Tenant config or Retell API key not found for task ${task.id}`);
+      
+      // Check for either Retell or Retail AI configuration
+      const hasRetellConfig = tenantConfig?.retellApiKey && tenantConfig?.retellAgentId;
+      const hasRetailConfig = tenantConfig?.retailApiKey && tenantConfig?.retailAgentId;
+      
+      if (!tenantConfig || (!hasRetellConfig && !hasRetailConfig)) {
+        console.error(`❌ Tenant config or AI service API key not found for task ${task.id}`);
         await storage.updateFollowUpTask(task.id, {
           status: 'failed'
         });
@@ -169,18 +175,32 @@ export class CallSchedulerService {
         status: 'initiated'
       });
 
-      // Execute the call using Retell AI
-      const callResponse = await retellService.createBusinessCall(
-        tenantConfig.retellApiKey,
-        contact,
-        tenantConfig,
-        callSession.id,
-        businessTemplateService
-      );
+      // Execute the call using available AI service (prefer Retail if configured)
+      let callResponse;
+      
+      if (hasRetailConfig) {
+        console.log(`🛍️ Using Retail AI service for scheduled task ${task.id}`);
+        callResponse = await retailService.createBusinessCall(
+          tenantConfig.retailApiKey!,
+          contact,
+          tenantConfig,
+          callSession.id,
+          businessTemplateService
+        );
+      } else {
+        console.log(`📞 Using Retell AI service for scheduled task ${task.id}`);
+        callResponse = await retellService.createBusinessCall(
+          tenantConfig.retellApiKey!,
+          contact,
+          tenantConfig,
+          callSession.id,
+          businessTemplateService
+        );
+      }
 
-      // Update call session with Retell call ID
+      // Update call session with AI service call ID
       await storage.updateCallSession(callSession.id, {
-        retellCallId: callResponse.call_id,
+        retellCallId: callResponse.call_id, // Both services use same field for compatibility
         status: 'active'
       });
 

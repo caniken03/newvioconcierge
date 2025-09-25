@@ -11,6 +11,7 @@ import * as createCsvWriter from "csv-writer";
 import fs from "fs";
 import path from "path";
 import { retellService } from "./services/retell";
+import { retailService } from "./services/retail";
 import { calComService } from "./services/cal-com";
 import { calendlyService } from "./services/calendly";
 import { businessTemplateService } from "./services/business-templates";
@@ -2429,6 +2430,114 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(200).json({ received: true });
     } catch (error) {
       console.error('Retell webhook error:', error);
+      res.status(500).json({ message: 'Webhook processing failed' });
+    }
+  });
+
+  // Retail AI webhook endpoint
+  app.post('/api/webhooks/retail', async (req, res) => {
+    try {
+      const signature = req.headers['x-signature'] || req.headers['signature'];
+      const rawPayload = JSON.stringify(req.body);
+      
+      // Extract tenant ID from webhook metadata
+      const payload = retailService.parseWebhookPayload(req.body);
+      const tenantId = extractTenantIdFromWebhook(payload.metadata, payload);
+      
+      if (!tenantId) {
+        console.warn('Retail webhook received without tenant ID in metadata');
+        return res.status(400).json({ message: 'Missing tenant ID in webhook metadata' });
+      }
+
+      // Get tenant configuration for webhook secret
+      const tenantConfig = await storage.getTenantConfig(tenantId);
+      if (!tenantConfig?.retailWebhookSecret) {
+        console.warn(`Retail webhook secret not configured for tenant ${tenantId}`);
+        return res.status(400).json({ message: 'Webhook secret not configured' });
+      }
+
+      // Verify webhook signature
+      if (signature && !verifyWebhookSignature(rawPayload, signature as string, tenantConfig.retailWebhookSecret)) {
+        console.warn(`Invalid Retail webhook signature for tenant ${tenantId}`);
+        return res.status(401).json({ message: 'Invalid webhook signature' });
+      }
+      
+      if (payload.event === 'call_ended' || payload.event === 'call_completed') {
+        // Find the call session by retailCallId with tenant isolation
+        const session = await storage.getCallSessionByRetellId(payload.call_id);
+        
+        if (!session) {
+          console.warn(`Call session not found for Retail call ID: ${payload.call_id}`);
+          return res.status(404).json({ message: 'Call session not found' });
+        }
+
+        // Verify tenant isolation
+        if (session.tenantId !== tenantId) {
+          console.error(`Tenant mismatch: session tenant ${session.tenantId} vs webhook tenant ${tenantId}`);
+          return res.status(403).json({ message: 'Tenant access denied' });
+        }
+
+        const callOutcome = retailService.determineCallOutcome(payload);
+        
+        // Calculate duration from start time if available
+        let durationSeconds: number | undefined;
+        if (session.startTime && payload.call_status === 'completed') {
+          durationSeconds = Math.floor((Date.now() - session.startTime.getTime()) / 1000);
+        }
+        
+        // Update call session
+        await storage.updateCallSession(session.id, {
+          status: 'completed',
+          endTime: new Date(),
+          callOutcome,
+          durationSeconds,
+        });
+
+        // Update contact based on call outcome
+        if (callOutcome === 'confirmed') {
+          await storage.updateContact(session.contactId!, {
+            appointmentStatus: 'confirmed',
+            lastCallOutcome: callOutcome,
+            callAttempts: (await storage.getContact(session.contactId!))?.callAttempts || 0 + 1,
+          });
+        } else if (callOutcome === 'transfer_requested') {
+          // Handle transfer requests - mark for manual follow-up
+          await storage.updateContact(session.contactId!, {
+            appointmentStatus: 'transfer_requested',
+            lastCallOutcome: callOutcome,
+            callAttempts: (await storage.getContact(session.contactId!))?.callAttempts || 0 + 1,
+            notes: `Transfer requested during call - requires manual follow-up`,
+          });
+        } else {
+          await storage.updateContact(session.contactId!, {
+            lastCallOutcome: callOutcome,
+            callAttempts: (await storage.getContact(session.contactId!))?.callAttempts || 0 + 1,
+          });
+        }
+
+        // Log the call details with Retail-specific analysis
+        await storage.createCallLog({
+          callSessionId: session.id,
+          tenantId: session.tenantId,
+          contactId: session.contactId!,
+          logLevel: 'info',
+          message: `Retail call completed with outcome: ${callOutcome}`,
+          metadata: JSON.stringify({
+            retailCallId: payload.call_id,
+            transcript: payload.transcript,
+            callAnalysis: payload.call_analysis,
+            transferRequested: payload.call_analysis?.transfer_requested,
+            bookingConfirmed: payload.call_analysis?.booking_confirmed,
+            customerInterest: payload.call_analysis?.customer_interest,
+          }),
+        });
+
+        console.log(`🛍️ Retail call ${payload.call_id} processed: ${callOutcome} for tenant ${tenantId}`);
+      }
+      
+      res.status(200).json({ received: true });
+    } catch (error) {
+      console.error('Retail webhook error:', error);
       res.status(500).json({ message: 'Webhook processing failed' });
     }
   });
