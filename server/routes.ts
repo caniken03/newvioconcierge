@@ -1645,10 +1645,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             // Update our session if status changed
             if (retellCall.status !== callSession.status) {
-              await storage.updateCallSession(sessionId, {
-                status: retellCall.status === 'completed' ? 'completed' : retellCall.status,
-                endTime: retellCall.status === 'completed' ? new Date() : undefined
-              });
+              const updates: any = {
+                status: retellCall.status === 'completed' ? 'completed' : retellCall.status
+              };
+              
+              // Only add endTime if status is completed
+              if (retellCall.status === 'completed') {
+                updates.endTime = new Date();
+              }
+              
+              await storage.updateCallSession(sessionId, updates);
             }
           } catch (error) {
             console.warn('Failed to get latest call status from Retell:', error);
