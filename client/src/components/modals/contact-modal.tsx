@@ -481,7 +481,7 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
                   name="businessName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-sm font-medium text-gray-700">Business Name (Optional)</FormLabel>
+                      <FormLabel className="text-sm font-medium text-gray-700">Business Name *</FormLabel>
                       <FormControl>
                         <Input 
                           {...field}

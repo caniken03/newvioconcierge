@@ -1924,9 +1924,11 @@ export default function Contacts() {
                                       })()}
                                     </p>
                                   </div>
-                                  <p className="text-xs text-blue-500 mt-1">
-                                    📞 Bring a towel
-                                  </p>
+                                  {contact.specialInstructions && (
+                                    <p className="text-xs text-blue-500 mt-1">
+                                      📞 {contact.specialInstructions}
+                                    </p>
+                                  )}
                                 </div>
                               ) : (
                                 <p className="text-sm text-muted-foreground">No appointment scheduled</p>
