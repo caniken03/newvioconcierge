@@ -81,5 +81,25 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+    
+    // Start the call scheduler service
+    import("./services/call-scheduler").then(({ callScheduler }) => {
+      callScheduler.start();
+    });
+  });
+
+  // Graceful shutdown
+  process.on('SIGINT', async () => {
+    log('Received SIGINT, shutting down gracefully...');
+    const { callScheduler } = await import("./services/call-scheduler");
+    callScheduler.stop();
+    process.exit(0);
+  });
+
+  process.on('SIGTERM', async () => {
+    log('Received SIGTERM, shutting down gracefully...');
+    const { callScheduler } = await import("./services/call-scheduler");
+    callScheduler.stop();
+    process.exit(0);
   });
 })();

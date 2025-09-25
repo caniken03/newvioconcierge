@@ -1933,6 +1933,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(followUpTasks.status, "pending"),
+          eq(followUpTasks.autoExecution, true), // Only auto-execution tasks
           lt(followUpTasks.scheduledTime, new Date())
         )
       )

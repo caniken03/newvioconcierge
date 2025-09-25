@@ -395,6 +395,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tenantId: req.user.tenantId,
         appointmentTime: contactData.appointmentTime ? new Date(contactData.appointmentTime) : undefined,
       });
+
+      // Schedule appointment reminder if appointment time is provided
+      if (contact.appointmentTime) {
+        const { callScheduler } = await import("./services/call-scheduler");
+        await callScheduler.scheduleAppointmentReminders(
+          contact.id, 
+          contact.appointmentTime, 
+          req.user.tenantId
+        );
+      }
       
       res.status(201).json(contact);
     } catch (error) {
@@ -524,6 +534,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const contact = await storage.updateContact(req.params.id, processedUpdates);
+
+      // Schedule appointment reminder if appointment time was updated
+      if (contact.appointmentTime && updates.appointmentTime) {
+        const { callScheduler } = await import("./services/call-scheduler");
+        await callScheduler.scheduleAppointmentReminders(
+          contact.id, 
+          contact.appointmentTime, 
+          req.user.tenantId
+        );
+      }
+
       res.json(contact);
     } catch (error) {
       res.status(400).json({ message: 'Failed to update contact' });
@@ -2154,6 +2175,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const result = await storage.bulkCreateContacts(tenantId, transformedContacts);
 
+      // Schedule appointment reminders for contacts with appointment times
+      if (result.contactIds && result.contactIds.length > 0) {
+        const { callScheduler } = await import("./services/call-scheduler");
+        
+        // Schedule reminders for contacts that have appointment times
+        for (let i = 0; i < result.contactIds.length; i++) {
+          const contactId = result.contactIds[i];
+          const originalContact = transformedContacts[i];
+          
+          if (originalContact.appointmentTime) {
+            await callScheduler.scheduleAppointmentReminders(
+              contactId,
+              originalContact.appointmentTime,
+              tenantId
+            );
+          }
+        }
+      }
+
       res.json({
         message: `Successfully imported ${result.created} contacts`,
         created: result.created,
@@ -2207,6 +2247,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             appointmentStatus: 'pending',
             bookingSource: appointment.calendarProvider || 'manual',
           });
+
+          // Schedule appointment reminder
+          const { callScheduler } = await import("./services/call-scheduler");
+          await callScheduler.scheduleAppointmentReminders(
+            appointment.contactId,
+            new Date(appointment.appointmentTime),
+            tenantId
+          );
 
           // TODO: In production, integrate with external calendar providers
           if (appointment.calendarProvider === 'cal.com') {
@@ -2306,3 +2354,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   return httpServer;
 }
+
+// Import the call scheduler at the end to avoid circular dependency issues
+import("./services/call-scheduler").then(({ callScheduler }) => {
+  // Export callScheduler for route usage
+  global.callScheduler = callScheduler;
+});
