@@ -15,6 +15,7 @@ import {
   tenantSuspensions,
   businessHoursConfig,
   contactCallHistory,
+  callReservations,
   type User,
   type InsertUser,
   type Tenant,
@@ -306,6 +307,9 @@ export interface IStorage {
   // Confirm or Release Call Reservation
   confirmCallReservation(reservationId: string): Promise<void>;
   releaseCallReservation(reservationId: string): Promise<void>;
+  
+  // TTL Cleanup for Production Stability
+  cleanupExpiredReservations(): Promise<{ cleaned: number; errors: string[] }>;
   
   // Admin Dashboard Analytics
   getAbuseProtectionDashboard(): Promise<{
@@ -2999,15 +3003,132 @@ export class DatabaseStorage implements IStorage {
     return { allowed: true };
   }
 
-  // Confirm or Release Call Reservation (for future use)
+  // Confirm or Release Call Reservation (Production Implementation)
   async confirmCallReservation(reservationId: string): Promise<void> {
-    // Implementation for confirming successful call
-    console.log(`Call reservation confirmed: ${reservationId}`);
+    await db
+      .update(callReservations)
+      .set({ 
+        state: 'confirmed',
+        updatedAt: new Date()
+      })
+      .where(eq(callReservations.reservationId, reservationId));
+    
+    console.log(`🔒 Call reservation confirmed: ${reservationId}`);
   }
 
   async releaseCallReservation(reservationId: string): Promise<void> {
-    // Implementation for releasing failed call reservation
-    console.log(`Call reservation released: ${reservationId}`);
+    // Mark as released and decrement counters atomically
+    await db.transaction(async (tx) => {
+      // Update reservation state
+      await tx
+        .update(callReservations)
+        .set({ 
+          state: 'released',
+          updatedAt: new Date()
+        })
+        .where(eq(callReservations.reservationId, reservationId));
+
+      // Get reservation details for counter rollback
+      const [reservation] = await tx
+        .select()
+        .from(callReservations)
+        .where(eq(callReservations.reservationId, reservationId));
+
+      if (reservation && reservation.tenantId) {
+        // Rollback rate limit counters for each time window
+        const timeWindows = ['15_minutes', '1_hour', '24_hours'];
+        for (const timeWindow of timeWindows) {
+          await tx.execute(sql`
+            UPDATE ${rateLimitTracking} 
+            SET call_count = GREATEST(0, call_count - ${reservation.reservedQuota || 1}),
+                updated_at = NOW()
+            WHERE tenant_id = ${reservation.tenantId} 
+            AND time_window = ${timeWindow}
+          `);
+        }
+
+        // Rollback contact call history if phone number present
+        if (reservation.phoneNumber) {
+          await tx.execute(sql`
+            UPDATE ${contactCallHistory} 
+            SET call_count_24h = GREATEST(0, call_count_24h - 1),
+                updated_at = NOW()
+            WHERE phone_number = ${reservation.phoneNumber}
+          `);
+        }
+      }
+    });
+
+    console.log(`🔓 Call reservation released with quota rollback: ${reservationId}`);
+  }
+
+  // TTL Cleanup for Expired Reservations (CRITICAL for production)
+  async cleanupExpiredReservations(): Promise<{ cleaned: number; errors: string[] }> {
+    const errors: string[] = [];
+    let cleaned = 0;
+
+    try {
+      await db.transaction(async (tx) => {
+        // Find expired reservations
+        const expiredReservations = await tx
+          .select()
+          .from(callReservations)
+          .where(
+            and(
+              lt(callReservations.expiresAt, new Date()),
+              eq(callReservations.state, 'active')
+            )
+          );
+
+        console.log(`🧹 Found ${expiredReservations.length} expired reservations to cleanup`);
+
+        for (const reservation of expiredReservations) {
+          try {
+            // Mark as expired
+            await tx
+              .update(callReservations)
+              .set({ 
+                state: 'expired',
+                updatedAt: new Date()
+              })
+              .where(eq(callReservations.id, reservation.id));
+
+            // Rollback rate limit counters
+            const timeWindows = ['15_minutes', '1_hour', '24_hours'];
+            for (const timeWindow of timeWindows) {
+              await tx.execute(sql`
+                UPDATE ${rateLimitTracking} 
+                SET call_count = GREATEST(0, call_count - ${reservation.reservedQuota || 1}),
+                    updated_at = NOW()
+                WHERE tenant_id = ${reservation.tenantId} 
+                AND time_window = ${timeWindow}
+              `);
+            }
+
+            // Rollback contact call history if phone number present
+            if (reservation.phoneNumber) {
+              await tx.execute(sql`
+                UPDATE ${contactCallHistory} 
+                SET call_count_24h = GREATEST(0, call_count_24h - 1),
+                    updated_at = NOW()
+                WHERE phone_number = ${reservation.phoneNumber}
+              `);
+            }
+
+            cleaned++;
+          } catch (error) {
+            errors.push(`Failed to cleanup reservation ${reservation.id}: ${error}`);
+          }
+        }
+      });
+
+      console.log(`✅ Cleaned up ${cleaned} expired reservations`);
+      
+      return { cleaned, errors };
+    } catch (error) {
+      errors.push(`Cleanup transaction failed: ${error}`);
+      return { cleaned: 0, errors };
+    }
   }
 
   // Admin Dashboard Analytics

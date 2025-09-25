@@ -1690,6 +1690,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Bulk call sessions endpoint with enhanced validation and error handling
   app.post('/api/call-sessions/bulk', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    let globalProtectionCheck: any = null;
+    
     try {
       const bulkCallSchema = z.object({
         contactIds: z.array(z.string().uuid()).min(1).max(25), // Reduced limit to 25 for better performance
@@ -1722,7 +1724,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // ABUSE PROTECTION: Atomic tenant-level check and reserve before bulk processing
-      const globalProtectionCheck = await storage.checkAndReserveCall(
+      globalProtectionCheck = await storage.checkAndReserveCall(
         req.user.tenantId,
         undefined, // No specific phone for tenant-level check
         triggerTime ? new Date(triggerTime) : new Date()
@@ -1869,6 +1871,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`📊 Bulk call operation summary: ${results.length} successful, ${allErrors.length} failed out of ${contactIds.length} requested`);
 
+      // CRITICAL: Confirm global reservation on successful bulk operation
+      if (globalProtectionCheck?.reservationId && results.length > 0) {
+        await storage.confirmCallReservation(globalProtectionCheck.reservationId);
+        console.log(`🔒 Confirmed bulk call global reservation: ${globalProtectionCheck.reservationId}`);
+      } else if (globalProtectionCheck?.reservationId) {
+        // Release reservation if no successful calls
+        await storage.releaseCallReservation(globalProtectionCheck.reservationId);
+        console.log(`🔓 Released bulk call global reservation (no successful calls): ${globalProtectionCheck.reservationId}`);
+      }
+
       res.status(201).json({
         success: results.length > 0,
         message: results.length > 0 
@@ -1890,6 +1902,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error) {
       console.error('❌ Bulk call operation failed:', error);
+      
+      // CRITICAL: Release global reservation on any error to prevent quota leak
+      if (globalProtectionCheck?.reservationId) {
+        try {
+          await storage.releaseCallReservation(globalProtectionCheck.reservationId);
+          console.log(`🔓 Released bulk call global reservation due to error: ${globalProtectionCheck.reservationId}`);
+        } catch (releaseError) {
+          console.error('Failed to release global reservation:', releaseError);
+        }
+      }
       
       // Enhanced error response with proper status codes
       if (error instanceof z.ZodError) {
@@ -2072,6 +2094,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Call Now endpoint - Trigger immediate call via Retell AI
   app.post('/api/contacts/:id/call', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    let protectionCheck: any = null;
+    
     try {
       const contactId = req.params.id;
       const tenantId = req.user.tenantId;
@@ -2091,7 +2115,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // ABUSE PROTECTION: Atomic check and reserve call (race condition safe)
-      const protectionCheck = await storage.checkAndReserveCall(
+      protectionCheck = await storage.checkAndReserveCall(
         tenantId,
         contact.phone,
         new Date()
@@ -2155,6 +2179,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         startTime: new Date()
       });
 
+      // CRITICAL: Confirm reservation to finalize quota usage
+      if (protectionCheck.reservationId) {
+        await storage.confirmCallReservation(protectionCheck.reservationId);
+        console.log(`🔒 Confirmed manual call reservation: ${protectionCheck.reservationId}`);
+      }
+
       // Update contact call attempts
       await storage.updateContact(contactId, {
         callAttempts: (contact.callAttempts || 0) + 1,
@@ -2166,11 +2196,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         callSessionId: callSession.id,
         retellCallId: retellResponse.call_id,
         status: 'in_progress',
-        message: 'Call initiated successfully'
+        message: 'Call initiated successfully',
+        reservationId: protectionCheck.reservationId
       });
 
     } catch (error) {
       console.error('Call Now error:', error);
+      
+      // CRITICAL: Release reservation on failure to prevent quota leak
+      if (protectionCheck?.reservationId) {
+        try {
+          await storage.releaseCallReservation(protectionCheck.reservationId);
+          console.log(`🔓 Released manual call reservation due to error: ${protectionCheck.reservationId}`);
+        } catch (releaseError) {
+          console.error('Failed to release reservation:', releaseError);
+        }
+      }
       
       // More specific error handling
       if (error instanceof Error && error.message.includes('Retell API error')) {

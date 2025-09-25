@@ -10,7 +10,9 @@ import type { FollowUpTask, Contact, TenantConfig } from "@shared/schema";
 export class CallSchedulerService {
   private isRunning = false;
   private intervalId: NodeJS.Timeout | null = null;
+  private cleanupIntervalId: NodeJS.Timeout | null = null;
   private readonly CHECK_INTERVAL = 30 * 1000; // Check every 30 seconds
+  private readonly CLEANUP_INTERVAL = 5 * 60 * 1000; // Cleanup every 5 minutes
 
   /**
    * Start the background scheduler
@@ -32,6 +34,9 @@ export class CallSchedulerService {
       this.processScheduledTasks();
     }, this.CHECK_INTERVAL);
 
+    // Start TTL cleanup service (CRITICAL for production)
+    this.startCleanupService();
+
     console.log(`✅ Call scheduler started - checking every ${this.CHECK_INTERVAL/1000}s`);
   }
 
@@ -43,8 +48,14 @@ export class CallSchedulerService {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
+    
+    if (this.cleanupIntervalId) {
+      clearInterval(this.cleanupIntervalId);
+      this.cleanupIntervalId = null;
+    }
+    
     this.isRunning = false;
-    console.log("⏹️ Call scheduler stopped");
+    console.log("⏹️ Call scheduler and cleanup service stopped");
   }
 
   /**
@@ -75,6 +86,8 @@ export class CallSchedulerService {
    * Execute a specific follow-up task
    */
   private async executeFollowUpTask(task: FollowUpTask): Promise<void> {
+    let protectionCheck: any = null;
+    
     try {
       console.log(`🎯 Executing follow-up task: ${task.id} (${task.taskType})`);
 
@@ -116,7 +129,7 @@ export class CallSchedulerService {
       }
 
       // ABUSE PROTECTION: Atomic check and reserve call (race condition safe)
-      const protectionCheck = await storage.checkAndReserveCall(
+      protectionCheck = await storage.checkAndReserveCall(
         task.tenantId,
         contact.phone,
         new Date()
@@ -130,15 +143,15 @@ export class CallSchedulerService {
           tenantId: task.tenantId,
           eventType: 'rate_limit_exceeded',
           severity: 'medium',
-          description: `Call blocked: ${protectionCheck.violations.join(', ')}`,
+          description: `Call blocked by scheduler: ${protectionCheck.violations.join(', ')}`,
           metadata: JSON.stringify({
             taskId: task.id,
             contactId: contact.id,
             phone: contact.phone,
             violations: protectionCheck.violations,
-            protectionStatus: protectionCheck.protectionStatus
-          }),
-          triggeredBy: 'call_scheduler'
+            protectionStatus: protectionCheck.protectionStatus,
+            triggeredBy: 'call_scheduler'
+          })
         });
 
         // Mark task as failed with reason
@@ -171,6 +184,12 @@ export class CallSchedulerService {
         status: 'active'
       });
 
+      // CRITICAL: Confirm reservation to finalize quota usage
+      if (protectionCheck.reservationId) {
+        await storage.confirmCallReservation(protectionCheck.reservationId);
+        console.log(`🔒 Confirmed call reservation: ${protectionCheck.reservationId}`);
+      }
+
       // Mark task as completed (webhook will handle retry logic if call fails)
       await storage.updateFollowUpTask(task.id, {
         status: 'completed'
@@ -180,6 +199,12 @@ export class CallSchedulerService {
 
     } catch (error) {
       console.error(`❌ Error executing follow-up task ${task.id}:`, error);
+      
+      // CRITICAL: Release reservation on failure to prevent quota leak
+      if (protectionCheck?.reservationId) {
+        await storage.releaseCallReservation(protectionCheck.reservationId);
+        console.log(`🔓 Released call reservation due to error: ${protectionCheck.reservationId}`);
+      }
       
       // Update task with error status
       await storage.updateFollowUpTask(task.id, {
@@ -191,6 +216,40 @@ export class CallSchedulerService {
       if (currentAttempts < (task.maxAttempts || 2)) {
         await this.createRetryTask(task, currentAttempts);
       }
+    }
+  }
+
+  /**
+   * Start TTL cleanup service for expired reservations (CRITICAL for production)
+   */
+  private startCleanupService(): void {
+    // Run cleanup immediately on start
+    this.performCleanup();
+    
+    // Then run cleanup on interval
+    this.cleanupIntervalId = setInterval(() => {
+      this.performCleanup();
+    }, this.CLEANUP_INTERVAL);
+    
+    console.log(`🧹 TTL cleanup service started - cleaning every ${this.CLEANUP_INTERVAL/1000}s`);
+  }
+
+  /**
+   * Perform cleanup of expired reservations
+   */
+  private async performCleanup(): Promise<void> {
+    try {
+      const result = await storage.cleanupExpiredReservations();
+      
+      if (result.cleaned > 0) {
+        console.log(`🧹 Cleaned up ${result.cleaned} expired reservations`);
+      }
+      
+      if (result.errors.length > 0) {
+        console.error('⚠️ Cleanup errors:', result.errors);
+      }
+    } catch (error) {
+      console.error('❌ TTL cleanup service error:', error);
     }
   }
 
