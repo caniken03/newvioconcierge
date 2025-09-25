@@ -1068,11 +1068,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Enhanced contact analytics endpoint
   app.get('/api/contacts/analytics', authenticateJWT, async (req: any, res) => {
     try {
+      console.log('Analytics request for tenant:', req.user.tenantId, 'user role:', req.user.role);
       const analytics = await storage.getContactAnalytics(req.user.tenantId);
+      console.log('Analytics retrieved successfully');
       res.json(analytics);
     } catch (error) {
-      console.error('Contact analytics error:', error);
-      res.status(500).json({ message: 'Failed to fetch contact analytics' });
+      console.error('Contact analytics error details:', error);
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      console.error('User info:', { tenantId: req.user?.tenantId, userId: req.user?.id, role: req.user?.role });
+      res.status(500).json({ message: 'Failed to fetch contact analytics', error: error instanceof Error ? error.message : 'Unknown error' });
     }
   });
 

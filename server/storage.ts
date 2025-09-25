@@ -869,12 +869,16 @@ export class DatabaseStorage implements IStorage {
       .where(eq(contactGroups.tenantId, tenantId))
       .groupBy(contactGroups.id, contactGroups.name, contactGroups.contactCount, contactGroups.color);
 
-    const groupPerformance = groupPerformanceData.map(item => ({
-      groupName: item.groupName,
-      memberCount: item.memberCount || 0,
-      confirmedRate: item.memberCount > 0 ? Math.round(((item.confirmedCount || 0) / item.memberCount) * 100) : 0,
-      color: item.color
-    }));
+    const groupPerformance = groupPerformanceData.map(item => {
+      const memberCount = item.memberCount || 0;
+      const confirmedCount = item.confirmedCount || 0;
+      return {
+        groupName: item.groupName,
+        memberCount: memberCount,
+        confirmedRate: memberCount > 0 ? Math.round((confirmedCount / memberCount) * 100) : 0,
+        color: item.color || '#6b7280'
+      };
+    });
 
     // Temporal trends (last 7 days)
     const sevenDaysAgo = new Date();
