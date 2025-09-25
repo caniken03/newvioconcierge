@@ -33,7 +33,7 @@ const contactSchema = z.object({
   // Call Personalization Fields
   eventType: z.string().optional(),
   contactPerson: z.string().optional(),
-  businessName: z.string().optional(),
+  businessName: z.string().min(1, "Business Name is required for caller identification"),
   appointmentDuration: z.number().min(1).max(999).optional(),
   specialInstructions: z.string().max(300, "Special instructions must be under 300 characters").optional(),
   

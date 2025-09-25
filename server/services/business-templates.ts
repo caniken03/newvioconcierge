@@ -698,8 +698,8 @@ export class BusinessTemplateService {
       first_name: String(nameParts[0] || ''),
       last_name: String(nameParts.slice(1).join(' ') || ''),
       
-      // Company information
-      company_name: String(tenantConfig.companyName || 'our office'),
+      // Company information - use contact's company name for caller identification
+      company_name: String(contact.companyName || tenantConfig.companyName || 'our office'),
       owner_name: String(contact.ownerName || 'your provider'),
       
       // Appointment details
