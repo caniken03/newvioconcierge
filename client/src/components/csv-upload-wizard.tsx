@@ -565,6 +565,81 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     onClose();
   };
 
+  // Download CSV template based on business type
+  const handleDownloadTemplate = () => {
+    const headers = businessConfig.requiredFields.concat(businessConfig.optionalFields);
+    
+    // Create CSV content with headers
+    const csvContent = headers.join(',') + '\n';
+    
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `${businessType}_contacts_template.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+    
+    toast({
+      title: "Template Downloaded",
+      description: `CSV template for ${businessType} contacts has been downloaded`,
+    });
+  };
+
+  // Show sample data in a dialog
+  const handleViewSampleData = () => {
+    // Create sample data based on business type
+    const getSampleData = () => {
+      const baseData = {
+        name: "John Smith",
+        phone: "+1 555-123-4567",
+        email: "john.smith@email.com"
+      };
+
+      switch (businessType) {
+        case 'medical':
+          return [
+            { ...baseData, appointmentType: "Annual Checkup", appointmentTime: "2024-01-15 10:00:00", notes: "Routine visit" },
+            { name: "Jane Doe", phone: "+1 555-987-6543", email: "jane.doe@email.com", appointmentType: "Consultation", appointmentTime: "2024-01-16 14:30:00", notes: "Follow-up" },
+            { name: "Bob Johnson", phone: "+1 555-456-7890", email: "bob.johnson@email.com", appointmentType: "Physical Therapy", appointmentTime: "2024-01-17 09:15:00", notes: "" }
+          ];
+        case 'restaurant':
+          return [
+            { ...baseData, appointmentType: "Dinner Reservation", appointmentTime: "2024-01-15 19:00:00", partySize: "4", notes: "Anniversary dinner" },
+            { name: "Sarah Wilson", phone: "+1 555-234-5678", email: "sarah.wilson@email.com", appointmentType: "Lunch Meeting", appointmentTime: "2024-01-16 12:30:00", partySize: "6", notes: "Business lunch" },
+            { name: "Mike Brown", phone: "+1 555-345-6789", email: "mike.brown@email.com", appointmentType: "Birthday Party", appointmentTime: "2024-01-17 18:00:00", partySize: "8", notes: "Kids birthday party" }
+          ];
+        case 'salon':
+          return [
+            { ...baseData, appointmentType: "Haircut & Style", appointmentTime: "2024-01-15 10:00:00", duration: "60", notes: "Regular client" },
+            { name: "Lisa Garcia", phone: "+1 555-567-8901", email: "lisa.garcia@email.com", appointmentType: "Color & Highlights", appointmentTime: "2024-01-16 14:00:00", duration: "120", notes: "Root touch-up" },
+            { name: "Tom Davis", phone: "+1 555-678-9012", email: "tom.davis@email.com", appointmentType: "Beard Trim", appointmentTime: "2024-01-17 11:30:00", duration: "30", notes: "" }
+          ];
+        default:
+          return [
+            { ...baseData, appointmentType: "Consultation", appointmentTime: "2024-01-15 10:00:00", notes: "Initial meeting" },
+            { name: "Emma Taylor", phone: "+1 555-789-0123", email: "emma.taylor@email.com", appointmentType: "Follow-up", appointmentTime: "2024-01-16 15:00:00", notes: "Progress review" },
+            { name: "Chris Lee", phone: "+1 555-890-1234", email: "chris.lee@email.com", appointmentType: "Service Call", appointmentTime: "2024-01-17 13:00:00", notes: "Scheduled maintenance" }
+          ];
+      }
+    };
+
+    const sampleData = getSampleData();
+    const sampleText = sampleData.map(row => 
+      Object.entries(row).map(([key, value]) => `${key}: ${value}`).join(', ')
+    ).join('\n\n');
+    
+    toast({
+      title: "Sample Data Preview",
+      description: sampleText.length > 300 ? sampleText.substring(0, 300) + '...' : sampleText,
+    });
+  };
+
   // Render step content
   const renderStepContent = () => {
     switch (currentStep) {
@@ -643,11 +718,11 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
             Download a template CSV file for your business type to ensure proper formatting:
           </p>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={handleDownloadTemplate} data-testid="button-download-template">
               <Download className="w-4 h-4 mr-2" />
               Download Template
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={handleViewSampleData} data-testid="button-view-sample">
               <Eye className="w-4 h-4 mr-2" />
               View Sample Data
             </Button>
