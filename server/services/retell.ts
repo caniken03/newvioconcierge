@@ -39,6 +39,25 @@ interface RetellWebhookPayload {
   call_analysis?: {
     call_summary?: string;
     call_outcome?: string;
+    sentiment_analysis?: {
+      overall_sentiment?: string; // 'positive', 'negative', 'neutral'
+      sentiment_score?: number; // -1 to 1
+      emotions_detected?: string[]; // ['frustrated', 'anxious', 'cooperative']
+      tone_analysis?: string; // 'professional', 'casual', 'upset'
+      engagement_level?: string; // 'high', 'medium', 'low'
+    };
+    voice_analytics?: {
+      speech_pace?: string; // 'fast', 'normal', 'slow'
+      interruptions_count?: number;
+      silence_duration?: number; // Total seconds of silence
+      voice_quality?: string; // 'clear', 'muffled', 'noisy'
+    };
+    conversation_analytics?: {
+      topics_discussed?: string[];
+      customer_questions_count?: number;
+      agent_clarifications_count?: number;
+      conversation_flow?: string; // 'smooth', 'difficult', 'confused'
+    };
     inbound_phone_call_debugging_log?: any;
   };
   metadata?: any;
@@ -153,6 +172,62 @@ export class RetellService {
       call_analysis: payload.call_analysis,
       metadata: payload.metadata,
     };
+  }
+
+  /**
+   * Extract and process sentiment analysis from Retell AI webhook
+   */
+  extractSentimentAnalysis(payload: RetellWebhookPayload) {
+    const analysis = payload.call_analysis;
+    if (!analysis) return null;
+
+    return {
+      // Core sentiment data
+      overallSentiment: analysis.sentiment_analysis?.overall_sentiment || 'neutral',
+      sentimentScore: analysis.sentiment_analysis?.sentiment_score || 0,
+      emotionsDetected: analysis.sentiment_analysis?.emotions_detected || [],
+      toneAnalysis: analysis.sentiment_analysis?.tone_analysis || 'neutral',
+      engagementLevel: analysis.sentiment_analysis?.engagement_level || 'medium',
+      
+      // Voice analytics
+      speechPace: analysis.voice_analytics?.speech_pace || 'normal',
+      interruptionsCount: analysis.voice_analytics?.interruptions_count || 0,
+      silenceDuration: analysis.voice_analytics?.silence_duration || 0,
+      voiceQuality: analysis.voice_analytics?.voice_quality || 'clear',
+      
+      // Conversation analytics  
+      topicsDiscussed: analysis.conversation_analytics?.topics_discussed || [],
+      customerQuestionsCount: analysis.conversation_analytics?.customer_questions_count || 0,
+      agentClarificationsCount: analysis.conversation_analytics?.agent_clarifications_count || 0,
+      conversationFlow: analysis.conversation_analytics?.conversation_flow || 'smooth',
+    };
+  }
+
+  /**
+   * Determine appointment action taken during call from sentiment and conversation analysis
+   */
+  determineAppointmentAction(payload: RetellWebhookPayload): string {
+    const outcome = payload.call_analysis?.call_outcome?.toLowerCase() || '';
+    const topics = payload.call_analysis?.conversation_analytics?.topics_discussed || [];
+    
+    // Check conversation topics for appointment actions
+    const topicsString = topics.join(' ').toLowerCase();
+    
+    if (outcome.includes('confirm') || topicsString.includes('confirm')) {
+      return 'confirmed';
+    }
+    if (outcome.includes('reschedule') || topicsString.includes('reschedule') || topicsString.includes('different time')) {
+      return 'rescheduled';
+    }
+    if (outcome.includes('cancel') || topicsString.includes('cancel')) {
+      return 'cancelled';
+    }
+    if (outcome.includes('voicemail') || payload.call_status === 'no_answer') {
+      return 'no_response';
+    }
+    
+    // Fallback to call outcome logic
+    return this.determineCallOutcome(payload);
   }
 
   determineCallOutcome(payload: RetellWebhookPayload): string {

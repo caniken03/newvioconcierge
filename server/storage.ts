@@ -16,6 +16,9 @@ import {
   businessHoursConfig,
   contactCallHistory,
   callReservations,
+  reschedulingRequests,
+  customerAnalytics,
+  callQualityMetrics,
   type User,
   type InsertUser,
   type Tenant,
@@ -48,6 +51,12 @@ import {
   type InsertBusinessHoursConfig,
   type ContactCallHistory,
   type InsertContactCallHistory,
+  type ReschedulingRequest,
+  type InsertReschedulingRequest,
+  type CustomerAnalytics,
+  type InsertCustomerAnalytics,
+  type CallQualityMetrics,
+  type InsertCallQualityMetrics,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, count, sql, gt, lt, like, inArray } from "drizzle-orm";
@@ -232,6 +241,20 @@ export interface IStorage {
   createFollowUpTask(task: InsertFollowUpTask): Promise<FollowUpTask>;
   updateFollowUpTask(id: string, updates: Partial<InsertFollowUpTask>): Promise<FollowUpTask>;
   getOverdueFollowUpTasks(): Promise<FollowUpTask[]>;
+
+  // Customer Analytics operations (for sentiment analysis)
+  createCustomerAnalytics(analytics: InsertCustomerAnalytics): Promise<CustomerAnalytics>;
+  getCustomerAnalytics(contactId: string, tenantId: string): Promise<CustomerAnalytics[]>;
+  getCustomerAnalyticsByTenant(tenantId: string): Promise<CustomerAnalytics[]>;
+  
+  // Rescheduling Request operations
+  createReschedulingRequest(request: InsertReschedulingRequest): Promise<ReschedulingRequest>;
+  getReschedulingRequestsByTenant(tenantId: string): Promise<ReschedulingRequest[]>;
+  updateReschedulingRequest(id: string, updates: Partial<InsertReschedulingRequest>): Promise<ReschedulingRequest>;
+  
+  // Call Quality Metrics operations
+  createCallQualityMetrics(metrics: InsertCallQualityMetrics): Promise<CallQualityMetrics>;
+  getCallQualityMetricsByTenant(tenantId: string): Promise<CallQualityMetrics[]>;
 
   // Tenant configuration operations
   getTenantConfig(tenantId: string): Promise<TenantConfig | undefined>;
@@ -2034,6 +2057,68 @@ export class DatabaseStorage implements IStorage {
         )
       )
       .orderBy(asc(followUpTasks.scheduledTime));
+  }
+
+  // Customer Analytics operations (for sentiment analysis)
+  async createCustomerAnalytics(analytics: InsertCustomerAnalytics): Promise<CustomerAnalytics> {
+    const [newAnalytics] = await db.insert(customerAnalytics).values(analytics).returning();
+    return newAnalytics;
+  }
+
+  async getCustomerAnalytics(contactId: string, tenantId: string): Promise<CustomerAnalytics[]> {
+    return await db
+      .select()
+      .from(customerAnalytics)
+      .where(and(
+        eq(customerAnalytics.contactId, contactId),
+        eq(customerAnalytics.tenantId, tenantId)
+      ))
+      .orderBy(desc(customerAnalytics.createdAt));
+  }
+
+  async getCustomerAnalyticsByTenant(tenantId: string): Promise<CustomerAnalytics[]> {
+    return await db
+      .select()
+      .from(customerAnalytics)
+      .where(eq(customerAnalytics.tenantId, tenantId))
+      .orderBy(desc(customerAnalytics.createdAt));
+  }
+
+  // Rescheduling Request operations
+  async createReschedulingRequest(request: InsertReschedulingRequest): Promise<ReschedulingRequest> {
+    const [newRequest] = await db.insert(reschedulingRequests).values(request).returning();
+    return newRequest;
+  }
+
+  async getReschedulingRequestsByTenant(tenantId: string): Promise<ReschedulingRequest[]> {
+    return await db
+      .select()
+      .from(reschedulingRequests)
+      .where(eq(reschedulingRequests.tenantId, tenantId))
+      .orderBy(desc(reschedulingRequests.createdAt));
+  }
+
+  async updateReschedulingRequest(id: string, updates: Partial<InsertReschedulingRequest>): Promise<ReschedulingRequest> {
+    const [updatedRequest] = await db
+      .update(reschedulingRequests)
+      .set(updates)
+      .where(eq(reschedulingRequests.id, id))
+      .returning();
+    return updatedRequest;
+  }
+
+  // Call Quality Metrics operations
+  async createCallQualityMetrics(metrics: InsertCallQualityMetrics): Promise<CallQualityMetrics> {
+    const [newMetrics] = await db.insert(callQualityMetrics).values(metrics).returning();
+    return newMetrics;
+  }
+
+  async getCallQualityMetricsByTenant(tenantId: string): Promise<CallQualityMetrics[]> {
+    return await db
+      .select()
+      .from(callQualityMetrics)
+      .where(eq(callQualityMetrics.tenantId, tenantId))
+      .orderBy(desc(callQualityMetrics.createdAt));
   }
 
   // Tenant configuration operations

@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import express from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import jwt from "jsonwebtoken";
@@ -12,6 +13,7 @@ import fs from "fs";
 import path from "path";
 import { retellService } from "./services/retell";
 import { retailService } from "./services/retail";
+import crypto from "crypto";
 import { calComService } from "./services/cal-com";
 import { calendlyService } from "./services/calendly";
 import { businessTemplateService } from "./services/business-templates";
@@ -66,6 +68,39 @@ function verifyWebhookSignature(payload: string, signature: string, secret: stri
     Buffer.from(cleanSignature, 'hex'),
     Buffer.from(expectedSignature, 'hex')
   );
+}
+
+/**
+ * Verify Retell AI webhook signature using proper HMAC verification
+ * @param payload Raw webhook payload as string
+ * @param signature Signature from x-retell-signature header
+ * @param apiKey Tenant's Retell API key used as HMAC secret
+ */
+function verifyRetellWebhookSignature(payload: string, signature: string, apiKey: string): boolean {
+  try {
+    // Create HMAC using tenant's API key as secret
+    const hmac = crypto.createHmac('sha256', apiKey);
+    hmac.update(payload, 'utf8');
+    const expectedSignature = hmac.digest('hex');
+    
+    // Remove any prefix if present (some providers use "sha256=" prefix)
+    const cleanSignature = signature.replace(/^sha256=/, '');
+    
+    // Defensive check for equal lengths to prevent timingSafeEqual errors
+    if (cleanSignature.length !== expectedSignature.length) {
+      return false;
+    }
+    
+    // Timing-safe comparison to prevent timing attacks
+    return crypto.timingSafeEqual(
+      Buffer.from(cleanSignature, 'hex'),
+      Buffer.from(expectedSignature, 'hex')
+    );
+  } catch (error) {
+    // Log error for debugging but don't expose details
+    console.error('Retell HMAC verification error:', error);
+    return false;
+  }
 }
 
 // Extract tenant ID from webhook metadata with fallback strategies
@@ -2352,14 +2387,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Retell AI webhook endpoint
-  app.post('/api/webhooks/retell', async (req, res) => {
+  // Retell AI webhook endpoint with proper raw-body verification
+  app.post('/api/webhooks/retell', express.raw({ type: 'application/json' }), async (req, res) => {
     try {
-      const signature = req.headers['x-signature'] || req.headers['signature'];
-      const rawPayload = JSON.stringify(req.body);
+      const signature = req.headers['x-retell-signature'];
       
-      // Extract tenant ID from webhook metadata
-      const payload = retellService.parseWebhookPayload(req.body);
+      // SECURITY: Signature is MANDATORY for webhook security
+      if (!signature) {
+        console.warn('Retell webhook received without required x-retell-signature header');
+        return res.status(401).json({ message: 'Webhook signature required' });
+      }
+      
+      // Parse the raw body safely
+      let parsedBody;
+      try {
+        parsedBody = JSON.parse(req.body.toString());
+      } catch (error) {
+        console.warn('Invalid JSON in Retell webhook payload');
+        return res.status(400).json({ message: 'Invalid JSON payload' });
+      }
+      
+      // Extract tenant ID from webhook metadata for early validation
+      const payload = retellService.parseWebhookPayload(parsedBody);
       const tenantId = extractTenantIdFromWebhook(payload.metadata, payload);
       
       if (!tenantId) {
@@ -2367,17 +2416,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Missing tenant ID in webhook metadata' });
       }
 
-      // Get tenant configuration for webhook secret
+      // Get tenant configuration for Retell API key (used as HMAC secret)
       const tenantConfig = await storage.getTenantConfig(tenantId);
-      if (!tenantConfig?.retellWebhookSecret) {
-        console.warn(`Retell webhook secret not configured for tenant ${tenantId}`);
-        return res.status(400).json({ message: 'Webhook secret not configured' });
+      if (!tenantConfig?.retellApiKey) {
+        console.warn(`Retell API key not configured for tenant ${tenantId}`);
+        return res.status(400).json({ message: 'Retell API key not configured' });
       }
 
-      // Verify webhook signature
-      if (signature && !verifyWebhookSignature(rawPayload, signature as string, tenantConfig.retellWebhookSecret)) {
-        console.warn(`Invalid Retell webhook signature for tenant ${tenantId}`);
-        return res.status(401).json({ message: 'Invalid webhook signature' });
+      // SECURITY: Proper HMAC verification using raw body and tenant's API key
+      const rawPayload = req.body.toString();
+      
+      // Defensive signature verification with proper error handling
+      try {
+        if (!verifyRetellWebhookSignature(rawPayload, signature as string, tenantConfig.retellApiKey)) {
+          console.warn(`Invalid Retell webhook signature for tenant ${tenantId}`);
+          return res.status(401).json({ message: 'Invalid webhook signature' });
+        }
+      } catch (error) {
+        console.error(`Webhook signature verification error for tenant ${tenantId}:`, error);
+        return res.status(401).json({ message: 'Signature verification failed' });
       }
       
       if (payload.event === 'call_ended' || payload.event === 'call_completed') {
@@ -2396,6 +2453,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const callOutcome = retellService.determineCallOutcome(payload);
+        const appointmentAction = retellService.determineAppointmentAction(payload);
+        const sentimentAnalysis = retellService.extractSentimentAnalysis(payload);
         
         // Calculate duration from start time if available
         let durationSeconds: number | undefined;
@@ -2403,26 +2462,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
           durationSeconds = Math.floor((Date.now() - session.startTime.getTime()) / 1000);
         }
         
-        // Update call session
+        // Update call session with comprehensive sentiment analysis
         await storage.updateCallSession(session.id, {
           status: 'completed',
           endTime: new Date(),
           callOutcome,
+          appointmentAction,
           durationSeconds,
+          ...(sentimentAnalysis && {
+            // Sentiment analysis fields
+            customerSentiment: sentimentAnalysis.overallSentiment,
+            sentimentScore: sentimentAnalysis.sentimentScore,
+            emotionsDetected: sentimentAnalysis.emotionsDetected,
+            engagementLevel: sentimentAnalysis.engagementLevel,
+            
+            // Voice analytics fields
+            speechPace: sentimentAnalysis.speechPace,
+            interruptionsCount: sentimentAnalysis.interruptionsCount,
+            voiceQuality: sentimentAnalysis.voiceQuality,
+            
+            // Conversation analytics
+            topicsDiscussed: sentimentAnalysis.topicsDiscussed,
+            conversationFlow: sentimentAnalysis.conversationFlow,
+          }),
+          // Store full transcript and analysis
+          transcript: payload.transcript,
+          callAnalysisData: payload.call_analysis ? JSON.stringify(payload.call_analysis) : null,
         });
 
-        // Update contact with call outcome
-        if (callOutcome === 'confirmed') {
-          await storage.updateContact(session.contactId!, {
-            appointmentStatus: 'confirmed',
-            lastCallOutcome: callOutcome,
-            callAttempts: (await storage.getContact(session.contactId!))?.callAttempts || 0 + 1,
-          });
-        } else {
-          await storage.updateContact(session.contactId!, {
-            lastCallOutcome: callOutcome,
-            callAttempts: (await storage.getContact(session.contactId!))?.callAttempts || 0 + 1,
-          });
+        // Get current contact data for responsiveness tracking
+        const contact = await storage.getContact(session.contactId!);
+        const currentAttempts = (contact?.callAttempts || 0) + 1;
+        
+        // Update contact with enhanced tracking
+        const contactUpdate: any = {
+          lastCallOutcome: callOutcome,
+          callAttempts: currentAttempts,
+        };
+        
+        // Update appointment status based on action
+        if (appointmentAction === 'confirmed') {
+          contactUpdate.appointmentStatus = 'confirmed';
+        } else if (appointmentAction === 'rescheduled') {
+          contactUpdate.appointmentStatus = 'needs_rescheduling';
+        } else if (appointmentAction === 'cancelled') {
+          contactUpdate.appointmentStatus = 'cancelled';
+        }
+        
+        // Add sentiment tracking to contact
+        if (sentimentAnalysis) {
+          contactUpdate.lastSentiment = sentimentAnalysis.overallSentiment;
+          contactUpdate.sentimentHistory = [
+            ...(contact?.sentimentHistory || []), 
+            {
+              date: new Date().toISOString().split('T')[0],
+              sentiment: sentimentAnalysis.overallSentiment,
+              score: sentimentAnalysis.sentimentScore,
+            }
+          ].slice(-10); // Keep last 10 sentiment records
+          
+          // Update responsiveness pattern based on engagement and outcome
+          let responsivenessScore = 50; // Default neutral
+          if (sentimentAnalysis.engagementLevel === 'high' && callOutcome === 'confirmed') {
+            responsivenessScore = 90;
+          } else if (sentimentAnalysis.engagementLevel === 'medium') {
+            responsivenessScore = 70;
+          } else if (callOutcome === 'no_answer' || callOutcome === 'voicemail') {
+            responsivenessScore = 20;
+          }
+          
+          contactUpdate.responsivenessPattern = {
+            averageScore: Math.round((responsivenessScore + (contact?.responsivenessPattern?.averageScore || 50)) / 2),
+            lastUpdateDate: new Date().toISOString().split('T')[0],
+            callResponseRate: callOutcome !== 'no_answer' && callOutcome !== 'voicemail' ? 1 : 0,
+          };
+        }
+        
+        await storage.updateContact(session.contactId!, contactUpdate);
+        
+        // Create/update customer analytics record
+        if (sentimentAnalysis) {
+          try {
+            await storage.createCustomerAnalytics({
+              tenantId: session.tenantId,
+              contactId: session.contactId!,
+              callSessionId: session.id,
+              sentimentTrend: sentimentAnalysis.overallSentiment,
+              sentimentScore: sentimentAnalysis.sentimentScore,
+              engagementLevel: sentimentAnalysis.engagementLevel,
+              responsivenessScore: contactUpdate.responsivenessPattern?.averageScore || 50,
+              interactionPatterns: {
+                speechPace: sentimentAnalysis.speechPace,
+                interruptionsCount: sentimentAnalysis.interruptionsCount,
+                conversationFlow: sentimentAnalysis.conversationFlow,
+                topicsDiscussed: sentimentAnalysis.topicsDiscussed,
+              },
+              appointmentBehavior: appointmentAction,
+              analysisDate: new Date(),
+            });
+          } catch (error) {
+            console.warn('Failed to create customer analytics:', error);
+            // Don't fail the webhook processing if analytics fail
+          }
         }
 
         // Log the call details

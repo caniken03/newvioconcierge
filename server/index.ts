@@ -17,8 +17,22 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// Exclude webhook paths from JSON parsing to allow raw body verification
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/webhooks/')) {
+    // Skip JSON parsing for webhook routes - they handle raw bodies
+    return next();
+  }
+  express.json()(req, res, next);
+});
+
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/webhooks/')) {
+    // Skip URL encoding for webhook routes
+    return next();
+  }
+  express.urlencoded({ extended: false })(req, res, next);
+});
 
 app.use((req, res, next) => {
   const start = Date.now();
