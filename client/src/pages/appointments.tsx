@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
+import { useLocation } from "wouter";
 import { Calendar, Clock, Phone, User, Filter, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,9 +23,24 @@ interface Appointment {
 
 export default function Appointments() {
   const { user } = useAuth();
+  const [location] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("date");
+
+  // Handle URL parameters for filtering
+  useEffect(() => {
+    const params = new URLSearchParams(location.split('?')[1] || '');
+    const statusParam = params.get('status');
+    if (statusParam && ['confirmed', 'pending', 'completed', 'cancelled', 'no_show', 'today'].includes(statusParam)) {
+      if (statusParam === 'today') {
+        // For today filter, we'll filter by date in the filtering logic
+        setStatusFilter('today');
+      } else {
+        setStatusFilter(statusParam);
+      }
+    }
+  }, [location]);
 
   // Fetch appointments data
   const { data: appointments = [], isLoading } = useQuery({
@@ -39,7 +55,17 @@ export default function Appointments() {
     .filter(appointment => {
       const matchesSearch = appointment.contactName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            appointment.contactPhone.includes(searchQuery);
-      const matchesStatus = statusFilter === "all" || appointment.status === statusFilter;
+      
+      // Handle status filtering including special 'today' filter
+      let matchesStatus = true;
+      if (statusFilter === "today") {
+        const today = new Date().toDateString();
+        const appointmentDate = new Date(appointment.appointmentTime).toDateString();
+        matchesStatus = appointmentDate === today;
+      } else if (statusFilter !== "all") {
+        matchesStatus = appointment.status === statusFilter;
+      }
+      
       return matchesSearch && matchesStatus;
     })
     .sort((a, b) => {
@@ -174,6 +200,7 @@ export default function Appointments() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="today">Today's Appointments</SelectItem>
                       <SelectItem value="confirmed">Confirmed</SelectItem>
                       <SelectItem value="pending">Pending</SelectItem>
                       <SelectItem value="completed">Completed</SelectItem>

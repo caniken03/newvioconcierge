@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
+import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import Sidebar from "@/components/layout/sidebar";
@@ -142,6 +143,7 @@ export default function Contacts() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [location] = useLocation();
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
@@ -263,6 +265,22 @@ export default function Contacts() {
       setActivePreset(loadActivePreset());
     }
   }, [user]);
+
+  // URL filter parameter state
+  const [urlFilter, setUrlFilter] = useState<string | null>(null);
+
+  // Handle URL parameters for filtering
+  useEffect(() => {
+    const params = new URLSearchParams(location.split('?')[1] || '');
+    const filterParam = params.get('filter');
+    if (filterParam === 'missing-phone') {
+      setUrlFilter('missing-phone');
+      // Reset other filters to show the specific missing phone filter
+      setFilters({ ...initialFilters });
+    } else {
+      setUrlFilter(null);
+    }
+  }, [location]);
 
   // Legacy compatibility
   const searchQuery = filters.search;
@@ -595,6 +613,12 @@ export default function Contacts() {
 
   // Enhanced filtering logic
   const filteredContacts = (contacts || []).filter((contact: Contact) => {
+    // Handle special URL filters first
+    if (urlFilter === 'missing-phone') {
+      // Only show contacts without phone numbers
+      return !contact.phone || contact.phone.trim() === '';
+    }
+
     // Search filter
     if (filters.search.trim()) {
       const searchLower = filters.search.toLowerCase();

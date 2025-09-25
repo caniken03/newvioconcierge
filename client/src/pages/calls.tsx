@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,9 +31,24 @@ import {
 export default function CallManagement() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [location] = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [activeTab, setActiveTab] = useState("active");
+
+  // Handle URL parameters for filtering
+  useEffect(() => {
+    const params = new URLSearchParams(location.split('?')[1] || '');
+    const statusParam = params.get('status');
+    if (statusParam && ['scheduled', 'in_progress', 'completed', 'failed', 'recent'].includes(statusParam)) {
+      if (statusParam === 'recent') {
+        // For recent activity, show completed calls
+        setStatusFilter('completed');
+      } else {
+        setStatusFilter(statusParam);
+      }
+    }
+  }, [location]);
 
   // Fetch contacts for call management
   const { data: contacts = [], isLoading: contactsLoading } = useQuery({
