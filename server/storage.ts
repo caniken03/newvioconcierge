@@ -1877,7 +1877,11 @@ export class DatabaseStorage implements IStorage {
     // Check if there are any updates to prevent "No values to set" error
     if (!updates || Object.keys(updates).length === 0) {
       // If no updates, just return the existing session
-      return await this.getCallSession(id);
+      const existingSession = await this.getCallSession(id);
+      if (!existingSession) {
+        throw new Error(`Call session with id ${id} not found`);
+      }
+      return existingSession;
     }
     
     const [updatedSession] = await db

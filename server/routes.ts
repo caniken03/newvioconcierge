@@ -1458,6 +1458,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         maxCallsPer15Min: z.number().min(1).max(100).optional(),
         quietStart: z.string().optional(),
         quietEnd: z.string().optional(),
+        // Configurable call timing settings
+        reminderHoursBefore: z.array(z.number().min(1).max(168)).min(1).optional(),
+        followUpRetryMinutes: z.number().min(60).max(300).optional(),
       });
 
       const configData = configSchema.parse(req.body);
