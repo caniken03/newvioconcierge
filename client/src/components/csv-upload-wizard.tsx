@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -95,6 +95,15 @@ interface GroupAssignment {
   groupMappings: Record<string, string>; // CSV value -> Group ID
   autoCreateGroups: boolean;
   newGroups: string[];
+}
+
+interface GroupValue {
+  originalValue: string;
+  normalizedValue: string;
+  count: number;
+  action: 'create' | 'assign' | 'skip';
+  targetGroupId: string | null;
+  rows: number[];
 }
 
 interface ImportPreview {
@@ -266,7 +275,8 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
   const [csvFile, setCsvFile] = useState<CSVFile | null>(null);
   const [fieldMappings, setFieldMappings] = useState<FieldMapping[]>([]);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
-  const [groupAssignments, setGroupAssignments] = useState<GroupAssignment[]>([]);
+  const [groupAssignments, setGroupAssignments] = useState<GroupValue[]>([]);
+  const [selectedGroupColumn, setSelectedGroupColumn] = useState<string | null>(null);
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
@@ -1323,12 +1333,399 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     );
   };
 
-  const renderGroupConfigurationStep = () => (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Configure Groups</h3>
-      <p className="text-muted-foreground">Group configuration interface will be implemented here</p>
-    </div>
-  );
+  // Group assignment helpers
+  const detectGroupColumns = (): string[] => {
+    if (!csvFile) return [];
+    
+    const groupKeywords = ['group', 'groups', 'category', 'categories', 'department', 'dept', 'team', 'division', 'section', 'type', 'classification', 'tag', 'tags'];
+    const headers = csvFile.headers.map(h => h.toLowerCase());
+    
+    return csvFile.headers.filter((header, index) => 
+      groupKeywords.some(keyword => 
+        headers[index].includes(keyword) || 
+        header.toLowerCase() === keyword
+      )
+    );
+  };
+
+  const extractGroupValues = (groupColumn: string): GroupValue[] => {
+    if (!csvFile) return [];
+    
+    const columnIndex = csvFile.headers.indexOf(groupColumn);
+    if (columnIndex === -1) return [];
+    
+    const valuesMap = new Map<string, GroupValue>();
+    
+    csvFile.rows.forEach((row, rowIndex) => {
+      const cellValue = row[columnIndex]?.toString().trim() || '';
+      if (cellValue) {
+        // Parse multi-value cells (comma, semicolon, pipe separated)
+        const values = cellValue.split(/[,;|]/).map(v => v.trim()).filter(v => v.length > 0);
+        
+        values.forEach(value => {
+          const cleanValue = value.toLowerCase().trim();
+          if (cleanValue) {
+            if (!valuesMap.has(cleanValue)) {
+              valuesMap.set(cleanValue, {
+                originalValue: value.trim(), // Preserve original casing
+                normalizedValue: cleanValue,
+                count: 1,
+                action: 'create', // Default to creating new groups
+                targetGroupId: null,
+                rows: [rowIndex + 1]
+              });
+            } else {
+              const existing = valuesMap.get(cleanValue)!;
+              existing.count++;
+              if (!existing.rows.includes(rowIndex + 1)) {
+                existing.rows.push(rowIndex + 1);
+              }
+            }
+          }
+        });
+      }
+    });
+    
+    return Array.from(valuesMap.values()).sort((a, b) => b.count - a.count);
+  };
+
+  const getSelectedGroupColumn = (): string | null => {
+    if (selectedGroupColumn) return selectedGroupColumn;
+    const detected = detectGroupColumns();
+    return detected.length > 0 ? detected[0] : null;
+  };
+
+  // Initialize group assignments when entering Step 4
+  useEffect(() => {
+    if (currentStep === 4 && csvFile && groupAssignments.length === 0) {
+      const detected = detectGroupColumns();
+      if (detected.length > 0) {
+        const defaultColumn = selectedGroupColumn || detected[0];
+        setSelectedGroupColumn(defaultColumn);
+        const values = extractGroupValues(defaultColumn);
+        setGroupAssignments(values);
+      }
+    }
+  }, [currentStep, csvFile, selectedGroupColumn]);
+
+  // Clear group state when CSV changes
+  useEffect(() => {
+    setGroupAssignments([]);
+    setSelectedGroupColumn(null);
+  }, [csvFile]);
+
+  const getGroupValues = (): GroupValue[] => {
+    const column = getSelectedGroupColumn();
+    return column ? extractGroupValues(column) : [];
+  };
+
+  const updateGroupAssignment = (normalizedValue: string, action: 'create' | 'assign' | 'skip', targetGroupId?: string) => {
+    setGroupAssignments(prev => 
+      prev.map(assignment => 
+        assignment.normalizedValue === normalizedValue 
+          ? { ...assignment, action, targetGroupId: targetGroupId || null }
+          : assignment
+      )
+    );
+  };
+
+  // Fetch existing contact groups for assignment
+  const { data: existingGroups = [] } = useQuery({
+    queryKey: ['/api/contact-groups'],
+    enabled: currentStep === 4 && isOpen, // Only fetch when on Step 4 and modal is open
+  });
+
+  // Generate import preview data from group assignments
+  const generateGroupImportData = () => {
+    const groupsToCreate = groupAssignments
+      .filter(assignment => assignment.action === 'create')
+      .map(assignment => assignment.originalValue);
+    
+    const contactGroupAssignments: Record<number, string[]> = {};
+    
+    if (csvFile && selectedGroupColumn) {
+      const columnIndex = csvFile.headers.indexOf(selectedGroupColumn);
+      if (columnIndex !== -1) {
+        csvFile.rows.forEach((row, rowIndex) => {
+          const cellValue = row[columnIndex]?.toString().trim() || '';
+          if (cellValue) {
+            const values = cellValue.split(/[,;|]/).map(v => v.trim()).filter(v => v.length > 0);
+            const assignedGroups: string[] = [];
+            
+            values.forEach(value => {
+              const cleanValue = value.toLowerCase().trim();
+              const assignment = groupAssignments.find(a => a.normalizedValue === cleanValue);
+              
+              if (assignment?.action === 'create') {
+                assignedGroups.push(assignment.originalValue);
+              } else if (assignment?.action === 'assign' && assignment.targetGroupId) {
+                const existingGroup = existingGroups.find(g => g.id === assignment.targetGroupId);
+                if (existingGroup) {
+                  assignedGroups.push(existingGroup.name);
+                }
+              }
+            });
+            
+            if (assignedGroups.length > 0) {
+              contactGroupAssignments[rowIndex] = assignedGroups;
+            }
+          }
+        });
+      }
+    }
+    
+    return { groupsToCreate, contactGroupAssignments };
+  };
+
+  // Step 4: Group Configuration UI
+  const renderGroupConfigurationStep = () => {
+    if (!csvFile || fieldMappings.length === 0) {
+      return (
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold">Configure Groups</h3>
+          <p className="text-muted-foreground">No CSV data loaded. Please go back to upload and map fields.</p>
+        </div>
+      );
+    }
+
+    const detectedColumns = detectGroupColumns();
+    const selectedColumn = getSelectedGroupColumn();
+    
+    // Initialize group assignments if not already done
+    if (groupAssignments.length === 0 && selectedColumn) {
+      const values = extractGroupValues(selectedColumn);
+      setGroupAssignments(values);
+    }
+
+    const totalContacts = csvFile.rowCount;
+    const contactsWithGroups = groupAssignments.reduce((sum, assignment) => sum + assignment.count, 0);
+    const contactsWithoutGroups = totalContacts - contactsWithGroups;
+    const newGroupsToCreate = groupAssignments.filter(a => a.action === 'create').length;
+    const groupsToAssign = groupAssignments.filter(a => a.action === 'assign').length;
+
+    return (
+      <TooltipProvider>
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">Configure Groups</h3>
+              <p className="text-sm text-muted-foreground">
+                Organize contacts into groups based on CSV data
+              </p>
+            </div>
+          </div>
+
+          {/* Group Column Detection */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Tag className="w-4 h-4" />
+                Group Column Detection
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {detectedColumns.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    <span className="text-sm font-medium">
+                      Found {detectedColumns.length} potential group column(s)
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {detectedColumns.map((column, index) => (
+                      <div key={column} className={`p-2 rounded border ${
+                        index === 0 ? 'border-blue-200 bg-blue-50' : 'border-gray-200'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">{column}</span>
+                          {index === 0 && (
+                            <Badge variant="secondary" className="text-blue-700">
+                              Selected
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {extractGroupValues(column).length} unique values found
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Info className="w-4 h-4" />
+                  <span className="text-sm">
+                    No group columns detected. Contacts will be imported without group assignments.
+                  </span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Group Assignment Summary */}
+          {selectedColumn && groupAssignments.length > 0 && (
+            <div className="grid grid-cols-4 gap-4">
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600" data-testid="contacts-with-groups-count">{contactsWithGroups}</div>
+                    <div className="text-xs text-muted-foreground">With Groups</div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-gray-600" data-testid="contacts-without-groups-count">{contactsWithoutGroups}</div>
+                    <div className="text-xs text-muted-foreground">Without Groups</div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600" data-testid="new-groups-count">{newGroupsToCreate}</div>
+                    <div className="text-xs text-muted-foreground">New Groups</div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-purple-600" data-testid="existing-groups-assign-count">{groupsToAssign}</div>
+                    <div className="text-xs text-muted-foreground">Existing Groups</div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Group Assignments Table */}
+          {selectedColumn && groupAssignments.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  Group Assignments ({groupAssignments.length} groups)
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Configure how CSV group values should be handled
+                </p>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-96">
+                  <div className="space-y-3">
+                    {groupAssignments.map((assignment, index) => (
+                      <div key={assignment.normalizedValue} className="flex items-center justify-between p-3 border rounded-lg" data-testid={`group-assignment-${assignment.normalizedValue}`}>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium" data-testid={`group-value-${assignment.normalizedValue}`}>{assignment.originalValue}</span>
+                            <Badge variant="outline" data-testid={`group-count-${assignment.normalizedValue}`}>
+                              {assignment.count} contact{assignment.count > 1 ? 's' : ''}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground" data-testid={`group-rows-${assignment.normalizedValue}`}>
+                            Rows: {assignment.rows.slice(0, 5).join(', ')}
+                            {assignment.rows.length > 5 && ` +${assignment.rows.length - 5} more`}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={assignment.action}
+                            onValueChange={(value: 'create' | 'assign' | 'skip') => 
+                              updateGroupAssignment(assignment.normalizedValue, value)
+                            }
+                          >
+                            <SelectTrigger className="w-32" data-testid={`group-action-select-${assignment.normalizedValue}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="create">Create New</SelectItem>
+                              <SelectItem value="assign">Assign Existing</SelectItem>
+                              <SelectItem value="skip">Skip</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          
+                          {assignment.action === 'assign' && (
+                            <Select
+                              value={assignment.targetGroupId || ''}
+                              onValueChange={(value) => 
+                                updateGroupAssignment(assignment.normalizedValue, 'assign', value)
+                              }
+                            >
+                              <SelectTrigger className="w-40" data-testid={`existing-group-select-${assignment.normalizedValue}`}>
+                                <SelectValue placeholder="Select group..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {existingGroups.length > 0 ? (
+                                  existingGroups.map((group) => (
+                                    <SelectItem key={group.id} value={group.id}>
+                                      {group.name}
+                                    </SelectItem>
+                                  ))
+                                ) : (
+                                  <SelectItem value="" disabled>
+                                    No existing groups found
+                                  </SelectItem>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* No Groups Found */}
+          {(!selectedColumn || groupAssignments.length === 0) && (
+            <Card className="border-blue-200 bg-blue-50">
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <Tag className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+                  <p className="font-medium text-blue-800">No Group Data Found</p>
+                  <p className="text-sm text-blue-600 mt-1">
+                    Contacts will be imported without group assignments. You can organize them later.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Auto-Creation Settings */}
+          {newGroupsToCreate > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Settings className="w-4 h-4" />
+                  Group Creation Settings
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span className="text-sm">
+                      {newGroupsToCreate} new group(s) will be created automatically
+                    </span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    New groups will be created with the same name as shown in your CSV file.
+                    You can rename or organize them later in the Groups section.
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </TooltipProvider>
+    );
+  };
 
   const renderImportPreviewStep = () => (
     <div className="space-y-4">
