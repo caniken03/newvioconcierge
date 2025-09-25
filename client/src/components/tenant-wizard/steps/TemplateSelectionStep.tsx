@@ -67,19 +67,42 @@ const BUSINESS_TEMPLATES = [
   },
 ];
 
-interface TemplateSelectionStepProps {
-  data: any;
-  onUpdate: (data: any) => void;
-  onNext: () => void;
-  onPrevious: () => void;
-}
+import type { TemplateSelectionProps } from "@/types";
 
-export default function TemplateSelectionStep({ data, onUpdate, onNext, onPrevious }: TemplateSelectionStepProps) {
+export default function TemplateSelectionStep({ data, updateData, onNext, onBack }: TemplateSelectionProps) {
   const [selectedTemplate, setSelectedTemplate] = useState(data.businessTemplate || '');
 
   const handleTemplateSelect = (templateId: string) => {
     setSelectedTemplate(templateId);
-    onUpdate({ businessTemplate: templateId });
+    
+    // Reset template-driven features to baseline before applying new template
+    const updatedData = { 
+      ...data, 
+      businessTemplate: templateId,
+      // Reset all template-driven flags
+      hipaaCompliant: false,
+      premiumAccess: false,
+      customBranding: false,
+      apiAccess: false,
+      featuresEnabled: [] // Clear template-specific features
+    };
+    
+    // Auto-enable features based on template selection (idempotent)
+    if (templateId === 'medical') {
+      updatedData.hipaaCompliant = true;
+      updatedData.featuresEnabled = ['Patient Privacy Protection', 'Medical Terminology'];
+    } else if (templateId === 'consultant') {
+      updatedData.premiumAccess = true;
+      updatedData.featuresEnabled = ['Business Context', 'Professional Terminology'];
+    } else if (templateId === 'salon') {
+      updatedData.customBranding = true;
+      updatedData.featuresEnabled = ['Service Duration Tracking', 'Stylist Assignment'];
+    } else if (templateId === 'restaurant') {
+      updatedData.apiAccess = true;
+      updatedData.featuresEnabled = ['Party Size Management', 'Dietary Tracking'];
+    }
+    
+    updateData(updatedData);
   };
 
   const handleNext = () => {
@@ -184,7 +207,7 @@ export default function TemplateSelectionStep({ data, onUpdate, onNext, onPrevio
       )}
 
       <div className="flex justify-between pt-4">
-        <Button variant="outline" onClick={onPrevious} data-testid="button-previous-template">
+        <Button variant="outline" onClick={onBack} data-testid="button-previous-template">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Previous
         </Button>

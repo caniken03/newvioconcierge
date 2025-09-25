@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -83,7 +83,9 @@ interface TenantSetupWizardProps {
 
 export default function TenantSetupWizard({ isOpen, onClose, onComplete }: TenantSetupWizardProps) {
   const [currentStep, setCurrentStep] = useState(1);
-  const [wizardData, setWizardData] = useState<WizardData>({
+  
+  // Initial wizard data
+  const getInitialWizardData = (): WizardData => ({
     businessName: "",
     contactEmail: "",
     businessTemplate: "general",
@@ -109,6 +111,16 @@ export default function TenantSetupWizard({ isOpen, onClose, onComplete }: Tenan
       quietEnd: "08:00",
     },
   });
+  
+  const [wizardData, setWizardData] = useState<WizardData>(getInitialWizardData);
+  
+  // Reset wizard when opened
+  useEffect(() => {
+    if (isOpen) {
+      setCurrentStep(1);
+      setWizardData(getInitialWizardData());
+    }
+  }, [isOpen]);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -153,6 +165,12 @@ export default function TenantSetupWizard({ isOpen, onClose, onComplete }: Tenan
     }
   };
 
+  const goToStep = (step: number) => {
+    if (step >= 1 && step <= currentStep) {
+      setCurrentStep(step);
+    }
+  };
+
   const handleComplete = () => {
     createTenantMutation.mutate(wizardData);
   };
@@ -172,9 +190,9 @@ export default function TenantSetupWizard({ isOpen, onClose, onComplete }: Tenan
         return (
           <TemplateSelectionStep
             data={wizardData}
-            onUpdate={updateWizardData}
+            updateData={updateWizardData}
             onNext={nextStep}
-            onPrevious={prevStep}
+            onBack={prevStep}
             data-testid="step-template-selection"
           />
         );
@@ -222,10 +240,10 @@ export default function TenantSetupWizard({ isOpen, onClose, onComplete }: Tenan
         return (
           <ReviewActivateStep
             data={wizardData}
-            onUpdate={updateWizardData}
+            updateData={updateWizardData}
+            onNext={nextStep}
+            onBack={prevStep}
             onComplete={handleComplete}
-            onPrevious={prevStep}
-            isCreating={createTenantMutation.isPending}
             data-testid="step-review-activate"
           />
         );
@@ -269,7 +287,10 @@ export default function TenantSetupWizard({ isOpen, onClose, onComplete }: Tenan
             {WIZARD_STEPS.map((step) => (
               <div 
                 key={step.id} 
-                className="flex flex-col items-center text-center flex-1"
+                className={`flex flex-col items-center text-center flex-1 cursor-pointer transition-opacity ${
+                  step.id <= currentStep ? 'opacity-100 hover:opacity-80' : 'opacity-50'
+                }`}
+                onClick={() => goToStep(step.id)}
                 data-testid={`step-indicator-${step.id}`}
               >
                 <div className="flex items-center justify-center w-8 h-8 rounded-full border-2 mb-2">

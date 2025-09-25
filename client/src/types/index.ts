@@ -148,3 +148,70 @@ export interface Location {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface WizardData {
+  // Step 1: Business Discovery
+  businessName: string;
+  companyName?: string;
+  contactEmail: string;
+  
+  // Step 2: Template Selection
+  businessTemplate: 'medical' | 'salon' | 'restaurant' | 'consultant' | 'general' | 'custom';
+  
+  // Step 3: Feature Control
+  premiumAccess: boolean;
+  hipaaCompliant: boolean;
+  customBranding: boolean;
+  apiAccess: boolean;
+  featuresEnabled: string[];
+  
+  // Step 4: Admin Setup
+  adminUser: {
+    email: string;
+    fullName: string;
+    password: string;
+  };
+  
+  // Step 5: Integration Config
+  retellConfig?: {
+    agentId?: string;
+    phoneNumber?: string;
+  };
+  calendarConfig?: {
+    type: 'calcom' | 'calendly';
+    apiKey?: string;
+    eventTypeId?: number;
+    organizerEmail?: string;
+  };
+  
+  // Step 6: Business Config
+  timezone: string;
+  businessHours: {
+    start: string;
+    end: string;
+  };
+  operationalSettings: {
+    maxCallsPerDay: number;
+    maxCallsPer15Min: number;
+    quietStart: string;
+    quietEnd: string;
+  };
+}
+
+// Step-specific props types for better type safety
+export interface WizardStepProps {
+  data: WizardData;
+  updateData: (updates: Partial<WizardData>) => void;
+  onNext: () => void;
+  onBack: () => void;
+}
+
+export interface BusinessDiscoveryProps extends WizardStepProps {}
+export interface TemplateSelectionProps extends WizardStepProps {}
+export interface FeatureControlProps extends WizardStepProps {}
+export interface AdminSetupProps extends WizardStepProps {}
+export interface IntegrationConfigProps extends WizardStepProps {}
+export interface BusinessConfigProps extends WizardStepProps {}
+export interface ReviewActivateProps extends WizardStepProps {
+  onComplete: () => void;
+}
