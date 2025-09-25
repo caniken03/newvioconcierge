@@ -2,6 +2,18 @@
 
 VioConcierge is an intelligent voice appointment management platform that automates outbound calling for appointment reminders across multiple business verticals. The platform is built as a multi-tenant SaaS solution that enables businesses to reduce appointment no-shows through AI-powered voice calls, comprehensive contact management, and robust analytics. The system supports multiple user roles (super admin, client admin, client user) with tenant isolation and integrates with external calendar systems like Cal.com and Calendly.
 
+# Recent Changes
+
+## September 2024 - 7-Step Tenant Creation Wizard (Production Ready)
+- **MAJOR ENHANCEMENT**: Implemented comprehensive 7-step tenant creation wizard for super admin control
+- **Template-Driven Setup**: Added 6 business templates (Medical/HIPAA, Salon/Beauty, Restaurant/Hospitality, Professional Services, General Business, Custom) with automatic feature enabling
+- **Advanced Feature Control**: Integrated premium feature toggles, HIPAA compliance, custom branding, API access, and priority support controls
+- **Complete Workflow**: Business Discovery → Template Selection → Feature Control → Admin Setup → Integration Config → Business Config → Review & Activate
+- **Type Safety**: Unified WizardData schema across frontend and backend with comprehensive validation
+- **State Management**: Intelligent wizard reset, step navigation, and progress tracking
+- **Backend Integration**: Enhanced `/api/admin/tenants/wizard` endpoint with Zod validation for all 7 steps
+- **End-to-End Verified**: Successfully tested tenant creation with all templates and feature combinations
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
