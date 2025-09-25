@@ -6,11 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
 
 export default function SuperAdminDashboard() {
-  const { data: tenants = [], isLoading } = useQuery({
+  const { data: tenants = [], isLoading } = useQuery<any[]>({
     queryKey: ['/api/admin/tenants'],
   });
 
-  const { data: analytics = {} } = useQuery({
+  const { data: analytics = {} } = useQuery<any>({
     queryKey: ['/api/admin/dashboard/analytics'],
   });
 

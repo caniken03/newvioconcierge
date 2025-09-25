@@ -67,13 +67,13 @@ export default function TenantManagement() {
   });
 
   // Fetch tenants
-  const { data: tenants = [], isLoading } = useQuery({
+  const { data: tenants = [], isLoading } = useQuery<Tenant[]>({
     queryKey: ['/api/admin/tenants'],
     enabled: !!user && user.role === 'super_admin',
   });
 
   // Search tenants
-  const { data: searchResults = [], isLoading: searchLoading } = useQuery({
+  const { data: searchResults = [], isLoading: searchLoading } = useQuery<Tenant[]>({
     queryKey: ['/api/admin/tenants/search', { q: searchQuery }],
     enabled: !!searchQuery && searchQuery.length > 2,
   });
