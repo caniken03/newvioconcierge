@@ -116,6 +116,87 @@ export interface IStorage {
     recentTenantActivity: any[];
   }>;
 
+  // Comprehensive Analytics per PRD
+  getPerformanceOverview(tenantId: string, timePeriod?: number): Promise<{
+    callSuccessRate: number;
+    appointmentConfirmationRate: number;
+    noShowReduction: number;
+    dailyCallVolume: number;
+    revenueProtection: number;
+    previousPeriodComparison: {
+      callSuccessRate: number;
+      appointmentConfirmationRate: number;
+      dailyCallVolume: number;
+    };
+  }>;
+  
+  getCallActivity(tenantId: string): Promise<{
+    activeCalls: number;
+    todaysSummary: {
+      callsAttemptedToday: number;
+      callsCompletedToday: number;
+      appointmentsConfirmedToday: number;
+      pendingCalls: number;
+    };
+    outcomeBreakdown: Array<{
+      outcome: string;
+      count: number;
+      percentage: number;
+    }>;
+    recentCallActivity: Array<{
+      id: string;
+      contactName: string;
+      status: string;
+      outcome: string;
+      timestamp: Date;
+      duration?: number;
+    }>;
+  }>;
+  
+  getAppointmentInsights(tenantId: string, timePeriod?: number): Promise<{
+    confirmationTrends: Array<{
+      date: string;
+      confirmationRate: number;
+      totalAppointments: number;
+      confirmed: number;
+    }>;
+    noShowPatterns: Array<{
+      timeSlot: string;
+      noShowRate: number;
+      totalAppointments: number;
+    }>;
+    appointmentTypeAnalysis: Array<{
+      type: string;
+      count: number;
+      confirmationRate: number;
+      averageDuration: number;
+    }>;
+    leadTimeAnalysis: Array<{
+      leadTimeDays: number;
+      confirmationRate: number;
+      count: number;
+    }>;
+  }>;
+  
+  getSystemHealth(tenantId: string): Promise<{
+    callSystemHealth: {
+      averageCallDuration: number;
+      errorRate: number;
+      responseTime: number;
+      uptime: number;
+    };
+    databasePerformance: {
+      queryResponseTime: number;
+      connectionCount: number;
+      dataGrowthRate: number;
+    };
+    apiPerformance: {
+      successRate: number;
+      averageResponseTime: number;
+      errorsByType: Array<{ type: string; count: number }>;
+    };
+  }>;
+
   // CSV import/export operations
   bulkCreateContacts(tenantId: string, contacts: Omit<InsertContact, 'tenantId'>[]): Promise<{ created: number; errors: any[] }>;
   exportContactsToCSV(tenantId: string): Promise<Contact[]>;
@@ -950,6 +1031,477 @@ export class DatabaseStorage implements IStorage {
       groupPerformance,
       temporalTrends,
       bookingSourceAnalysis
+    };
+  }
+
+  // Comprehensive Analytics per PRD
+  async getPerformanceOverview(tenantId: string, timePeriod: number = 30): Promise<{
+    callSuccessRate: number;
+    appointmentConfirmationRate: number;
+    noShowReduction: number;
+    dailyCallVolume: number;
+    revenueProtection: number;
+    previousPeriodComparison: {
+      callSuccessRate: number;
+      appointmentConfirmationRate: number;
+      dailyCallVolume: number;
+    };
+  }> {
+    const endDate = new Date();
+    const startDate = new Date(endDate.getTime() - (timePeriod * 24 * 60 * 60 * 1000));
+    const previousStartDate = new Date(startDate.getTime() - (timePeriod * 24 * 60 * 60 * 1000));
+
+    // Current period call performance
+    const [currentCallStats] = await db
+      .select({
+        totalCalls: count(),
+        answeredCalls: sql<number>`COUNT(CASE WHEN ${callSessions.callOutcome} IN ('confirmed', 'answered', 'completed') THEN 1 END)`,
+        confirmedCalls: sql<number>`COUNT(CASE WHEN ${callSessions.callOutcome} = 'confirmed' THEN 1 END)`
+      })
+      .from(callSessions)
+      .where(and(
+        eq(callSessions.tenantId, tenantId),
+        sql`${callSessions.triggerTime} >= ${startDate}`,
+        sql`${callSessions.triggerTime} <= ${endDate}`
+      ));
+
+    // Previous period for comparison
+    const [previousCallStats] = await db
+      .select({
+        totalCalls: count(),
+        answeredCalls: sql<number>`COUNT(CASE WHEN ${callSessions.callOutcome} IN ('confirmed', 'answered', 'completed') THEN 1 END)`,
+        confirmedCalls: sql<number>`COUNT(CASE WHEN ${callSessions.callOutcome} = 'confirmed' THEN 1 END)`
+      })
+      .from(callSessions)
+      .where(and(
+        eq(callSessions.tenantId, tenantId),
+        sql`${callSessions.triggerTime} >= ${previousStartDate}`,
+        sql`${callSessions.triggerTime} < ${startDate}`
+      ));
+
+    // Daily call volume (today)
+    const [todayCallStats] = await db
+      .select({
+        callsToday: count()
+      })
+      .from(callSessions)
+      .where(and(
+        eq(callSessions.tenantId, tenantId),
+        sql`DATE(${callSessions.triggerTime}) = CURRENT_DATE`
+      ));
+
+    // Calculate metrics
+    const currentTotal = currentCallStats.totalCalls || 0;
+    const currentAnswered = currentCallStats.answeredCalls || 0;
+    const currentConfirmed = currentCallStats.confirmedCalls || 0;
+    
+    const previousTotal = previousCallStats.totalCalls || 0;
+    const previousAnswered = previousCallStats.answeredCalls || 0;
+    const previousConfirmed = previousCallStats.confirmedCalls || 0;
+
+    const callSuccessRate = currentTotal > 0 ? Math.round((currentAnswered / currentTotal) * 100) : 0;
+    const appointmentConfirmationRate = currentAnswered > 0 ? Math.round((currentConfirmed / currentAnswered) * 100) : 0;
+    const dailyCallVolume = todayCallStats.callsToday || 0;
+
+    const previousCallSuccessRate = previousTotal > 0 ? Math.round((previousAnswered / previousTotal) * 100) : 0;
+    const previousConfirmationRate = previousAnswered > 0 ? Math.round((previousConfirmed / previousAnswered) * 100) : 0;
+
+    // No-show reduction calculation (simplified - could be enhanced with baseline data)
+    const noShowReduction = Math.max(0, appointmentConfirmationRate - 20); // Assuming 20% baseline
+
+    // Revenue protection (simplified calculation)
+    const averageAppointmentValue = 100; // Could be configurable per tenant
+    const revenueProtection = Math.round(currentConfirmed * averageAppointmentValue);
+
+    return {
+      callSuccessRate,
+      appointmentConfirmationRate,
+      noShowReduction,
+      dailyCallVolume,
+      revenueProtection,
+      previousPeriodComparison: {
+        callSuccessRate: previousCallSuccessRate,
+        appointmentConfirmationRate: previousConfirmationRate,
+        dailyCallVolume: Math.round((previousTotal || 0) / timePeriod)
+      }
+    };
+  }
+
+  async getCallActivity(tenantId: string): Promise<{
+    activeCalls: number;
+    todaysSummary: {
+      callsAttemptedToday: number;
+      callsCompletedToday: number;
+      appointmentsConfirmedToday: number;
+      pendingCalls: number;
+    };
+    outcomeBreakdown: Array<{
+      outcome: string;
+      count: number;
+      percentage: number;
+    }>;
+    recentCallActivity: Array<{
+      id: string;
+      contactName: string;
+      status: string;
+      outcome: string;
+      timestamp: Date;
+      duration?: number;
+    }>;
+  }> {
+    // Active calls (in progress in last 10 minutes)
+    const [activeCallsCount] = await db
+      .select({ count: count() })
+      .from(callSessions)
+      .where(and(
+        eq(callSessions.tenantId, tenantId),
+        sql`${callSessions.status} IN ('ringing', 'answered', 'in_progress')`,
+        sql`${callSessions.triggerTime} >= NOW() - INTERVAL '10 minutes'`
+      ));
+
+    // Today's summary
+    const [todayStats] = await db
+      .select({
+        attempted: count(),
+        completed: sql<number>`COUNT(CASE WHEN ${callSessions.status} = 'completed' THEN 1 END)`,
+        confirmed: sql<number>`COUNT(CASE WHEN ${callSessions.callOutcome} = 'confirmed' THEN 1 END)`
+      })
+      .from(callSessions)
+      .where(and(
+        eq(callSessions.tenantId, tenantId),
+        sql`DATE(${callSessions.triggerTime}) = CURRENT_DATE`
+      ));
+
+    // Pending calls
+    const [pendingCount] = await db
+      .select({ count: count() })
+      .from(followUpTasks)
+      .where(and(
+        eq(followUpTasks.tenantId, tenantId),
+        eq(followUpTasks.status, 'pending'),
+        sql`${followUpTasks.scheduledTime} <= NOW() + INTERVAL '24 hours'`
+      ));
+
+    // Outcome breakdown (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const outcomeData = await db
+      .select({
+        outcome: callSessions.callOutcome,
+        count: count()
+      })
+      .from(callSessions)
+      .where(and(
+        eq(callSessions.tenantId, tenantId),
+        sql`${callSessions.triggerTime} >= ${thirtyDaysAgo}`
+      ))
+      .groupBy(callSessions.callOutcome);
+
+    const totalOutcomes = outcomeData.reduce((sum, item) => sum + item.count, 0);
+    const outcomeBreakdown = outcomeData.map(item => ({
+      outcome: item.outcome || 'unknown',
+      count: item.count,
+      percentage: totalOutcomes > 0 ? Math.round((item.count / totalOutcomes) * 100) : 0
+    }));
+
+    // Recent call activity (last 20 calls)
+    const recentCalls = await db
+      .select({
+        id: callSessions.id,
+        contactId: callSessions.contactId,
+        status: callSessions.status,
+        outcome: callSessions.callOutcome,
+        triggerTime: callSessions.triggerTime,
+        duration: callSessions.durationSeconds,
+        contactName: contacts.name
+      })
+      .from(callSessions)
+      .leftJoin(contacts, eq(callSessions.contactId, contacts.id))
+      .where(eq(callSessions.tenantId, tenantId))
+      .orderBy(desc(callSessions.triggerTime))
+      .limit(20);
+
+    const recentCallActivity = recentCalls.map(call => ({
+      id: call.id,
+      contactName: call.contactName || 'Unknown Contact',
+      status: call.status || 'unknown',
+      outcome: call.outcome || 'pending',
+      timestamp: call.triggerTime || new Date(),
+      duration: call.duration || undefined
+    }));
+
+    return {
+      activeCalls: activeCallsCount.count || 0,
+      todaysSummary: {
+        callsAttemptedToday: todayStats.attempted || 0,
+        callsCompletedToday: todayStats.completed || 0,
+        appointmentsConfirmedToday: todayStats.confirmed || 0,
+        pendingCalls: pendingCount.count || 0
+      },
+      outcomeBreakdown,
+      recentCallActivity
+    };
+  }
+
+  async getAppointmentInsights(tenantId: string, timePeriod: number = 30): Promise<{
+    confirmationTrends: Array<{
+      date: string;
+      confirmationRate: number;
+      totalAppointments: number;
+      confirmed: number;
+    }>;
+    noShowPatterns: Array<{
+      timeSlot: string;
+      noShowRate: number;
+      totalAppointments: number;
+    }>;
+    appointmentTypeAnalysis: Array<{
+      type: string;
+      count: number;
+      confirmationRate: number;
+      averageDuration: number;
+    }>;
+    leadTimeAnalysis: Array<{
+      leadTimeDays: number;
+      confirmationRate: number;
+      count: number;
+    }>;
+  }> {
+    const endDate = new Date();
+    const startDate = new Date(endDate.getTime() - (timePeriod * 24 * 60 * 60 * 1000));
+
+    // Confirmation trends by day
+    const trendData = await db
+      .select({
+        date: sql<string>`DATE(${contacts.appointmentTime})`,
+        total: count(),
+        confirmed: sql<number>`COUNT(CASE WHEN ${contacts.appointmentStatus} = 'confirmed' THEN 1 END)`
+      })
+      .from(contacts)
+      .where(and(
+        eq(contacts.tenantId, tenantId),
+        sql`${contacts.appointmentTime} >= ${startDate}`,
+        sql`${contacts.appointmentTime} <= ${endDate}`,
+        sql`${contacts.appointmentTime} IS NOT NULL`
+      ))
+      .groupBy(sql`DATE(${contacts.appointmentTime})`)
+      .orderBy(sql`DATE(${contacts.appointmentTime})`);
+
+    const confirmationTrends = trendData.map(item => ({
+      date: item.date,
+      confirmationRate: item.total > 0 ? Math.round((item.confirmed / item.total) * 100) : 0,
+      totalAppointments: item.total,
+      confirmed: item.confirmed
+    }));
+
+    // No-show patterns by time slot
+    const timeSlotData = await db
+      .select({
+        timeSlot: sql<string>`EXTRACT(HOUR FROM ${contacts.appointmentTime})`,
+        total: count(),
+        noShows: sql<number>`COUNT(CASE WHEN ${contacts.appointmentStatus} = 'no_show' THEN 1 END)`
+      })
+      .from(contacts)
+      .where(and(
+        eq(contacts.tenantId, tenantId),
+        sql`${contacts.appointmentTime} >= ${startDate}`,
+        sql`${contacts.appointmentTime} IS NOT NULL`
+      ))
+      .groupBy(sql`EXTRACT(HOUR FROM ${contacts.appointmentTime})`)
+      .orderBy(sql`EXTRACT(HOUR FROM ${contacts.appointmentTime})`);
+
+    const noShowPatterns = timeSlotData.map(item => ({
+      timeSlot: `${item.timeSlot}:00`,
+      noShowRate: item.total > 0 ? Math.round((item.noShows / item.total) * 100) : 0,
+      totalAppointments: item.total
+    }));
+
+    // Appointment type analysis
+    const typeData = await db
+      .select({
+        type: contacts.appointmentType,
+        count: count(),
+        confirmed: sql<number>`COUNT(CASE WHEN ${contacts.appointmentStatus} = 'confirmed' THEN 1 END)`,
+        avgDuration: sql<number>`AVG(${contacts.appointmentDuration})`
+      })
+      .from(contacts)
+      .where(and(
+        eq(contacts.tenantId, tenantId),
+        sql`${contacts.appointmentTime} >= ${startDate}`,
+        sql`${contacts.appointmentTime} IS NOT NULL`
+      ))
+      .groupBy(contacts.appointmentType);
+
+    const appointmentTypeAnalysis = typeData.map(item => ({
+      type: item.type || 'Standard',
+      count: item.count,
+      confirmationRate: item.count > 0 ? Math.round((item.confirmed / item.count) * 100) : 0,
+      averageDuration: Math.round(item.avgDuration || 30)
+    }));
+
+    // Lead time analysis (days between creation and appointment)
+    const leadTimeData = await db
+      .select({
+        leadDays: sql<number>`EXTRACT(DAY FROM ${contacts.appointmentTime} - ${contacts.createdAt})`,
+        total: count(),
+        confirmed: sql<number>`COUNT(CASE WHEN ${contacts.appointmentStatus} = 'confirmed' THEN 1 END)`
+      })
+      .from(contacts)
+      .where(and(
+        eq(contacts.tenantId, tenantId),
+        sql`${contacts.appointmentTime} >= ${startDate}`,
+        sql`${contacts.appointmentTime} IS NOT NULL`,
+        sql`${contacts.createdAt} IS NOT NULL`
+      ))
+      .groupBy(sql`EXTRACT(DAY FROM ${contacts.appointmentTime} - ${contacts.createdAt})`)
+      .orderBy(sql`EXTRACT(DAY FROM ${contacts.appointmentTime} - ${contacts.createdAt})`);
+
+    const leadTimeAnalysis = leadTimeData.map(item => ({
+      leadTimeDays: Math.max(0, Math.round(item.leadDays || 0)),
+      confirmationRate: item.total > 0 ? Math.round((item.confirmed / item.total) * 100) : 0,
+      count: item.total
+    }));
+
+    return {
+      confirmationTrends,
+      noShowPatterns,
+      appointmentTypeAnalysis,
+      leadTimeAnalysis
+    };
+  }
+
+  async getSystemHealth(tenantId: string): Promise<{
+    callSystemHealth: {
+      averageCallDuration: number;
+      errorRate: number;
+      responseTime: number;
+      uptime: number;
+    };
+    databasePerformance: {
+      queryResponseTime: number;
+      connectionCount: number;
+      dataGrowthRate: number;
+    };
+    apiPerformance: {
+      successRate: number;
+      averageResponseTime: number;
+      errorsByType: Array<{ type: string; count: number }>;
+    };
+  }> {
+    const last24Hours = new Date();
+    last24Hours.setHours(last24Hours.getHours() - 24);
+
+    // Call system health metrics
+    const [callHealth] = await db
+      .select({
+        totalCalls: count(),
+        avgDuration: sql<number>`AVG(${callSessions.durationSeconds})`,
+        errorCount: sql<number>`COUNT(CASE WHEN ${callSessions.status} = 'failed' THEN 1 END)`
+      })
+      .from(callSessions)
+      .where(and(
+        eq(callSessions.tenantId, tenantId),
+        sql`${callSessions.triggerTime} >= ${last24Hours}`
+      ));
+
+    const totalCalls = callHealth.totalCalls || 0;
+    const errorCount = callHealth.errorCount || 0;
+    const averageCallDuration = Math.round(callHealth.avgDuration || 0);
+    const errorRate = totalCalls > 0 ? Math.round((errorCount / totalCalls) * 100) : 0;
+
+    // Database performance (simplified metrics)
+    const queryStart = Date.now();
+    await db.select({ count: count() }).from(contacts).where(eq(contacts.tenantId, tenantId));
+    const queryResponseTime = Date.now() - queryStart;
+
+    // Data growth rate (contacts added in last 30 days vs previous 30 days)
+    const last30Days = new Date();
+    last30Days.setDate(last30Days.getDate() - 30);
+    const last60Days = new Date();
+    last60Days.setDate(last60Days.getDate() - 60);
+
+    const [currentGrowth] = await db
+      .select({ count: count() })
+      .from(contacts)
+      .where(and(
+        eq(contacts.tenantId, tenantId),
+        sql`${contacts.createdAt} >= ${last30Days}`
+      ));
+
+    const [previousGrowth] = await db
+      .select({ count: count() })
+      .from(contacts)
+      .where(and(
+        eq(contacts.tenantId, tenantId),
+        sql`${contacts.createdAt} >= ${last60Days}`,
+        sql`${contacts.createdAt} < ${last30Days}`
+      ));
+
+    const dataGrowthRate = previousGrowth.count > 0 
+      ? Math.round(((currentGrowth.count - previousGrowth.count) / previousGrowth.count) * 100)
+      : 100;
+
+    // API performance (simplified - based on call sessions success)
+    const [apiHealth] = await db
+      .select({
+        total: count(),
+        successful: sql<number>`COUNT(CASE WHEN ${callSessions.status} = 'completed' THEN 1 END)`
+      })
+      .from(callSessions)
+      .where(and(
+        eq(callSessions.tenantId, tenantId),
+        sql`${callSessions.triggerTime} >= ${last24Hours}`
+      ));
+
+    const apiSuccessRate = apiHealth.total > 0 ? Math.round((apiHealth.successful / apiHealth.total) * 100) : 100;
+
+    // Error types from call logs
+    const errorTypes = await db
+      .select({
+        errorType: sql<string>`CASE 
+          WHEN ${callLogs.logLevel} = 'error' THEN 'system_error'
+          WHEN ${callSessions.callOutcome} = 'failed' THEN 'call_failed'
+          WHEN ${callSessions.callOutcome} = 'no_answer' THEN 'no_answer'
+          ELSE 'other'
+        END`,
+        count: count()
+      })
+      .from(callLogs)
+      .leftJoin(callSessions, eq(callLogs.callSessionId, callSessions.id))
+      .where(and(
+        eq(callLogs.tenantId, tenantId),
+        sql`${callLogs.createdAt} >= ${last24Hours}`
+      ))
+      .groupBy(sql`CASE 
+        WHEN ${callLogs.logLevel} = 'error' THEN 'system_error'
+        WHEN ${callSessions.callOutcome} = 'failed' THEN 'call_failed'
+        WHEN ${callSessions.callOutcome} = 'no_answer' THEN 'no_answer'
+        ELSE 'other'
+      END`);
+
+    const errorsByType = errorTypes.map(item => ({
+      type: item.errorType,
+      count: item.count
+    }));
+
+    return {
+      callSystemHealth: {
+        averageCallDuration,
+        errorRate,
+        responseTime: Math.round(averageCallDuration / 1000), // Convert to seconds
+        uptime: Math.max(0, 100 - errorRate) // Simplified uptime calculation
+      },
+      databasePerformance: {
+        queryResponseTime,
+        connectionCount: 1, // Simplified - would need actual connection pool monitoring
+        dataGrowthRate
+      },
+      apiPerformance: {
+        successRate: apiSuccessRate,
+        averageResponseTime: queryResponseTime,
+        errorsByType
+      }
     };
   }
 

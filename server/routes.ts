@@ -447,6 +447,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Comprehensive Analytics API Endpoints per PRD
+  app.get('/api/analytics/performance', authenticateJWT, async (req: any, res) => {
+    try {
+      const timePeriod = parseInt(req.query.timePeriod as string) || 30;
+      const analytics = await storage.getPerformanceOverview(req.user.tenantId, timePeriod);
+      res.json(analytics);
+    } catch (error) {
+      console.error('Performance analytics error:', error);
+      res.status(500).json({ message: 'Failed to fetch performance analytics' });
+    }
+  });
+
+  app.get('/api/analytics/calls', authenticateJWT, async (req: any, res) => {
+    try {
+      const analytics = await storage.getCallActivity(req.user.tenantId);
+      res.json(analytics);
+    } catch (error) {
+      console.error('Call activity analytics error:', error);
+      res.status(500).json({ message: 'Failed to fetch call activity analytics' });
+    }
+  });
+
+  app.get('/api/analytics/appointments', authenticateJWT, async (req: any, res) => {
+    try {
+      const timePeriod = parseInt(req.query.timePeriod as string) || 30;
+      const analytics = await storage.getAppointmentInsights(req.user.tenantId, timePeriod);
+      res.json(analytics);
+    } catch (error) {
+      console.error('Appointment insights error:', error);
+      res.status(500).json({ message: 'Failed to fetch appointment insights' });
+    }
+  });
+
+  app.get('/api/analytics/system', authenticateJWT, async (req: any, res) => {
+    try {
+      const analytics = await storage.getSystemHealth(req.user.tenantId);
+      res.json(analytics);
+    } catch (error) {
+      console.error('System health analytics error:', error);
+      res.status(500).json({ message: 'Failed to fetch system health analytics' });
+    }
+  });
+
   app.get('/api/contacts/:id', authenticateJWT, requireContactAccess, async (req, res) => {
     try {
       const contact = await storage.getContact(req.params.id);
