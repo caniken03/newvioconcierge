@@ -62,6 +62,7 @@ import { db } from "./db";
 import { eq, and, desc, asc, count, sql, gt, lt, like, inArray } from "drizzle-orm";
 import { getTableColumns } from "drizzle-orm";
 import bcrypt from "bcrypt";
+import { responsivenessTracker, type ResponsivenessPattern, type ContactTimingData } from "./services/responsiveness-tracker";
 
 export interface IStorage {
   // User operations
@@ -3369,6 +3370,170 @@ export class DatabaseStorage implements IStorage {
     } else {
       // After end time, so next business day
       return this.getNextBusinessDay(callTime, dayConfigs);
+    }
+  }
+
+  // Responsiveness tracking methods
+  async calculateResponsivenessScore(
+    contactId: string, 
+    tenantId: string
+  ): Promise<number> {
+    try {
+      const contact = await this.getContact(contactId);
+      if (!contact || contact.tenantId !== tenantId) {
+        return 0.5; // Default neutral score
+      }
+
+      const analyticsArray = await this.getCustomerAnalytics(contactId, tenantId);
+      const analytics = analyticsArray.length > 0 ? analyticsArray[0] : null; // Use most recent analytics
+      const callHistory = await this.getContactCallHistory(contactId);
+      
+      // Convert call history to ContactTimingData format
+      const timingData: ContactTimingData[] = callHistory.map(call => ({
+        timestamp: call.callTime,
+        dayOfWeek: call.callTime.getDay(),
+        hour: call.callTime.getHours(),
+        answered: call.outcome === 'answered',
+        duration: call.callDurationSeconds || undefined,
+        sentiment: call.sentimentAnalysis ? JSON.parse(call.sentimentAnalysis).overallSentiment : undefined,
+        engagementLevel: call.sentimentAnalysis ? JSON.parse(call.sentimentAnalysis).engagementLevel : undefined
+      }));
+
+      return responsivenessTracker.calculateResponsivenessScore(contact, analytics, timingData);
+    } catch (error) {
+      console.error('Error calculating responsiveness score:', error);
+      return 0.5;
+    }
+  }
+
+  async analyzeOptimalTiming(contactId: string, tenantId: string): Promise<{
+    dayOfWeek: number;
+    timeRange: string;
+    confidence: number;
+  }> {
+    try {
+      const contact = await this.getContact(contactId);
+      if (!contact || contact.tenantId !== tenantId) {
+        return {
+          dayOfWeek: 2, // Default Tuesday
+          timeRange: "10:00-14:00",
+          confidence: 0.1
+        };
+      }
+
+      const callHistory = await this.getContactCallHistory(contactId);
+      
+      // Convert call history to ContactTimingData format
+      const timingData: ContactTimingData[] = callHistory.map(call => ({
+        timestamp: call.callTime,
+        dayOfWeek: call.callTime.getDay(),
+        hour: call.callTime.getHours(),
+        answered: call.outcome === 'answered',
+        duration: call.callDurationSeconds || undefined,
+        sentiment: call.sentimentAnalysis ? JSON.parse(call.sentimentAnalysis).overallSentiment : undefined
+      }));
+
+      return responsivenessTracker.analyzeOptimalTiming(timingData);
+    } catch (error) {
+      console.error('Error analyzing optimal timing:', error);
+      return {
+        dayOfWeek: 2,
+        timeRange: "10:00-14:00", 
+        confidence: 0.1
+      };
+    }
+  }
+
+  async generateResponsivenessPattern(
+    contactId: string,
+    tenantId: string
+  ): Promise<ResponsivenessPattern> {
+    try {
+      const contact = await this.getContact(contactId);
+      if (!contact || contact.tenantId !== tenantId) {
+        throw new Error('Contact not found or access denied');
+      }
+
+      const analyticsArray = await this.getCustomerAnalytics(contactId, tenantId);
+      const analytics = analyticsArray.length > 0 ? analyticsArray[0] : null; // Use most recent analytics
+      const callHistory = await this.getContactCallHistory(contactId);
+      
+      // Convert call history to ContactTimingData format with safe JSON parsing
+      const timingData: ContactTimingData[] = callHistory.map(call => {
+        let sentiment = undefined;
+        let engagementLevel = undefined;
+        
+        if (call.sentimentAnalysis) {
+          try {
+            const parsed = JSON.parse(call.sentimentAnalysis);
+            sentiment = parsed.overallSentiment;
+            engagementLevel = parsed.engagementLevel;
+          } catch (error) {
+            console.warn('Failed to parse sentiment analysis JSON:', error);
+          }
+        }
+        
+        return {
+          timestamp: call.callTime,
+          dayOfWeek: call.callTime.getDay(),
+          hour: call.callTime.getHours(),
+          answered: call.outcome === 'answered',
+          duration: call.callDurationSeconds || undefined,
+          sentiment,
+          engagementLevel
+        };
+      });
+
+      return responsivenessTracker.generateResponsivenessPattern(contact, analytics, timingData);
+    } catch (error) {
+      console.error('Error generating responsiveness pattern:', error);
+      // Return default pattern on error
+      return {
+        contactId,
+        overallScore: 0.5,
+        trendDirection: 'stable',
+        optimalContactWindow: {
+          dayOfWeek: 2,
+          timeRange: "10:00-14:00",
+          confidence: 0.1
+        },
+        behaviorPredictions: {
+          likelyToAnswer: 0.5,
+          appointmentRisk: 'medium',
+          recommendedStrategy: 'Standard contact protocol'
+        },
+        insights: ['Insufficient data for detailed analysis']
+      };
+    }
+  }
+
+  async updateResponsivenessData(
+    contactId: string,
+    tenantId: string,
+    callOutcome: 'answered' | 'no_answer' | 'busy' | 'voicemail',
+    callDuration?: number,
+    sentimentData?: any
+  ): Promise<Contact> {
+    try {
+      const contact = await this.getContact(contactId);
+      if (!contact || contact.tenantId !== tenantId) {
+        throw new Error('Contact not found or access denied');
+      }
+
+      // Use ResponsivenessTracker to calculate updates
+      const updates = responsivenessTracker.updateResponsivenessData(
+        contact,
+        callOutcome,
+        callDuration,
+        sentimentData
+      );
+
+      // Apply updates to database
+      const updatedContact = await this.updateContact(contactId, updates);
+      return updatedContact;
+    } catch (error) {
+      console.error('Error updating responsiveness data:', error);
+      throw error;
     }
   }
 }

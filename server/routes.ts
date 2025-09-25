@@ -2509,6 +2509,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           contactUpdate.appointmentStatus = 'cancelled';
         }
         
+        // ENHANCED: Integrate responsiveness tracking using ResponsivenessTracker service
+        const responsivenessUpdates = await storage.updateResponsivenessData(
+          session.contactId!,
+          session.tenantId,
+          callOutcome,
+          durationSeconds,
+          sentimentAnalysis
+        );
+        
+        // Merge responsiveness updates with existing contact updates
+        Object.assign(contactUpdate, {
+          responsivenessScore: responsivenessUpdates.responsivenessScore,
+          totalSuccessfulContacts: responsivenessUpdates.totalSuccessfulContacts,
+          consecutiveNoAnswers: responsivenessUpdates.consecutiveNoAnswers,
+          averageResponseTime: responsivenessUpdates.averageResponseTime,
+          contactPatternData: responsivenessUpdates.contactPatternData,
+          lastContactTime: new Date(),
+        });
+
         // Add sentiment tracking to contact
         if (sentimentAnalysis) {
           contactUpdate.lastSentiment = sentimentAnalysis.overallSentiment;
@@ -2520,22 +2539,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               score: sentimentAnalysis.sentimentScore,
             }
           ].slice(-10); // Keep last 10 sentiment records
-          
-          // Update responsiveness pattern based on engagement and outcome
-          let responsivenessScore = 50; // Default neutral
-          if (sentimentAnalysis.engagementLevel === 'high' && callOutcome === 'confirmed') {
-            responsivenessScore = 90;
-          } else if (sentimentAnalysis.engagementLevel === 'medium') {
-            responsivenessScore = 70;
-          } else if (callOutcome === 'no_answer' || callOutcome === 'voicemail') {
-            responsivenessScore = 20;
-          }
-          
-          contactUpdate.responsivenessPattern = {
-            averageScore: Math.round((responsivenessScore + (contact?.responsivenessPattern?.averageScore || 50)) / 2),
-            lastUpdateDate: new Date().toISOString().split('T')[0],
-            callResponseRate: callOutcome !== 'no_answer' && callOutcome !== 'voicemail' ? 1 : 0,
-          };
         }
         
         await storage.updateContact(session.contactId!, contactUpdate);
@@ -2550,7 +2553,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               sentimentTrend: sentimentAnalysis.overallSentiment,
               sentimentScore: sentimentAnalysis.sentimentScore,
               engagementLevel: sentimentAnalysis.engagementLevel,
-              responsivenessScore: contactUpdate.responsivenessPattern?.averageScore || 50,
+              responsivenessScore: Math.round((responsivenessUpdates?.responsivenessScore ?? 0.5) * 100), // Use sophisticated score
               interactionPatterns: {
                 speechPace: sentimentAnalysis.speechPace,
                 interruptionsCount: sentimentAnalysis.interruptionsCount,
