@@ -37,6 +37,18 @@ export default function HealthMonitoring() {
     enabled: !!user && user.role === 'super_admin',
   });
 
+  const handleAcknowledgeAlert = async (alertId: string) => {
+    try {
+      const { apiRequest } = await import('@/lib/queryClient');
+      await apiRequest('POST', `/api/admin/health/alerts/${alertId}/acknowledge`);
+      
+      // Refresh health data to update alerts
+      refetch();
+    } catch (error) {
+      console.error('Failed to acknowledge alert:', error);
+    }
+  };
+
   if (!user || user.role !== 'super_admin') {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -217,6 +229,7 @@ export default function HealthMonitoring() {
                             <Button 
                               variant="outline" 
                               size="sm"
+                              onClick={() => handleAcknowledgeAlert(alert.id)}
                               data-testid={`button-acknowledge-${alert.id}`}
                             >
                               Acknowledge
