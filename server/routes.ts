@@ -173,19 +173,19 @@ async function checkSystemHealth(): Promise<SystemHealth> {
     dbStatus = 'down';
   }
 
-  // Check Retell service with actual network call (if configured)
+  // Check Retail AI service with actual network call (if configured)
   let retellStatus: 'up' | 'down' = 'up';
   let retellResponseTime: number | undefined;
   try {
-    if (process.env.RETELL_API_KEY) {
+    if (process.env.RETAIL_API_KEY) {
       const retellStart = Date.now();
       // Make actual network request to test connectivity
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
       
-      const response = await fetch('https://api.retellai.com/get-agent-list', {
+      const response = await fetch('https://api.retail.com/health', {
         method: 'GET',
-        headers: { 'Authorization': `Bearer ${process.env.RETELL_API_KEY}` },
+        headers: { 'Authorization': `Bearer ${process.env.RETAIL_API_KEY}` },
         signal: controller.signal
       });
       
@@ -258,7 +258,7 @@ async function checkSystemHealth(): Promise<SystemHealth> {
       id: 'retell-alert-service-down',
       type: 'auto_pause_events' as const,
       severity: 'high' as const,
-      message: 'Retell AI service unavailable - voice calls suspended',
+      message: 'Retail AI service unavailable - voice calls suspended',
       timestamp: new Date(),
       acknowledged: false
     });
