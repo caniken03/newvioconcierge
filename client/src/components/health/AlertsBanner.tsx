@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { X, AlertTriangle, Shield, Pause } from "lucide-react";
+import { useState } from "react";
 
 interface Alert {
   id: string;
@@ -19,12 +20,15 @@ interface AlertsResponse {
 }
 
 export default function AlertsBanner() {
+  const [isDismissed, setIsDismissed] = useState(false);
+  
   const { data: alertsData } = useQuery<AlertsResponse>({
     queryKey: ['/api/admin/health/alerts'],
     refetchInterval: 15000, // Refresh every 15 seconds for alerts
   });
 
-  if (!alertsData || alertsData.alertCount === 0) {
+  // Don't show if dismissed or no alerts
+  if (isDismissed || !alertsData || alertsData.alertCount === 0) {
     return null;
   }
 
@@ -51,10 +55,20 @@ export default function AlertsBanner() {
   const criticalAlerts = alertsData.alerts.filter(alert => alert.severity === 'critical');
   const displayAlert = criticalAlerts[0] || alertsData.alerts[0];
 
+  const handleDismiss = () => {
+    setIsDismissed(true);
+  };
+
+  const handleViewAll = () => {
+    // Navigate to alerts page or open alerts modal
+    console.log('View all alerts clicked');
+  };
+
   return (
     <div 
-      className={`w-full h-12 flex items-center justify-between px-4 ${getAlertBackground(displayAlert.severity)}`}
+      className={`w-full h-12 flex items-center justify-between px-4 ${getAlertBackground(displayAlert.severity)} relative z-10`}
       data-testid="alerts-banner"
+      style={{ pointerEvents: 'auto' }}
     >
       <div className="flex items-center space-x-3">
         {getAlertIcon(displayAlert.type)}
@@ -74,6 +88,7 @@ export default function AlertsBanner() {
           size="sm"
           className="text-white hover:bg-white/20 h-8"
           data-testid="button-view-all-alerts"
+          onClick={handleViewAll}
         >
           View All
         </Button>
@@ -82,6 +97,7 @@ export default function AlertsBanner() {
           size="sm"
           className="text-white hover:bg-white/20 h-8 w-8 p-0"
           data-testid="button-dismiss-banner"
+          onClick={handleDismiss}
         >
           <X className="w-4 h-4" />
         </Button>
