@@ -17,6 +17,7 @@ import crypto from "crypto";
 import { calComService } from "./services/cal-com";
 import { calendlyService } from "./services/calendly";
 import { businessTemplateService } from "./services/business-templates";
+import { reschedulingWorkflowService } from "./services/rescheduling-workflow";
 
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET;
 
@@ -2505,6 +2506,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
           contactUpdate.appointmentStatus = 'confirmed';
         } else if (appointmentAction === 'rescheduled') {
           contactUpdate.appointmentStatus = 'needs_rescheduling';
+          
+          // ENHANCED: Trigger automated rescheduling workflow
+          try {
+            const reschedulingResult = await reschedulingWorkflowService.createReschedulingRequest({
+              contactId: session.contactId!,
+              tenantId: session.tenantId,
+              callSessionId: session.id,
+              originalAppointmentTime: contact?.appointmentTime || new Date(),
+              originalAppointmentType: contact?.appointmentType || undefined,
+              rescheduleReason: 'customer_conflict', // Based on call analysis
+              customerPreference: payload.call_analysis?.conversation_analytics?.topics_discussed?.join(', '),
+              urgencyLevel: sentimentAnalysis?.engagementLevel === 'high' ? 'high' : 'normal'
+            }, storage);
+            
+            if (reschedulingResult.success) {
+              console.log(`✅ Rescheduling workflow initiated for contact ${session.contactId}, request ID: ${reschedulingResult.requestId}`);
+              
+              // Log workflow initiation
+              await storage.createCallLog({
+                tenantId: session.tenantId,
+                contactId: session.contactId!,
+                callSessionId: session.id,
+                logLevel: 'info',
+                message: `Automated rescheduling workflow initiated - Request ID: ${reschedulingResult.requestId}`,
+                metadata: JSON.stringify({
+                  workflowStage: reschedulingResult.workflowStage,
+                  status: reschedulingResult.status,
+                  availableSlots: reschedulingResult.availableSlots?.length || 0
+                }),
+              });
+            } else {
+              console.warn(`⚠️ Failed to initiate rescheduling workflow for contact ${session.contactId}: ${reschedulingResult.message}`);
+            }
+          } catch (error) {
+            console.error('Error triggering rescheduling workflow:', error);
+            // Don't fail the webhook if rescheduling workflow fails
+          }
         } else if (appointmentAction === 'cancelled') {
           contactUpdate.appointmentStatus = 'cancelled';
         }

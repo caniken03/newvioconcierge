@@ -468,6 +468,10 @@ export const reschedulingRequests = pgTable("rescheduling_requests", {
   contactId: uuid("contact_id").notNull(),
   callSessionId: uuid("call_session_id"), // Which call triggered the reschedule
   
+  // Idempotency and deduplication protection
+  idempotencyKey: varchar("idempotency_key", { length: 100 }), // Prevent duplicate webhook requests
+  webhookEventId: varchar("webhook_event_id", { length: 100 }), // Track webhook source for deduplication
+  
   // Original appointment details
   originalAppointmentTime: timestamp("original_appointment_time").notNull(),
   originalAppointmentType: varchar("original_appointment_type", { length: 100 }),
@@ -500,11 +504,21 @@ export const reschedulingRequests = pgTable("rescheduling_requests", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
+  // CRITICAL: Idempotency protection to prevent duplicate requests
+  uniqueIdempotencyKey: uniqueIndex("rescheduling_requests_idempotency_unique").on(table.idempotencyKey).where(sql`${table.idempotencyKey} IS NOT NULL`),
+  uniqueWebhookEvent: uniqueIndex("rescheduling_requests_webhook_event_unique").on(table.webhookEventId).where(sql`${table.webhookEventId} IS NOT NULL`),
+  // Prevent multiple pending requests for same contact (one active reschedule at a time)
+  uniquePendingContact: uniqueIndex("rescheduling_requests_pending_contact_unique").on(table.tenantId, table.contactId).where(sql`${table.status} IN ('pending', 'approved')`),
+  
   // Performance indexes for rescheduling workflow
   tenantStatusIdx: index("rescheduling_requests_tenant_status_idx").on(table.tenantId, table.status),
   tenantContactIdx: index("rescheduling_requests_tenant_contact_idx").on(table.tenantId, table.contactId),
   workflowStageIdx: index("rescheduling_requests_workflow_stage_idx").on(table.workflowStage),
   originalAppointmentTimeIdx: index("rescheduling_requests_original_time_idx").on(table.originalAppointmentTime),
+  // Idempotency lookup indexes for fast deduplication checks
+  idempotencyKeyIdx: index("rescheduling_requests_idempotency_key_idx").on(table.idempotencyKey),
+  webhookEventIdIdx: index("rescheduling_requests_webhook_event_id_idx").on(table.webhookEventId),
+  
   // Database-level foreign key constraints for data integrity
   tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "rescheduling_requests_tenant_fk" }).onDelete("cascade"),
   contactFk: foreignKey({ columns: [table.contactId], foreignColumns: [contacts.id], name: "rescheduling_requests_contact_fk" }).onDelete("cascade"),

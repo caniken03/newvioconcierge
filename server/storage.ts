@@ -250,8 +250,11 @@ export interface IStorage {
   
   // Rescheduling Request operations
   createReschedulingRequest(request: InsertReschedulingRequest): Promise<ReschedulingRequest>;
+  getReschedulingRequest(id: string, tenantId: string): Promise<ReschedulingRequest | undefined>;
   getReschedulingRequestsByTenant(tenantId: string): Promise<ReschedulingRequest[]>;
-  updateReschedulingRequest(id: string, updates: Partial<InsertReschedulingRequest>): Promise<ReschedulingRequest>;
+  updateReschedulingRequest(id: string, tenantId: string, updates: Partial<InsertReschedulingRequest>): Promise<ReschedulingRequest>;
+  findExistingReschedulingRequest(contactId: string, tenantId: string, status?: string[]): Promise<ReschedulingRequest | undefined>;
+  checkReschedulingIdempotency(idempotencyKey: string, webhookEventId?: string): Promise<ReschedulingRequest | undefined>;
   
   // Call Quality Metrics operations
   createCallQualityMetrics(metrics: InsertCallQualityMetrics): Promise<CallQualityMetrics>;
@@ -2085,10 +2088,70 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(customerAnalytics.createdAt));
   }
 
-  // Rescheduling Request operations
+  // Rescheduling Request operations with enhanced idempotency and tenant scoping
   async createReschedulingRequest(request: InsertReschedulingRequest): Promise<ReschedulingRequest> {
-    const [newRequest] = await db.insert(reschedulingRequests).values(request).returning();
-    return newRequest;
+    // CRITICAL: Check for existing requests to prevent duplicates
+    if (request.idempotencyKey) {
+      const existing = await this.checkReschedulingIdempotency(request.idempotencyKey, request.webhookEventId);
+      if (existing) {
+        console.log(`Idempotency hit: returning existing rescheduling request ${existing.id}`);
+        return existing;
+      }
+    }
+    
+    // Check for existing pending requests for same contact (one at a time rule)
+    const existingPending = await this.findExistingReschedulingRequest(
+      request.contactId,
+      request.tenantId,
+      ['pending', 'approved']
+    );
+    
+    if (existingPending) {
+      console.log(`Found existing pending request ${existingPending.id} for contact ${request.contactId}`);
+      return existingPending;
+    }
+    
+    try {
+      const [newRequest] = await db.insert(reschedulingRequests).values(request).returning();
+      return newRequest;
+    } catch (error: any) {
+      // Handle unique constraint violations gracefully
+      if (error?.code === '23505') {
+        // PostgreSQL unique violation - check what constraint failed
+        if (error.constraint?.includes('idempotency')) {
+          // Return existing request if idempotency key collision
+          const existing = await this.checkReschedulingIdempotency(request.idempotencyKey!, request.webhookEventId);
+          if (existing) return existing;
+        }
+        
+        if (error.constraint?.includes('pending_contact')) {
+          // Return existing pending request for same contact
+          const existing = await this.findExistingReschedulingRequest(
+            request.contactId,
+            request.tenantId,
+            ['pending', 'approved']
+          );
+          if (existing) return existing;
+        }
+      }
+      
+      throw error;
+    }
+  }
+
+  async getReschedulingRequest(id: string, tenantId: string): Promise<ReschedulingRequest | undefined> {
+    const [request] = await db
+      .select()
+      .from(reschedulingRequests)
+      .where(
+        and(
+          eq(reschedulingRequests.id, id),
+          eq(reschedulingRequests.tenantId, tenantId)
+        )
+      )
+      .limit(1);
+    
+    return request;
   }
 
   async getReschedulingRequestsByTenant(tenantId: string): Promise<ReschedulingRequest[]> {
@@ -2099,13 +2162,73 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(reschedulingRequests.createdAt));
   }
 
-  async updateReschedulingRequest(id: string, updates: Partial<InsertReschedulingRequest>): Promise<ReschedulingRequest> {
+  async updateReschedulingRequest(id: string, tenantId: string, updates: Partial<InsertReschedulingRequest>): Promise<ReschedulingRequest> {
     const [updatedRequest] = await db
       .update(reschedulingRequests)
-      .set(updates)
-      .where(eq(reschedulingRequests.id, id))
+      .set({ ...updates, updatedAt: new Date() })
+      .where(
+        and(
+          eq(reschedulingRequests.id, id),
+          eq(reschedulingRequests.tenantId, tenantId)
+        )
+      )
       .returning();
+    
+    if (!updatedRequest) {
+      throw new Error(`Rescheduling request ${id} not found or access denied for tenant ${tenantId}`);
+    }
+    
     return updatedRequest;
+  }
+
+  async findExistingReschedulingRequest(
+    contactId: string,
+    tenantId: string,
+    status?: string[]
+  ): Promise<ReschedulingRequest | undefined> {
+    const conditions = [
+      eq(reschedulingRequests.contactId, contactId),
+      eq(reschedulingRequests.tenantId, tenantId)
+    ];
+    
+    if (status && status.length > 0) {
+      conditions.push(inArray(reschedulingRequests.status, status));
+    }
+    
+    const [existing] = await db
+      .select()
+      .from(reschedulingRequests)
+      .where(and(...conditions))
+      .orderBy(desc(reschedulingRequests.createdAt))
+      .limit(1);
+    
+    return existing;
+  }
+
+  async checkReschedulingIdempotency(
+    idempotencyKey: string,
+    webhookEventId?: string
+  ): Promise<ReschedulingRequest | undefined> {
+    const conditions = [];
+    
+    if (idempotencyKey) {
+      conditions.push(eq(reschedulingRequests.idempotencyKey, idempotencyKey));
+    }
+    
+    if (webhookEventId) {
+      conditions.push(eq(reschedulingRequests.webhookEventId, webhookEventId));
+    }
+    
+    if (conditions.length === 0) return undefined;
+    
+    const [existing] = await db
+      .select()
+      .from(reschedulingRequests)
+      .where(or(...conditions))
+      .orderBy(desc(reschedulingRequests.createdAt))
+      .limit(1);
+    
+    return existing;
   }
 
   // Call Quality Metrics operations
