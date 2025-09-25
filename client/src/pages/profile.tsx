@@ -66,7 +66,7 @@ export default function Profile() {
       title: "Team & User Management",
       description: "Manage staff access and permissions",
       icon: Users,
-      accessLevel: "client_admin_only"
+      accessLevel: "super_admin_only"
     },
     {
       id: "privacy",
