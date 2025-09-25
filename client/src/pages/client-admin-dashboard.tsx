@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,13 +23,21 @@ import {
   Bell,
   MessageSquare,
   Target,
-  Zap
+  Zap,
+  ExternalLink
 } from "lucide-react";
 
 export default function ClientAdminDashboard() {
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<any>(null);
+  const [, setLocation] = useLocation();
+
+  // Navigation handlers
+  const navigateToAppointments = () => setLocation('/appointments');
+  const navigateToCalls = () => setLocation('/calls');
+  const navigateToContacts = () => setLocation('/contacts');
+  const navigateToAnalytics = () => setLocation('/analytics');
   
   const { data: contacts = [], isLoading: contactsLoading } = useQuery({
     queryKey: ['/api/contacts'],
