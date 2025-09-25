@@ -17,6 +17,7 @@ import TenantManagement from "@/pages/tenant-management";
 import SystemSettings from "@/pages/system-settings";
 import Profile from "@/pages/profile";
 import HealthMonitoring from "@/pages/health-monitoring";
+import AnalyticsCenter from "@/pages/analytics-center";
 
 function Router() {
   const { user, isLoading } = useAuth();
@@ -45,6 +46,7 @@ function Router() {
       <Route path="/calls" component={Calls} />
       <Route path="/appointments" component={Appointments} />
       <Route path="/analytics" component={ContactAnalytics} />
+      <Route path="/analytics-center" component={AnalyticsCenter} />
       <Route path="/tenants" component={TenantManagement} />
       <Route path="/health" component={HealthMonitoring} />
       <Route path="/system" component={SystemSettings} />

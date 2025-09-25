@@ -168,6 +168,13 @@ export default function Sidebar() {
               Tenant Management
             </NavLink>
             <NavLink 
+              href="/analytics-center" 
+              icon="fas fa-chart-bar" 
+              testId="nav-analytics-center"
+            >
+              Analytics Center
+            </NavLink>
+            <NavLink 
               href="/health" 
               icon="fas fa-heartbeat" 
               testId="nav-health-monitoring"
