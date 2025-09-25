@@ -165,8 +165,9 @@ export class CallSchedulerService {
    * Create a single follow-up task for failed calls
    */
   private async createRetryTask(originalTask: FollowUpTask, currentAttempts: number): Promise<void> {
-    // Single follow-up delay: 1-2 hours after failed call
-    const delayMinutes = 90; // 1.5 hours fixed delay
+    // Get tenant configuration for follow-up delay
+    const tenantConfig = await storage.getTenantConfig(originalTask.tenantId);
+    const delayMinutes = tenantConfig?.followUpRetryMinutes || 90; // Default to 90 minutes
     const retryTime = new Date(Date.now() + delayMinutes * 60 * 1000);
 
     const retryTask = await storage.createFollowUpTask({
@@ -179,7 +180,7 @@ export class CallSchedulerService {
       maxAttempts: originalTask.maxAttempts // Will be 2 (original + 1 follow-up)
     });
 
-    console.log(`🔄 Scheduled single follow-up call for ${retryTime.toISOString()} (1.5 hours after failed attempt)`);
+    console.log(`🔄 Scheduled single follow-up call for ${retryTime.toISOString()} (${delayMinutes} minutes after failed attempt)`);
   }
 
   /**
@@ -194,11 +195,16 @@ export class CallSchedulerService {
         return;
       }
 
-      // Schedule dual reminders: 24 hours AND 1 hour before appointment
-      const reminderIntervals = [
-        { hours: 24, type: 'initial_call' as const, description: '24 hours before' },
-        { hours: 1, type: 'follow_up' as const, description: '1 hour before' }
-      ];
+      // Get tenant configuration for reminder timing
+      const tenantConfig = await storage.getTenantConfig(tenantId);
+      const reminderHours = tenantConfig?.reminderHoursBefore || [24, 1]; // Default to 24h and 1h
+      
+      // Create reminder intervals from configurable hours
+      const reminderIntervals = reminderHours.map((hours, index) => ({
+        hours,
+        type: index === 0 ? 'initial_call' as const : 'follow_up' as const,
+        description: `${hours} hour${hours !== 1 ? 's' : ''} before`
+      }));
 
       let scheduledCount = 0;
 
