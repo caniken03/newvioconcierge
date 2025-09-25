@@ -64,15 +64,28 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
     enabled: isOpen,
   }) as { data: any[] };
 
-  // For editing contacts, fetch current group membership
+  // For editing contacts, fetch current group membership by checking all groups
   const { data: currentMembership } = useQuery({
     queryKey: ['/api/contact-groups', contact?.id, 'membership'],
-    enabled: isOpen && !!contact,
+    enabled: isOpen && !!contact && contactGroups.length > 0,
     queryFn: async () => {
-      if (!contact) return null;
-      const response = await apiRequest('GET', `/api/contacts/${contact.id}/groups`);
-      const groups = await response.json();
-      return groups.length > 0 ? groups[0].groupId : null;
+      if (!contact || !contactGroups.length) return null;
+      
+      // Check each group to see if the contact is a member
+      for (const group of contactGroups) {
+        try {
+          const response = await apiRequest('GET', `/api/contact-groups/${group.id}/contacts`);
+          const groupContacts = await response.json();
+          const isMember = groupContacts.some((c: any) => c.id === contact.id);
+          if (isMember) {
+            return group.id;
+          }
+        } catch (error) {
+          // Continue checking other groups if one fails
+          continue;
+        }
+      }
+      return null;
     }
   });
 
