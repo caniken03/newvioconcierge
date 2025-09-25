@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, uuid, time, decimal, primaryKey, unique, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, uuid, time, decimal, primaryKey, unique, index, uniqueIndex, foreignKey } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -15,7 +15,13 @@ export const users = pgTable("users", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  // Performance indexes
+  tenantIdIdx: index("users_tenant_id_idx").on(table.tenantId),
+  emailIdx: index("users_email_idx").on(table.email),
+  // Database-level foreign key constraint
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "users_tenant_fk" }).onDelete("cascade"),
+}));
 
 // Tenants table for multi-tenancy
 export const tenants = pgTable("tenants", {
@@ -72,12 +78,34 @@ export const contacts = pgTable("contacts", {
   // Existing fields
   callAttempts: integer("call_attempts").default(0),
   lastCallOutcome: varchar("last_call_outcome", { length: 50 }),
+  
+  // Enhanced Responsiveness Pattern Tracking
+  customerResponsiveness: varchar("customer_responsiveness", { length: 50 }).default("unknown"), // responsive, unresponsive, variable, new_customer
+  responsivenessScore: decimal("responsiveness_score", { precision: 3, scale: 2 }).default("0.50"), // 0.00 to 1.00
+  consecutiveNoAnswers: integer("consecutive_no_answers").default(0),
+  totalSuccessfulContacts: integer("total_successful_contacts").default(0),
+  averageResponseTime: integer("average_response_time"), // Average time in seconds to pickup
+  bestContactTime: varchar("best_contact_time", { length: 20 }), // Time of day they typically answer (e.g., "14:30")
+  contactPatternData: text("contact_pattern_data"), // JSON data of contact patterns and preferences
+  
+  // Customer Sentiment History
+  overallSentiment: varchar("overall_sentiment", { length: 50 }).default("neutral"), // positive, neutral, negative, mixed
+  lastSentimentScore: decimal("last_sentiment_score", { precision: 3, scale: 2 }),
+  sentimentTrend: varchar("sentiment_trend", { length: 20 }), // improving, declining, stable
+  
   notes: text("notes"), // Staff-only notes (not read during calls)
   specialInstructions: text("special_instructions"), // Up to 300 chars for voice delivery
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  // Performance indexes
+  tenantIdIdx: index("contacts_tenant_id_idx").on(table.tenantId),
+  appointmentTimeIdx: index("contacts_appointment_time_idx").on(table.appointmentTime),
+  appointmentStatusIdx: index("contacts_appointment_status_idx").on(table.appointmentStatus),
+  // Database-level foreign key constraint for tenant data integrity
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "contacts_tenant_fk" }).onDelete("cascade"),
+}));
 
 // Contact groups for organizing contacts
 export const contactGroups = pgTable("contact_groups", {
@@ -89,7 +117,12 @@ export const contactGroups = pgTable("contact_groups", {
   contactCount: integer("contact_count").default(0), // Auto-calculated member count
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  // Performance indexes
+  tenantIdIdx: index("contact_groups_tenant_id_idx").on(table.tenantId),
+  // Database-level foreign key constraint
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "contact_groups_tenant_fk" }).onDelete("cascade"),
+}));
 
 // Junction table for contact-group many-to-many relationship
 export const groupMembership = pgTable("group_membership", {
@@ -98,7 +131,11 @@ export const groupMembership = pgTable("group_membership", {
   addedAt: timestamp("added_at").defaultNow(),
   addedBy: uuid("added_by").notNull(), // User who added contact to group
 }, (table) => ({
-  pk: primaryKey({ columns: [table.contactId, table.groupId] })
+  pk: primaryKey({ columns: [table.contactId, table.groupId] }),
+  // Database-level foreign key constraints
+  contactFk: foreignKey({ columns: [table.contactId], foreignColumns: [contacts.id], name: "group_membership_contact_fk" }).onDelete("cascade"),
+  groupFk: foreignKey({ columns: [table.groupId], foreignColumns: [contactGroups.id], name: "group_membership_group_fk" }).onDelete("cascade"),
+  addedByFk: foreignKey({ columns: [table.addedBy], foreignColumns: [users.id], name: "group_membership_added_by_fk" }).onDelete("cascade"),
 }));
 
 // Locations for multi-location businesses
@@ -111,9 +148,14 @@ export const locations = pgTable("locations", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  // Performance indexes
+  tenantIdIdx: index("locations_tenant_id_idx").on(table.tenantId),
+  // Database-level foreign key constraint
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "locations_tenant_fk" }).onDelete("cascade"),
+}));
 
-// Call sessions for tracking voice interactions
+// Call sessions for tracking voice interactions with enhanced analytics
 export const callSessions = pgTable("call_sessions", {
   id: uuid("id").primaryKey().defaultRandom(),
   sessionId: varchar("session_id", { length: 255 }).unique(),
@@ -124,11 +166,56 @@ export const callSessions = pgTable("call_sessions", {
   startTime: timestamp("start_time"),
   endTime: timestamp("end_time"),
   durationSeconds: integer("duration_seconds"),
+  
+  // Enhanced Call Outcome Tracking
   callOutcome: varchar("call_outcome", { length: 50 }), // confirmed, voicemail, no_answer, busy, failed
+  appointmentAction: varchar("appointment_action", { length: 50 }), // confirmed, cancelled, rescheduled, no_action, transfer_requested
+  customerResponse: varchar("customer_response", { length: 100 }), // positive, neutral, negative, confused, interested, uninterested
+  
+  // Customer Sentiment Analysis
+  customerSentiment: varchar("customer_sentiment", { length: 50 }), // positive, neutral, negative, mixed
+  sentimentScore: decimal("sentiment_score", { precision: 3, scale: 2 }), // -1.00 to 1.00
+  emotionalTone: varchar("emotional_tone", { length: 50 }), // calm, excited, frustrated, anxious, friendly, hostile
+  engagementLevel: varchar("engagement_level", { length: 50 }), // high, medium, low, disengaged
+  
+  // Enhanced Call Quality Metrics
+  callQualityScore: decimal("call_quality_score", { precision: 3, scale: 2 }), // 0.00 to 1.00
+  voiceClarity: decimal("voice_clarity", { precision: 3, scale: 2 }), // 0.00 to 1.00
+  connectionQuality: varchar("connection_quality", { length: 50 }), // excellent, good, fair, poor
+  interruptionsCount: integer("interruptions_count").default(0),
+  ringDurationSeconds: integer("ring_duration_seconds"),
+  responseTimeMs: integer("response_time_ms"), // Time to customer pickup
+  
+  // Customer Interaction Details
+  questionsAsked: text("questions_asked"), // JSON array of customer questions
+  concernsExpressed: text("concerns_expressed"), // JSON array of concerns
+  callbackRequested: boolean("callback_requested").default(false),
+  followUpNeeded: boolean("follow_up_needed").default(false),
+  transferRequested: boolean("transfer_requested").default(false),
+  
+  // Technical Integration Data
   retellCallId: varchar("retell_call_id", { length: 255 }),
+  retellMetadata: text("retell_metadata"), // JSON metadata from Retell AI
   errorMessage: text("error_message"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  // Critical performance indexes
+  tenantIdIdx: index("call_sessions_tenant_id_idx").on(table.tenantId),
+  tenantContactIdx: index("call_sessions_tenant_contact_idx").on(table.tenantId, table.contactId),
+  tenantStatusIdx: index("call_sessions_tenant_status_idx").on(table.tenantId, table.status),
+  startTimeIdx: index("call_sessions_start_time_idx").on(table.startTime),
+  // Quality and sentiment analytics indexes
+  tenantQualityScoreIdx: index("call_sessions_tenant_quality_score_idx").on(table.tenantId, table.callQualityScore),
+  tenantSentimentScoreIdx: index("call_sessions_tenant_sentiment_score_idx").on(table.tenantId, table.sentimentScore),
+  customerSentimentIdx: index("call_sessions_customer_sentiment_idx").on(table.customerSentiment),
+  appointmentActionIdx: index("call_sessions_appointment_action_idx").on(table.appointmentAction),
+  // Partial unique constraint for Retell AI call deduplication (only for non-null values)
+  retellCallIdIdx: index("call_sessions_retell_call_id_idx").on(table.retellCallId),
+  retellCallIdUnique: uniqueIndex("call_sessions_retell_call_id_unique").on(table.retellCallId).where(sql`${table.retellCallId} IS NOT NULL`),
+  // Database-level foreign key constraints for data integrity
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "call_sessions_tenant_fk" }).onDelete("cascade"),
+  contactFk: foreignKey({ columns: [table.contactId], foreignColumns: [contacts.id], name: "call_sessions_contact_fk" }).onDelete("cascade"),
+}));
 
 // Follow-up tasks for automation
 export const followUpTasks = pgTable("follow_up_tasks", {
@@ -143,7 +230,15 @@ export const followUpTasks = pgTable("follow_up_tasks", {
   maxAttempts: integer("max_attempts").default(2),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  // Performance indexes
+  tenantIdIdx: index("follow_up_tasks_tenant_id_idx").on(table.tenantId),
+  scheduledTimeIdx: index("follow_up_tasks_scheduled_time_idx").on(table.scheduledTime),
+  statusIdx: index("follow_up_tasks_status_idx").on(table.status),
+  // Database-level foreign key constraints
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "follow_up_tasks_tenant_fk" }).onDelete("cascade"),
+  contactFk: foreignKey({ columns: [table.contactId], foreignColumns: [contacts.id], name: "follow_up_tasks_contact_fk" }).onDelete("cascade"),
+}));
 
 // Tenant configuration for business settings
 export const tenantConfig = pgTable("tenant_config", {
@@ -183,7 +278,12 @@ export const tenantConfig = pgTable("tenant_config", {
   quietEnd: time("quiet_end").default("08:00"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  // Performance indexes
+  tenantIdIdx: index("tenant_config_tenant_id_idx").on(table.tenantId),
+  // Database-level foreign key constraint
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "tenant_config_tenant_fk" }).onDelete("cascade"),
+}));
 
 // Call logs for detailed tracking
 export const callLogs = pgTable("call_logs", {
@@ -195,7 +295,16 @@ export const callLogs = pgTable("call_logs", {
   message: text("message").notNull(),
   metadata: text("metadata"), // JSON string for additional data
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  // Performance indexes
+  callSessionIdx: index("call_logs_call_session_idx").on(table.callSessionId),
+  tenantIdx: index("call_logs_tenant_idx").on(table.tenantId),
+  createdAtIdx: index("call_logs_created_at_idx").on(table.createdAt),
+  // Database-level foreign key constraints for data integrity
+  callSessionFk: foreignKey({ columns: [table.callSessionId], foreignColumns: [callSessions.id], name: "call_logs_call_session_fk" }).onDelete("cascade"),
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "call_logs_tenant_fk" }).onDelete("cascade"),
+  contactFk: foreignKey({ columns: [table.contactId], foreignColumns: [contacts.id], name: "call_logs_contact_fk" }).onDelete("set null"),
+}));
 
 // System settings for platform-wide configuration
 export const systemSettings = pgTable("system_settings", {
@@ -219,7 +328,13 @@ export const rateLimitTracking = pgTable("rate_limit_tracking", {
   isBlocked: boolean("is_blocked").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  // Performance indexes
+  tenantIdIdx: index("rate_limit_tracking_tenant_id_idx").on(table.tenantId),
+  windowStartIdx: index("rate_limit_tracking_window_start_idx").on(table.windowStart),
+  // Database-level foreign key constraint
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "rate_limit_tracking_tenant_fk" }).onDelete("cascade"),
+}));
 
 // Abuse detection events and violations
 export const abuseDetectionEvents = pgTable("abuse_detection_events", {
@@ -234,7 +349,15 @@ export const abuseDetectionEvents = pgTable("abuse_detection_events", {
   resolvedAt: timestamp("resolved_at"),
   autoBlocked: boolean("auto_blocked").default(false), // Whether tenant was automatically paused
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  // Performance indexes
+  tenantIdIdx: index("abuse_detection_events_tenant_id_idx").on(table.tenantId),
+  eventTypeIdx: index("abuse_detection_events_event_type_idx").on(table.eventType),
+  severityIdx: index("abuse_detection_events_severity_idx").on(table.severity),
+  // Database-level foreign key constraints
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "abuse_detection_events_tenant_fk" }).onDelete("cascade"),
+  resolvedByFk: foreignKey({ columns: [table.resolvedBy], foreignColumns: [users.id], name: "abuse_detection_events_resolved_by_fk" }).onDelete("set null"),
+}));
 
 // Tenant suspension records for audit trail
 export const tenantSuspensions = pgTable("tenant_suspensions", {
@@ -249,7 +372,16 @@ export const tenantSuspensions = pgTable("tenant_suspensions", {
   reactivatedBy: uuid("reactivated_by"), // User ID who reactivated
   isActive: boolean("is_active").default(true), // Current suspension status
   metadata: text("metadata"), // JSON string with suspension details
-});
+}, (table) => ({
+  // Performance indexes
+  tenantIdIdx: index("tenant_suspensions_tenant_id_idx").on(table.tenantId),
+  suspendedAtIdx: index("tenant_suspensions_suspended_at_idx").on(table.suspendedAt),
+  isActiveIdx: index("tenant_suspensions_is_active_idx").on(table.isActive),
+  // Database-level foreign key constraints
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "tenant_suspensions_tenant_fk" }).onDelete("cascade"),
+  suspendedByFk: foreignKey({ columns: [table.suspendedBy], foreignColumns: [users.id], name: "tenant_suspensions_suspended_by_fk" }).onDelete("set null"),
+  reactivatedByFk: foreignKey({ columns: [table.reactivatedBy], foreignColumns: [users.id], name: "tenant_suspensions_reactivated_by_fk" }).onDelete("set null"),
+}));
 
 // Business hours configuration for enhanced time-based protection
 export const businessHoursConfig = pgTable("business_hours_config", {
@@ -273,7 +405,12 @@ export const businessHoursConfig = pgTable("business_hours_config", {
   
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  // Performance indexes
+  tenantIdIdx: index("business_hours_config_tenant_id_idx").on(table.tenantId),
+  // Database-level foreign key constraint
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "business_hours_config_tenant_fk" }).onDelete("cascade"),
+}));
 
 // Contact call history for harassment prevention
 export const contactCallHistory = pgTable("contact_call_history", {
@@ -289,7 +426,15 @@ export const contactCallHistory = pgTable("contact_call_history", {
   blockedUntil: timestamp("blocked_until"), // Temporary block expiry
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  // Performance indexes
+  tenantIdIdx: index("contact_call_history_tenant_id_idx").on(table.tenantId),
+  phoneNumberIdx: index("contact_call_history_phone_number_idx").on(table.phoneNumber),
+  lastCallTimeIdx: index("contact_call_history_last_call_time_idx").on(table.lastCallTime),
+  // Database-level foreign key constraints
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "contact_call_history_tenant_fk" }).onDelete("cascade"),
+  contactFk: foreignKey({ columns: [table.contactId], foreignColumns: [contacts.id], name: "contact_call_history_contact_fk" }).onDelete("set null"),
+}));
 
 // Call Reservations for Atomic Protection (CRITICAL for production)
 export const callReservations = pgTable("call_reservations", {
@@ -306,12 +451,172 @@ export const callReservations = pgTable("call_reservations", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
-  // Unique constraint for active reservations per tenant/phone to prevent duplicates
-  uniqueActiveReservation: unique("unique_active_reservation").on(table.tenantId, table.phoneNumber, table.state),
+  // Unique constraint for active reservations per tenant/phone to prevent duplicates (FIXED: now partial for active state only)
+  uniqueActiveReservation: uniqueIndex("unique_active_reservation").on(table.tenantId, table.phoneNumber, table.state).where(sql`${table.state} = 'active'`),
   // Index for efficient TTL cleanup
   expiresAtIdx: index("call_reservations_expires_at_idx").on(table.expiresAt),
   // Index for idempotency checks
   idempotencyIdx: index("call_reservations_idempotency_idx").on(table.idempotencyKey),
+  // Database-level foreign key constraint
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "call_reservations_tenant_fk" }).onDelete("cascade"),
+}));
+
+// Rescheduling Requests for sophisticated appointment management
+export const reschedulingRequests = pgTable("rescheduling_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(),
+  contactId: uuid("contact_id").notNull(),
+  callSessionId: uuid("call_session_id"), // Which call triggered the reschedule
+  
+  // Original appointment details
+  originalAppointmentTime: timestamp("original_appointment_time").notNull(),
+  originalAppointmentType: varchar("original_appointment_type", { length: 100 }),
+  
+  // Reschedule request details
+  rescheduleReason: varchar("reschedule_reason", { length: 100 }), // customer_conflict, emergency, illness, prefer_different_time
+  customerPreference: text("customer_preference"), // Customer's stated preferences
+  urgencyLevel: varchar("urgency_level", { length: 20 }).default("normal"), // urgent, high, normal, low
+  
+  // Proposed new times
+  proposedTimes: text("proposed_times"), // JSON array of suggested times from customer
+  availableSlots: text("available_slots"), // JSON array of available business slots
+  finalSelectedTime: timestamp("final_selected_time"),
+  
+  // Workflow status
+  status: varchar("status", { length: 50 }).default("pending"), // pending, approved, rejected, expired, completed
+  workflowStage: varchar("workflow_stage", { length: 50 }).default("customer_request"), // customer_request, availability_check, confirmation, calendar_update
+  
+  // Processing details
+  processedBy: uuid("processed_by"), // User who handled the request
+  processedAt: timestamp("processed_at"),
+  automatedProcessing: boolean("automated_processing").default(false),
+  calendarUpdated: boolean("calendar_updated").default(false),
+  confirmationSent: boolean("confirmation_sent").default(false),
+  
+  // Tracking and metrics
+  responseTimeHours: decimal("response_time_hours", { precision: 5, scale: 2 }), // How long to process
+  customerSatisfaction: varchar("customer_satisfaction", { length: 20 }), // satisfied, neutral, dissatisfied
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  // Performance indexes for rescheduling workflow
+  tenantStatusIdx: index("rescheduling_requests_tenant_status_idx").on(table.tenantId, table.status),
+  tenantContactIdx: index("rescheduling_requests_tenant_contact_idx").on(table.tenantId, table.contactId),
+  workflowStageIdx: index("rescheduling_requests_workflow_stage_idx").on(table.workflowStage),
+  originalAppointmentTimeIdx: index("rescheduling_requests_original_time_idx").on(table.originalAppointmentTime),
+  // Database-level foreign key constraints for data integrity
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "rescheduling_requests_tenant_fk" }).onDelete("cascade"),
+  contactFk: foreignKey({ columns: [table.contactId], foreignColumns: [contacts.id], name: "rescheduling_requests_contact_fk" }).onDelete("cascade"),
+  callSessionFk: foreignKey({ columns: [table.callSessionId], foreignColumns: [callSessions.id], name: "rescheduling_requests_call_session_fk" }).onDelete("set null"),
+}));
+
+// Customer Analytics for comprehensive tracking
+export const customerAnalytics = pgTable("customer_analytics", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(),
+  contactId: uuid("contact_id").notNull(), // One record per contact
+  
+  // Call behavior analytics
+  totalCallsMade: integer("total_calls_made").default(0),
+  totalCallsAnswered: integer("total_calls_answered").default(0),
+  averageCallDuration: decimal("average_call_duration", { precision: 8, scale: 2 }), // seconds
+  answerRate: decimal("answer_rate", { precision: 5, scale: 4 }), // 0.0000 to 1.0000
+  
+  // Responsiveness patterns
+  bestContactDayOfWeek: integer("best_contact_day_of_week"), // 0-6 (Sunday-Saturday)
+  bestContactTimeOfDay: varchar("best_contact_time_of_day", { length: 20 }), // "09:00-12:00"
+  responseTimePatterns: text("response_time_patterns"), // JSON of historical response times
+  
+  // Sentiment evolution
+  sentimentHistory: text("sentiment_history"), // JSON array of sentiment scores over time
+  currentSentimentTrend: varchar("current_sentiment_trend", { length: 20 }), // improving, stable, declining
+  averageSentimentScore: decimal("average_sentiment_score", { precision: 3, scale: 2 }),
+  
+  // Appointment behavior
+  appointmentConfirmationRate: decimal("appointment_confirmation_rate", { precision: 5, scale: 4 }),
+  appointmentCancellationRate: decimal("appointment_cancellation_rate", { precision: 5, scale: 4 }),
+  rescheduleRequestCount: integer("reschedule_request_count").default(0),
+  noShowCount: integer("no_show_count").default(0),
+  
+  // Engagement metrics
+  questionsAskedCount: integer("questions_asked_count").default(0),
+  concernsRaisedCount: integer("concerns_raised_count").default(0),
+  transferRequestCount: integer("transfer_request_count").default(0),
+  callbackRequestCount: integer("callback_request_count").default(0),
+  
+  // Quality scores
+  overallEngagementScore: decimal("overall_engagement_score", { precision: 3, scale: 2 }), // 0.00 to 1.00
+  communicationQualityScore: decimal("communication_quality_score", { precision: 3, scale: 2 }),
+  riskScore: decimal("risk_score", { precision: 3, scale: 2 }), // Risk of no-show or cancellation
+  
+  // Calculated insights
+  customerSegment: varchar("customer_segment", { length: 50 }), // vip, regular, at_risk, new_customer
+  predictedBehavior: varchar("predicted_behavior", { length: 50 }), // likely_to_confirm, likely_to_reschedule, high_risk
+  
+  // Tracking metadata
+  lastAnalysisUpdate: timestamp("last_analysis_update").defaultNow(),
+  analysisVersion: varchar("analysis_version", { length: 20 }).default("1.0"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  // Performance indexes for analytics queries
+  tenantIdIdx: index("customer_analytics_tenant_id_idx").on(table.tenantId),
+  contactIdUnique: unique("customer_analytics_contact_unique").on(table.contactId),
+  customerSegmentIdx: index("customer_analytics_customer_segment_idx").on(table.customerSegment),
+  riskScoreIdx: index("customer_analytics_risk_score_idx").on(table.riskScore),
+  // Database-level foreign key constraints for data integrity
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "customer_analytics_tenant_fk" }).onDelete("cascade"),
+  contactFk: foreignKey({ columns: [table.contactId], foreignColumns: [contacts.id], name: "customer_analytics_contact_fk" }).onDelete("cascade"),
+}));
+
+// Call Quality Metrics for technical analysis
+export const callQualityMetrics = pgTable("call_quality_metrics", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  callSessionId: uuid("call_session_id").notNull().unique(), // One record per call
+  tenantId: uuid("tenant_id").notNull(),
+  
+  // Technical quality measurements
+  overallQualityScore: decimal("overall_quality_score", { precision: 3, scale: 2 }), // 0.00 to 1.00
+  audioQualityScore: decimal("audio_quality_score", { precision: 3, scale: 2 }),
+  connectionStabilityScore: decimal("connection_stability_score", { precision: 3, scale: 2 }),
+  
+  // Network and connection metrics
+  jitter: decimal("jitter", { precision: 8, scale: 2 }), // ms
+  latency: decimal("latency", { precision: 8, scale: 2 }), // ms
+  packetLoss: decimal("packet_loss", { precision: 5, scale: 4 }), // percentage
+  
+  // Voice analysis metrics
+  speechClarityScore: decimal("speech_clarity_score", { precision: 3, scale: 2 }),
+  backgroundNoiseLevel: decimal("background_noise_level", { precision: 3, scale: 2 }),
+  echoDetected: boolean("echo_detected").default(false),
+  volumeLevels: text("volume_levels"), // JSON array of volume measurements throughout call
+  
+  // Call flow metrics
+  pauseCount: integer("pause_count").default(0), // Number of significant pauses
+  averagePauseDuration: decimal("average_pause_duration", { precision: 6, scale: 2 }), // seconds
+  speechToSilenceRatio: decimal("speech_to_silence_ratio", { precision: 3, scale: 2 }),
+  
+  // Technical issues
+  disconnectionCount: integer("disconnection_count").default(0),
+  reconnectionCount: integer("reconnection_count").default(0),
+  technicalIssuesReported: text("technical_issues_reported"), // JSON array of issues
+  
+  // Retell AI specific metrics
+  retellProcessingMetrics: text("retell_processing_metrics"), // JSON from Retell AI
+  retellConfidenceScore: decimal("retell_confidence_score", { precision: 3, scale: 2 }),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  // Performance indexes for quality analytics
+  tenantIdIdx: index("call_quality_metrics_tenant_id_idx").on(table.tenantId),
+  callSessionIdUnique: unique("call_quality_call_session_unique").on(table.callSessionId),
+  overallQualityScoreIdx: index("call_quality_metrics_quality_score_idx").on(table.overallQualityScore),
+  createdAtIdx: index("call_quality_metrics_created_at_idx").on(table.createdAt),
+  // Database-level foreign key constraints for data integrity
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "call_quality_metrics_tenant_fk" }).onDelete("cascade"),
+  callSessionFk: foreignKey({ columns: [table.callSessionId], foreignColumns: [callSessions.id], name: "call_quality_metrics_call_session_fk" }).onDelete("cascade"),
 }));
 
 // Relations
@@ -477,6 +782,48 @@ export const contactCallHistoryRelations = relations(contactCallHistory, ({ one 
   }),
 }));
 
+// Enhanced feature table relations
+export const reschedulingRequestsRelations = relations(reschedulingRequests, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [reschedulingRequests.tenantId],
+    references: [tenants.id],
+  }),
+  contact: one(contacts, {
+    fields: [reschedulingRequests.contactId],
+    references: [contacts.id],
+  }),
+  callSession: one(callSessions, {
+    fields: [reschedulingRequests.callSessionId],
+    references: [callSessions.id],
+  }),
+  processedByUser: one(users, {
+    fields: [reschedulingRequests.processedBy],
+    references: [users.id],
+  }),
+}));
+
+export const customerAnalyticsRelations = relations(customerAnalytics, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [customerAnalytics.tenantId],
+    references: [tenants.id],
+  }),
+  contact: one(contacts, {
+    fields: [customerAnalytics.contactId],
+    references: [contacts.id],
+  }),
+}));
+
+export const callQualityMetricsRelations = relations(callQualityMetrics, ({ one }) => ({
+  callSession: one(callSessions, {
+    fields: [callQualityMetrics.callSessionId],
+    references: [callSessions.id],
+  }),
+  tenant: one(tenants, {
+    fields: [callQualityMetrics.tenantId],
+    references: [tenants.id],
+  }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -570,6 +917,25 @@ export const insertContactCallHistorySchema = createInsertSchema(contactCallHist
   updatedAt: true,
 });
 
+// Enhanced feature insert schemas
+export const insertReschedulingRequestSchema = createInsertSchema(reschedulingRequests).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCustomerAnalyticsSchema = createInsertSchema(customerAnalytics).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastAnalysisUpdate: true, // Auto-generated field
+});
+
+export const insertCallQualityMetricsSchema = createInsertSchema(callQualityMetrics).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -619,3 +985,13 @@ export type InsertBusinessHoursConfig = z.infer<typeof insertBusinessHoursConfig
 
 export type ContactCallHistory = typeof contactCallHistory.$inferSelect;
 export type InsertContactCallHistory = z.infer<typeof insertContactCallHistorySchema>;
+
+// Enhanced feature types
+export type ReschedulingRequest = typeof reschedulingRequests.$inferSelect;
+export type InsertReschedulingRequest = z.infer<typeof insertReschedulingRequestSchema>;
+
+export type CustomerAnalytics = typeof customerAnalytics.$inferSelect;
+export type InsertCustomerAnalytics = z.infer<typeof insertCustomerAnalyticsSchema>;
+
+export type CallQualityMetrics = typeof callQualityMetrics.$inferSelect;
+export type InsertCallQualityMetrics = z.infer<typeof insertCallQualityMetricsSchema>;
