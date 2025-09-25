@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import Sidebar from '@/components/layout/sidebar';
+import Header from '@/components/layout/header';
 import { 
   Building, 
   User, 
@@ -23,8 +24,7 @@ import {
   Key,
   Globe,
   Mail,
-  Smartphone,
-  ArrowLeft
+  Smartphone
 } from "lucide-react";
 
 export default function Profile() {
@@ -95,24 +95,23 @@ export default function Profile() {
   const [activeTab, setActiveTab] = useState(accessibleSections[0]?.id || "account");
 
   return (
-    <div className="container mx-auto py-6 space-y-6" data-testid="profile-page">
-      {/* Page Header */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-foreground">Profile Settings</h1>
-            <p className="text-muted-foreground">
-              Manage your account settings, business information, and system preferences
-            </p>
-          </div>
-          <Button asChild variant="outline" className="flex items-center gap-2" data-testid="button-back-to-dashboard">
-            <Link href="/">
-              <ArrowLeft className="w-4 h-4" />
-              Back to Dashboard
-            </Link>
-          </Button>
-        </div>
-      </div>
+    <div className="flex h-screen bg-background">
+      <Sidebar />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Header />
+        <main className="flex-1 overflow-auto bg-background p-6">
+          <div className="space-y-6" data-testid="profile-page">
+            {/* Page Header */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                  <h1 className="text-3xl font-bold text-foreground">Profile Settings</h1>
+                  <p className="text-muted-foreground">
+                    Manage your account settings, business information, and system preferences
+                  </p>
+                </div>
+              </div>
+            </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
         <div className="w-full overflow-x-auto">
@@ -663,6 +662,9 @@ export default function Profile() {
           return null;
         })}
       </Tabs>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
