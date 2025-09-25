@@ -25,7 +25,6 @@ const contactSchema = z.object({
   // Basic Contact Information
   name: z.string().min(1, "Client Name is required"),
   phone: z.string().min(1, "Phone Number is required"),
-  email: z.string().optional().or(z.literal('')),
   
   // Group Assignment
   groupId: z.string().optional(),
@@ -142,7 +141,6 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
       form.reset({
         name: contact.name,
         phone: contact.phone,
-        email: contact.email || "",
         groupId: currentMembership || "none",
         eventType: contact.appointmentType || "",
         contactPerson: contact.ownerName || "",
@@ -158,7 +156,6 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
       form.reset({
         name: "",
         phone: "",
-        email: "",
         groupId: "none",
         eventType: "",
         contactPerson: "",
@@ -178,7 +175,6 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
       form.reset({
         name: "",
         phone: "",
-        email: "",
         groupId: "none",
         eventType: "",
         contactPerson: "",
@@ -198,7 +194,6 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
       const payload = {
         name: data.name,
         phone: data.phone,
-        email: data.email || undefined,
         appointmentTime: new Date(data.appointmentTime).toISOString(),
         appointmentType: data.eventType || undefined,
         appointmentDuration: data.appointmentDuration || undefined,
@@ -249,7 +244,6 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
       const payload = {
         name: data.name,
         phone: data.phone,
-        email: data.email || undefined,
         appointmentTime: new Date(data.appointmentTime).toISOString(),
         appointmentType: data.eventType || undefined,
         appointmentDuration: data.appointmentDuration || undefined,
@@ -366,26 +360,6 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
               />
             </div>
             
-            {/* Email */}
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-sm font-medium text-gray-700">Email (Optional)</FormLabel>
-                  <FormControl>
-                    <Input 
-                      {...field} 
-                      type="email"
-                      placeholder="ken@example.com"
-                      className="border-gray-300 rounded-md"
-                      data-testid="input-contact-email"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
 
             {/* Group Assignment */}
             <FormField

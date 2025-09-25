@@ -381,7 +381,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const contactSchema = z.object({
         name: z.string().min(1),
         phone: z.string().min(1),
-        email: z.string().email().optional(),
         appointmentTime: z.string().datetime().optional(),
         appointmentType: z.string().optional(),
         appointmentDuration: z.number().optional(),
@@ -518,7 +517,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updateSchema = z.object({
         name: z.string().optional(),
         phone: z.string().optional(),
-        email: z.string().email().optional(),
         appointmentTime: z.string().datetime().optional(),
         appointmentType: z.string().optional(),
         appointmentDuration: z.number().optional(),

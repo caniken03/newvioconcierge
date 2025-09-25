@@ -24,7 +24,6 @@ export interface Contact {
   tenantId: string;
   name: string;
   phone: string;
-  email?: string;
   appointmentTime?: string;
   appointmentType?: string;
   appointmentDuration?: number;
