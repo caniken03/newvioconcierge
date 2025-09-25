@@ -370,13 +370,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         lastContactTime: contact.lastContactTime ? contact.lastContactTime.toISOString() : null
       }));
       
-      // Aggressive cache prevention
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, private, max-age=0');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '-1');
-      res.setHeader('Last-Modified', new Date().toUTCString());
-      res.setHeader('ETag', `"${Date.now()}-${Math.random()}"`);
-      
       res.json(serializedContacts);
     } catch (error) {
       res.status(500).json({ message: 'Failed to fetch contacts' });

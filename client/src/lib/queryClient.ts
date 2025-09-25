@@ -34,6 +34,7 @@ export async function apiRequest(
 
   const res = await fetch(url, {
     method,
+    cache: 'no-store',
     headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
@@ -57,7 +58,11 @@ export const getQueryFn: <T>(options: {
     }
 
     const res = await fetch(queryKey.join("/") as string, {
-      headers,
+      cache: 'no-store',
+      headers: {
+        ...headers,
+        'Cache-Control': 'no-cache',
+      },
       credentials: "include",
     });
 

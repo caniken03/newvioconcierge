@@ -3,6 +3,20 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
+
+// Disable ETag generation to prevent 304 responses
+app.set('etag', false);
+
+// Global cache-busting middleware for all API routes
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private, max-age=0');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  res.set('Vary', 'Authorization');
+  res.removeHeader('ETag');
+  next();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 

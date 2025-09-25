@@ -268,24 +268,14 @@ export default function Contacts() {
   const searchQuery = filters.search;
   const statusFilter = filters.status;
 
-  // Fetch contacts with aggressive cache busting
-  const { data: contacts = [], isLoading: contactsLoading, refetch: refetchContacts } = useQuery({
-    queryKey: ['/api/contacts', currentPage, 'force-refresh', Math.random()], // Maximum cache busting
+  // Fetch contacts with proper cache control (server handles cache-busting)
+  const { data: contacts = [], isLoading: contactsLoading } = useQuery({
+    queryKey: ['/api/contacts', currentPage],
     // Temporarily enable for testing - in production, should be enabled: !!user
     enabled: true,
     staleTime: 0, // Always fetch fresh data
     gcTime: 0, // Don't cache (renamed from cacheTime in v5)
-    refetchOnMount: true,
-    refetchOnWindowFocus: true,
-  }) as { data: Contact[], isLoading: boolean, refetch: () => void };
-
-  // Force refetch every 2 seconds to ensure changes are visible
-  useEffect(() => {
-    const interval = setInterval(() => {
-      refetchContacts();
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [refetchContacts]);
+  }) as { data: Contact[], isLoading: boolean };
 
   const { data: contactStats = { total: 0, pending: 0, confirmed: 0 } } = useQuery({
     queryKey: ['/api/contacts/stats'],
