@@ -525,6 +525,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         appointmentStatus: z.enum(['pending', 'confirmed', 'cancelled', 'completed']).optional(),
         notes: z.string().optional(),
         specialInstructions: z.string().optional(),
+        // Blue area personalization fields that were missing:
+        ownerName: z.string().optional(),
+        companyName: z.string().optional(),
+        callBeforeHours: z.number().optional(),
       });
 
       const updates = updateSchema.parse(req.body);
