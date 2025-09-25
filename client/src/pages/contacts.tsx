@@ -54,6 +54,7 @@ import {
   Download,
   Phone,
   Edit,
+  Edit2,
   Trash2,
   Clock,
   X,
@@ -71,7 +72,8 @@ import {
   User,
   Globe,
   MessageCircle,
-  Activity
+  Activity,
+  Eye
 } from "lucide-react";
 import type { Contact, ContactGroup, Location, ContactStats, GroupMembership } from "@/types";
 
@@ -922,6 +924,130 @@ export default function Contacts() {
                   </div>
                 </div>
               </CardContent>
+            </Card>
+          </div>
+
+          {/* Groups Overview Section - Always Visible */}
+          <div className="mb-8">
+            <Card>
+              <div className="px-6 py-4 border-b border-border">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-foreground">Contact Groups</h3>
+                    <p className="text-sm text-muted-foreground">Quick overview and filtering by groups</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => updateFilter('groupId', 'all')}
+                      data-testid="button-show-all-contacts"
+                      className={filters.groupId === 'all' ? 'border-primary text-primary bg-primary/10' : ''}
+                    >
+                      <Users className="w-4 h-4 mr-2" />
+                      All Contacts
+                    </Button>
+                    <Button
+                      onClick={handleCreateGroup}
+                      size="sm"
+                      data-testid="button-create-group-overview"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      New Group
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-6">
+                {contactGroups.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <h4 className="text-lg font-semibold text-foreground mb-2">No contact groups yet</h4>
+                    <p className="text-muted-foreground mb-4">Create your first group to organize contacts</p>
+                    <Button onClick={handleCreateGroup} data-testid="button-create-first-group-overview">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create Your First Group
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {contactGroups.map((group) => (
+                      <div
+                        key={group.id}
+                        className={`group cursor-pointer rounded-lg border p-4 transition-all hover:shadow-md ${
+                          filters.groupId === group.id 
+                            ? 'border-primary bg-primary/5 shadow-sm' 
+                            : 'border-border hover:border-primary/50'
+                        }`}
+                        onClick={() => updateFilter('groupId', group.id)}
+                        data-testid={`group-overview-card-${group.id}`}
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div 
+                            className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-sm"
+                            style={{ backgroundColor: group.color }}
+                          >
+                            {group.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewGroupMembers(group);
+                              }}
+                              data-testid={`button-view-group-overview-${group.id}`}
+                              title="View group members"
+                              className="h-8 w-8 p-0"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditGroup(group);
+                              }}
+                              data-testid={`button-edit-group-overview-${group.id}`}
+                              title="Edit group"
+                              className="h-8 w-8 p-0"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <h4 className="font-semibold text-foreground text-sm truncate" title={group.name}>
+                            {group.name}
+                          </h4>
+                          {group.description && (
+                            <p className="text-xs text-muted-foreground line-clamp-2" title={group.description}>
+                              {group.description}
+                            </p>
+                          )}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center text-xs text-muted-foreground">
+                              <Users className="w-3 h-3 mr-1" />
+                              <span data-testid={`text-group-overview-count-${group.id}`}>
+                                {group.contactCount || 0} contact{(group.contactCount || 0) !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                            {filters.groupId === group.id && (
+                              <Badge variant="outline" className="text-xs px-2 py-0 h-5">
+                                Active
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </Card>
           </div>
 
