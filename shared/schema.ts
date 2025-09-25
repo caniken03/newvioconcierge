@@ -150,6 +150,9 @@ export const tenantConfig = pgTable("tenant_config", {
   timezone: varchar("timezone", { length: 100 }).default("Europe/London"),
   followUpHours: integer("follow_up_hours").default(24),
   businessType: varchar("business_type", { length: 100 }).default("professional"),
+  // Configurable call timing settings
+  reminderHoursBefore: integer("reminder_hours_before").array().default([24, 1]),
+  followUpRetryMinutes: integer("follow_up_retry_minutes").default(90),
   // Rate limiting and protection
   isPaused: boolean("is_paused").default(false),
   maxCallsPerDay: integer("max_calls_per_day").default(300),

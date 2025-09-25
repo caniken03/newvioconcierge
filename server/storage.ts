@@ -1874,6 +1874,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateCallSession(id: string, updates: Partial<InsertCallSession>): Promise<CallSession> {
+    // Check if there are any updates to prevent "No values to set" error
+    if (!updates || Object.keys(updates).length === 0) {
+      // If no updates, just return the existing session
+      return await this.getCallSession(id);
+    }
+    
     const [updatedSession] = await db
       .update(callSessions)
       .set(updates)
