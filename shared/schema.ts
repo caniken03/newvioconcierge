@@ -25,6 +25,23 @@ export const tenants = pgTable("tenants", {
   tenantNumber: varchar("tenant_number", { length: 50 }).unique(),
   status: varchar("status", { length: 50 }).default("active"), // active, suspended, inactive
   contactEmail: varchar("contact_email", { length: 255 }),
+  
+  // Wizard and Template Support
+  businessTemplate: varchar("business_template", { length: 50 }).default("general"), // medical, salon, restaurant, consultant, general, custom
+  wizardCompleted: boolean("wizard_completed").default(false),
+  setupProgress: integer("setup_progress").default(0), // 0-7 wizard steps completed
+  
+  // Feature Access Control
+  featuresEnabled: text("features_enabled").default("[]"), // JSON array of enabled features
+  premiumAccess: boolean("premium_access").default(false),
+  hipaaCompliant: boolean("hipaa_compliant").default(false),
+  customBranding: boolean("custom_branding").default(false),
+  apiAccess: boolean("api_access").default(false),
+  
+  // Integration Status  
+  retellConfigured: boolean("retell_configured").default(false),
+  calendarConfigured: boolean("calendar_configured").default(false),
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

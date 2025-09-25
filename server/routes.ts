@@ -259,6 +259,117 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Enhanced tenant creation via wizard
+  app.post('/api/admin/tenants/wizard', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
+    try {
+      const wizardSchema = z.object({
+        // Step 1: Business Discovery
+        businessName: z.string().min(1),
+        companyName: z.string().optional(),
+        contactEmail: z.string().email(),
+        
+        // Step 2: Template Selection
+        businessTemplate: z.enum(['medical', 'salon', 'restaurant', 'consultant', 'general', 'custom']),
+        
+        // Step 3: Feature Control
+        premiumAccess: z.boolean().default(false),
+        hipaaCompliant: z.boolean().default(false),
+        customBranding: z.boolean().default(false),
+        apiAccess: z.boolean().default(false),
+        featuresEnabled: z.array(z.string()).default([]),
+        
+        // Step 4: Admin Setup
+        adminUser: z.object({
+          email: z.string().email(),
+          fullName: z.string().min(1),
+          password: z.string().min(8),
+        }),
+        
+        // Step 5: Integration Config
+        retellConfig: z.object({
+          agentId: z.string().optional(),
+          phoneNumber: z.string().optional(),
+        }).optional(),
+        calendarConfig: z.object({
+          type: z.enum(['calcom', 'calendly']),
+          apiKey: z.string().optional(),
+          eventTypeId: z.number().optional(),
+          organizerEmail: z.string().email().optional(),
+        }).optional(),
+        
+        // Step 6: Business Config
+        timezone: z.string().default('Europe/London'),
+        businessHours: z.object({
+          start: z.string(),
+          end: z.string(),
+        }),
+        operationalSettings: z.object({
+          maxCallsPerDay: z.number().min(50).max(1000),
+          maxCallsPer15Min: z.number().min(5).max(100),
+          quietStart: z.string(),
+          quietEnd: z.string(),
+        }),
+      });
+
+      const wizardData = wizardSchema.parse(req.body);
+      const { adminUser, retellConfig, calendarConfig, ...tenantData } = wizardData;
+      
+      // Create tenant with enhanced data
+      const tenant = await storage.createTenant({
+        name: tenantData.businessName,
+        companyName: tenantData.companyName,
+        contactEmail: tenantData.contactEmail,
+        tenantNumber: `T${Date.now()}`,
+        businessTemplate: tenantData.businessTemplate,
+        wizardCompleted: true,
+        setupProgress: 7,
+        featuresEnabled: JSON.stringify(tenantData.featuresEnabled),
+        premiumAccess: tenantData.premiumAccess,
+        hipaaCompliant: tenantData.hipaaCompliant,
+        customBranding: tenantData.customBranding,
+        apiAccess: tenantData.apiAccess,
+        retellConfigured: !!retellConfig?.agentId,
+        calendarConfigured: !!calendarConfig?.apiKey,
+      });
+
+      // Create admin user for the tenant
+      const user = await storage.createUser({
+        email: adminUser.email,
+        fullName: adminUser.fullName,
+        hashedPassword: adminUser.password,
+        tenantId: tenant.id,
+        role: 'client_admin',
+      });
+
+      // Create tenant configuration with wizard data
+      await storage.createTenantConfig({
+        tenantId: tenant.id,
+        retellAgentId: retellConfig?.agentId,
+        retellAgentNumber: retellConfig?.phoneNumber,
+        calApiKey: calendarConfig?.type === 'calcom' ? calendarConfig.apiKey : undefined,
+        calEventTypeId: calendarConfig?.eventTypeId,
+        calendlyApiKey: calendarConfig?.type === 'calendly' ? calendarConfig.apiKey : undefined,
+        calendlyOrganizerEmail: calendarConfig?.organizerEmail,
+        timezone: tenantData.timezone,
+        businessType: tenantData.businessTemplate,
+        maxCallsPerDay: tenantData.operationalSettings.maxCallsPerDay,
+        maxCallsPer15Min: tenantData.operationalSettings.maxCallsPer15Min,
+        quietStart: tenantData.operationalSettings.quietStart,
+        quietEnd: tenantData.operationalSettings.quietEnd,
+      });
+
+      res.status(201).json({ 
+        tenant, 
+        adminUser: { id: user.id, email: user.email },
+        message: 'Tenant created successfully via wizard'
+      });
+    } catch (error) {
+      console.error('Wizard tenant creation error:', error);
+      res.status(400).json({ message: 'Failed to create tenant via wizard' });
+    }
+  });
+
+  // Original simple tenant creation (kept for compatibility)
   app.post('/api/admin/tenants', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
     try {
       const tenantSchema = z.object({

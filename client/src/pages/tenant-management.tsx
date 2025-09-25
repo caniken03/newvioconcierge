@@ -9,15 +9,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { 
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { 
   Select,
   SelectContent,
@@ -25,46 +16,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import TenantSetupWizard from "@/components/tenant-wizard/TenantSetupWizard";
 import type { Tenant } from "@/types";
 
-const createTenantSchema = z.object({
-  name: z.string().min(1, "Tenant name is required"),
-  companyName: z.string().optional(),
-  contactEmail: z.string().email("Valid email is required"),
-  adminUser: z.object({
-    email: z.string().email("Valid email is required"),
-    fullName: z.string().min(1, "Full name is required"),
-    password: z.string().min(8, "Password must be at least 8 characters"),
-  }),
-});
-
-type CreateTenantForm = z.infer<typeof createTenantSchema>;
+// Wizard state management (no form schema needed since wizard handles its own validation)
 
 export default function TenantManagement() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
-
-  const form = useForm<CreateTenantForm>({
-    resolver: zodResolver(createTenantSchema),
-    defaultValues: {
-      name: "",
-      companyName: "",
-      contactEmail: "",
-      adminUser: {
-        email: "",
-        fullName: "",
-        password: "",
-      },
-    },
-  });
 
   // Fetch tenants
   const { data: tenants = [], isLoading } = useQuery<Tenant[]>({
@@ -78,31 +41,7 @@ export default function TenantManagement() {
     enabled: !!searchQuery && searchQuery.length > 2,
   });
 
-  // Create tenant mutation
-  const createTenantMutation = useMutation({
-    mutationFn: async (data: CreateTenantForm) => {
-      const response = await apiRequest('POST', '/api/admin/tenants', data);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/tenants'] });
-      setIsCreateModalOpen(false);
-      form.reset();
-      toast({
-        title: "Tenant created",
-        description: "New tenant has been successfully created.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Failed to create tenant",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Update tenant status mutation
+  // Update tenant status mutation  
   const updateTenantMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       await apiRequest('PATCH', `/api/admin/tenants/${id}`, { status });
@@ -123,12 +62,12 @@ export default function TenantManagement() {
     },
   });
 
-  const handleCreateTenant = (data: CreateTenantForm) => {
-    createTenantMutation.mutate(data);
-  };
-
   const handleStatusChange = (tenantId: string, status: string) => {
     updateTenantMutation.mutate({ id: tenantId, status });
+  };
+
+  const handleWizardComplete = () => {
+    queryClient.invalidateQueries({ queryKey: ['/api/admin/tenants'] });
   };
 
   const displayedTenants = searchQuery.length > 2 ? searchResults : tenants;
@@ -248,11 +187,11 @@ export default function TenantManagement() {
                   </div>
 
                   <Button 
-                    onClick={() => setIsCreateModalOpen(true)}
+                    onClick={() => setIsWizardOpen(true)}
                     data-testid="button-create-tenant"
                   >
                     <i className="fas fa-plus text-sm mr-2"></i>
-                    Add Tenant
+                    Create New Tenant
                   </Button>
                 </div>
               </div>
