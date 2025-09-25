@@ -2,61 +2,102 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, Area, AreaChart, Legend
+  PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, Legend
 } from 'recharts';
 import { 
   TrendingUp, Users, Calendar, Phone, Target, BarChart3, 
-  CheckCircle, Clock, AlertTriangle, PhoneCall
+  CheckCircle, Clock, AlertTriangle, PhoneCall, Activity,
+  DollarSign, Zap, Database, Shield, RefreshCw, Gauge
 } from 'lucide-react';
 import Sidebar from '@/components/layout/sidebar';
 import Header from '@/components/layout/header';
+import { useState } from 'react';
 
-// Chart color schemes
-const statusColors = {
-  pending: '#f59e0b',
-  confirmed: '#10b981', 
-  cancelled: '#ef4444',
-  rescheduled: '#6366f1'
-};
-
-const priorityColors = {
-  normal: '#6b7280',
-  high: '#f59e0b', 
-  urgent: '#ef4444'
-};
-
-const methodColors = {
-  voice: '#8b5cf6',
-  email: '#06b6d4',
-  sms: '#10b981'
-};
-
-interface ContactAnalytics {
-  overview: {
-    totalContacts: number;
-    activeContacts: number;
-    totalGroups: number;
-    averageGroupSize: number;
+// Performance Overview Data
+interface PerformanceOverview {
+  callSuccessRate: number;
+  appointmentConfirmationRate: number;
+  noShowReduction: number;
+  dailyCallVolume: number;
+  revenueProtection: number;
+  previousPeriodComparison: {
+    callSuccessRate: number;
+    appointmentConfirmationRate: number;
+    dailyCallVolume: number;
   };
-  statusDistribution: Array<{ status: string; count: number; percentage: number }>;
-  priorityBreakdown: Array<{ priority: string; count: number; percentage: number }>;
-  contactMethodAnalysis: Array<{ method: string; count: number; percentage: number }>;
-  groupPerformance: Array<{
-    groupName: string;
-    memberCount: number;
-    confirmedRate: number;
-    color: string;
+}
+
+// Call Activity Data
+interface CallActivity {
+  activeCalls: number;
+  todaysSummary: {
+    callsAttemptedToday: number;
+    callsCompletedToday: number;
+    appointmentsConfirmedToday: number;
+    pendingCalls: number;
+  };
+  outcomeBreakdown: Array<{
+    outcome: string;
+    count: number;
+    percentage: number;
   }>;
-  temporalTrends: Array<{
+  recentCallActivity: Array<{
+    id: string;
+    contactName: string;
+    status: string;
+    outcome: string;
+    timestamp: Date;
+    duration?: number;
+  }>;
+}
+
+// Appointment Insights Data
+interface AppointmentInsights {
+  confirmationTrends: Array<{
     date: string;
-    contactsAdded: number;
-    appointmentsConfirmed: number;
-    callsSuccessful: number;
+    confirmationRate: number;
+    totalAppointments: number;
+    confirmed: number;
   }>;
-  bookingSourceAnalysis: Array<{ source: string; count: number; percentage: number }>;
+  noShowPatterns: Array<{
+    timeSlot: string;
+    noShowRate: number;
+    totalAppointments: number;
+  }>;
+  appointmentTypeAnalysis: Array<{
+    type: string;
+    count: number;
+    confirmationRate: number;
+    averageDuration: number;
+  }>;
+  leadTimeAnalysis: Array<{
+    leadTimeDays: number;
+    confirmationRate: number;
+    count: number;
+  }>;
+}
+
+// System Health Data
+interface SystemHealth {
+  callSystemHealth: {
+    averageCallDuration: number;
+    errorRate: number;
+    responseTime: number;
+    uptime: number;
+  };
+  databasePerformance: {
+    queryResponseTime: number;
+    connectionCount: number;
+    dataGrowthRate: number;
+  };
+  apiPerformance: {
+    successRate: number;
+    averageResponseTime: number;
+    errorsByType: Array<{ type: string; count: number }>;
+  };
 }
 
 function MetricCard({ 
@@ -64,13 +105,17 @@ function MetricCard({
   value, 
   description, 
   icon: Icon, 
-  trend 
+  trend,
+  unit = "",
+  comparison 
 }: {
   title: string;
   value: string | number;
   description: string;
   icon: React.ComponentType<any>;
   trend?: { value: number; isPositive: boolean };
+  unit?: string;
+  comparison?: { previous: number; isIncrease: boolean; timePeriod: string };
 }) {
   return (
     <Card data-testid={`metric-${title.toLowerCase().replace(/\s+/g, '-')}`}>
@@ -80,7 +125,7 @@ function MetricCard({
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold" data-testid={`value-${title.toLowerCase().replace(/\s+/g, '-')}`}>
-          {value}
+          {value}{unit}
         </div>
         <p className="text-xs text-muted-foreground mt-1">
           {description}
@@ -89,403 +134,599 @@ function MetricCard({
               {trend.isPositive ? '+' : ''}{trend.value}%
             </span>
           )}
+          {comparison && (
+            <span className={`ml-2 ${comparison.isIncrease ? 'text-green-600' : 'text-red-600'}`}>
+              {comparison.isIncrease ? '↗' : '↘'} {comparison.previous}% vs {comparison.timePeriod}
+            </span>
+          )}
         </p>
       </CardContent>
     </Card>
   );
 }
 
-function StatusChart({ data }: { data: Array<{ status: string; count: number; percentage: number }> }) {
-  const chartData = data.map(item => ({
-    ...item,
-    fill: statusColors[item.status as keyof typeof statusColors] || '#6b7280'
-  }));
+function PerformanceOverviewSection() {
+  const [timePeriod, setTimePeriod] = useState(30);
+  
+  const { data: performance, isLoading, error } = useQuery<PerformanceOverview>({
+    queryKey: [`/api/analytics/performance?timePeriod=${timePeriod}`],
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <div className="text-center">
+          <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-2" />
+          <p className="text-sm text-red-600">Failed to load performance data</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!performance) return null;
 
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <PieChart data-testid="chart-status-distribution">
-        <Pie
-          data={chartData}
-          cx="50%"
-          cy="50%"
-          labelLine={false}
-          label={({ status, percentage }) => `${status}: ${percentage}%`}
-          outerRadius={80}
-          fill="#8884d8"
-          dataKey="count"
-        >
-          {chartData.map((entry, index) => (
-            <Cell key={`cell-${index}`} fill={entry.fill} />
-          ))}
-        </Pie>
-        <Tooltip />
-        <Legend />
-      </PieChart>
-    </ResponsiveContainer>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Performance Overview</h2>
+        <div className="flex gap-2">
+          <Button 
+            variant={timePeriod === 7 ? "default" : "outline"} 
+            size="sm"
+            onClick={() => setTimePeriod(7)}
+            data-testid="button-period-7"
+          >
+            7 Days
+          </Button>
+          <Button 
+            variant={timePeriod === 30 ? "default" : "outline"} 
+            size="sm"
+            onClick={() => setTimePeriod(30)}
+            data-testid="button-period-30"
+          >
+            30 Days
+          </Button>
+          <Button 
+            variant={timePeriod === 90 ? "default" : "outline"} 
+            size="sm"
+            onClick={() => setTimePeriod(90)}
+            data-testid="button-period-90"
+          >
+            90 Days
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <MetricCard
+          title="Call Success Rate"
+          value={performance.callSuccessRate}
+          unit="%"
+          description="Calls answered successfully"
+          icon={PhoneCall}
+          comparison={{
+            previous: performance.previousPeriodComparison.callSuccessRate,
+            isIncrease: performance.callSuccessRate > performance.previousPeriodComparison.callSuccessRate,
+            timePeriod: "prev period"
+          }}
+        />
+        <MetricCard
+          title="Appointment Confirmation"
+          value={performance.appointmentConfirmationRate}
+          unit="%"
+          description="Appointments confirmed"
+          icon={CheckCircle}
+          comparison={{
+            previous: performance.previousPeriodComparison.appointmentConfirmationRate,
+            isIncrease: performance.appointmentConfirmationRate > performance.previousPeriodComparison.appointmentConfirmationRate,
+            timePeriod: "prev period"
+          }}
+        />
+        <MetricCard
+          title="No-Show Reduction"
+          value={performance.noShowReduction}
+          unit="%"
+          description="Improvement over baseline"
+          icon={TrendingUp}
+        />
+        <MetricCard
+          title="Daily Call Volume"
+          value={performance.dailyCallVolume}
+          description="Calls processed today"
+          icon={Activity}
+          comparison={{
+            previous: performance.previousPeriodComparison.dailyCallVolume,
+            isIncrease: performance.dailyCallVolume > performance.previousPeriodComparison.dailyCallVolume,
+            timePeriod: "daily avg"
+          }}
+        />
+        <MetricCard
+          title="Revenue Protection"
+          value={`$${performance.revenueProtection.toLocaleString()}`}
+          description="Protected through confirmations"
+          icon={DollarSign}
+        />
+      </div>
+    </div>
   );
 }
 
-function TrendChart({ data }: { 
-  data: Array<{
-    date: string;
-    contactsAdded: number;
-    appointmentsConfirmed: number;
-    callsSuccessful: number;
-  }> 
-}) {
+function CallActivitySection() {
+  const { data: calls, isLoading, error } = useQuery<CallActivity>({
+    queryKey: ['/api/analytics/calls'],
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <div className="text-center">
+          <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-2" />
+          <p className="text-sm text-red-600">Failed to load call activity data</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!calls) return null;
+
   return (
-    <ResponsiveContainer width="100%" height={350}>
-      <LineChart data={data} data-testid="chart-temporal-trends">
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey="date" />
-        <YAxis />
-        <Tooltip />
-        <Legend />
-        <Line 
-          type="monotone" 
-          dataKey="contactsAdded" 
-          stroke="#8884d8" 
-          strokeWidth={2}
-          name="Contacts Added"
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold">Call Activity</h2>
+
+      {/* Real-time Metrics */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <MetricCard
+          title="Active Calls"
+          value={calls.activeCalls}
+          description="Currently in progress"
+          icon={PhoneCall}
         />
-        <Line 
-          type="monotone" 
-          dataKey="appointmentsConfirmed" 
-          stroke="#82ca9d" 
-          strokeWidth={2}
-          name="Appointments Confirmed"
+        <MetricCard
+          title="Calls Attempted Today"
+          value={calls.todaysSummary.callsAttemptedToday}
+          description="Total call attempts"
+          icon={Phone}
         />
-        <Line 
-          type="monotone" 
-          dataKey="callsSuccessful" 
-          stroke="#ffc658" 
-          strokeWidth={2}
-          name="Successful Calls"
+        <MetricCard
+          title="Calls Completed Today"
+          value={calls.todaysSummary.callsCompletedToday}
+          description="Successfully completed"
+          icon={CheckCircle}
         />
-      </LineChart>
-    </ResponsiveContainer>
+        <MetricCard
+          title="Pending Calls"
+          value={calls.todaysSummary.pendingCalls}
+          description="Scheduled within 24h"
+          icon={Clock}
+        />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Outcome Breakdown */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Call Outcome Breakdown</CardTitle>
+            <CardDescription>Last 30 days call results</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart data-testid="chart-call-outcomes">
+                <Pie
+                  data={calls.outcomeBreakdown}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ outcome, percentage }) => `${outcome}: ${percentage}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="count"
+                >
+                  {calls.outcomeBreakdown.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={['#10b981', '#f59e0b', '#ef4444', '#6366f1', '#8b5cf6'][index % 5]} 
+                    />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Recent Call Activity */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Call Activity</CardTitle>
+            <CardDescription>Latest 20 call attempts</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-72 overflow-y-auto">
+              {calls.recentCallActivity.map((call) => (
+                <div key={call.id} className="flex items-center justify-between p-2 border rounded-lg">
+                  <div className="flex-1">
+                    <div className="font-medium text-sm">{call.contactName}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {typeof call.timestamp === 'string' 
+                        ? new Date(call.timestamp).toLocaleTimeString()
+                        : call.timestamp.toLocaleTimeString()}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge 
+                      variant={call.outcome === 'confirmed' ? 'default' : 'secondary'}
+                      className="text-xs"
+                    >
+                      {call.outcome}
+                    </Badge>
+                    {call.duration && (
+                      <span className="text-xs text-muted-foreground">
+                        {Math.round(call.duration / 60)}m
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }
 
-function GroupPerformanceChart({ data }: { 
-  data: Array<{
-    groupName: string;
-    memberCount: number;
-    confirmedRate: number;
-    color: string;
-  }> 
-}) {
+function AppointmentInsightsSection() {
+  const [timePeriod, setTimePeriod] = useState(30);
+  
+  const { data: insights, isLoading, error } = useQuery<AppointmentInsights>({
+    queryKey: [`/api/analytics/appointments?timePeriod=${timePeriod}`],
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <div className="text-center">
+          <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-2" />
+          <p className="text-sm text-red-600">Failed to load appointment insights</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!insights) return null;
+
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={data} data-testid="chart-group-performance">
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey="groupName" />
-        <YAxis />
-        <Tooltip />
-        <Legend />
-        <Bar dataKey="memberCount" fill="#8884d8" name="Member Count" />
-        <Bar dataKey="confirmedRate" fill="#82ca9d" name="Confirmed Rate %" />
-      </BarChart>
-    </ResponsiveContainer>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Appointment Insights</h2>
+        <div className="flex gap-2">
+          <Button 
+            variant={timePeriod === 7 ? "default" : "outline"} 
+            size="sm"
+            onClick={() => setTimePeriod(7)}
+          >
+            7 Days
+          </Button>
+          <Button 
+            variant={timePeriod === 30 ? "default" : "outline"} 
+            size="sm"
+            onClick={() => setTimePeriod(30)}
+          >
+            30 Days
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Confirmation Trends */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Confirmation Trends</CardTitle>
+            <CardDescription>Daily confirmation rates over time</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={insights.confirmationTrends} data-testid="chart-confirmation-trends">
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip />
+                <Line 
+                  type="monotone" 
+                  dataKey="confirmationRate" 
+                  stroke="#10b981" 
+                  strokeWidth={2}
+                  name="Confirmation Rate %"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* No-Show Patterns */}
+        <Card>
+          <CardHeader>
+            <CardTitle>No-Show Patterns by Time</CardTitle>
+            <CardDescription>No-show rates by hour of day</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={insights.noShowPatterns} data-testid="chart-noshow-patterns">
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="timeSlot" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="noShowRate" fill="#ef4444" name="No-Show Rate %" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Appointment Type Analysis */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Appointment Type Performance</CardTitle>
+            <CardDescription>Confirmation rates by appointment type</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={insights.appointmentTypeAnalysis} data-testid="chart-appointment-types">
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="type" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="count" fill="#8884d8" name="Count" />
+                <Bar dataKey="confirmationRate" fill="#82ca9d" name="Confirmation Rate %" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Lead Time Analysis */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Lead Time Impact</CardTitle>
+            <CardDescription>Confirmation rates by advance booking days</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={insights.leadTimeAnalysis} data-testid="chart-lead-time">
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="leadTimeDays" />
+                <YAxis />
+                <Tooltip />
+                <Area 
+                  type="monotone" 
+                  dataKey="confirmationRate" 
+                  stroke="#6366f1" 
+                  fill="#6366f1" 
+                  fillOpacity={0.3}
+                  name="Confirmation Rate %"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function SystemHealthSection() {
+  const { data: health, isLoading, error } = useQuery<SystemHealth>({
+    queryKey: ['/api/analytics/system'],
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <div className="text-center">
+          <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-2" />
+          <p className="text-sm text-red-600">Failed to load system health data</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!health) return null;
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold">System Health</h2>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        {/* Call System Health */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <PhoneCall className="h-5 w-5" />
+              Call System Health
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-2">
+              <div className="flex justify-between">
+                <span className="text-sm">Avg Call Duration</span>
+                <span className="font-medium">{health.callSystemHealth.averageCallDuration}s</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm">Error Rate</span>
+                <span className={`font-medium ${health.callSystemHealth.errorRate > 5 ? 'text-red-600' : 'text-green-600'}`}>
+                  {health.callSystemHealth.errorRate}%
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm">Response Time</span>
+                <span className="font-medium">{health.callSystemHealth.responseTime}ms</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm">Uptime</span>
+                <span className={`font-medium ${health.callSystemHealth.uptime > 95 ? 'text-green-600' : 'text-yellow-600'}`}>
+                  {health.callSystemHealth.uptime}%
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Database Performance */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Database className="h-5 w-5" />
+              Database Performance
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-2">
+              <div className="flex justify-between">
+                <span className="text-sm">Query Response</span>
+                <span className="font-medium">{health.databasePerformance.queryResponseTime}ms</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm">Connections</span>
+                <span className="font-medium">{health.databasePerformance.connectionCount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm">Data Growth Rate</span>
+                <span className={`font-medium ${health.databasePerformance.dataGrowthRate > 50 ? 'text-red-600' : 'text-green-600'}`}>
+                  {health.databasePerformance.dataGrowthRate}%
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* API Performance */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5" />
+              API Performance
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-2">
+              <div className="flex justify-between">
+                <span className="text-sm">Success Rate</span>
+                <span className={`font-medium ${health.apiPerformance.successRate > 95 ? 'text-green-600' : 'text-yellow-600'}`}>
+                  {health.apiPerformance.successRate}%
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm">Avg Response Time</span>
+                <span className="font-medium">{health.apiPerformance.averageResponseTime}ms</span>
+              </div>
+            </div>
+            
+            {health.apiPerformance.errorsByType.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Recent Errors:</div>
+                {health.apiPerformance.errorsByType.map((error, index) => (
+                  <div key={index} className="flex justify-between text-xs">
+                    <span>{error.type}</span>
+                    <span className="text-red-600">{error.count}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }
 
 export default function ContactAnalytics() {
-  const { data: analytics, isLoading, error } = useQuery<ContactAnalytics>({
-    queryKey: ['/api/contacts/analytics'],
-  });
-
   return (
     <div className="flex h-screen bg-background">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header />
         <main className="flex-1 overflow-auto bg-background p-6">
-          {isLoading && (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="mt-2 text-sm text-muted-foreground">Loading analytics...</p>
+          <div className="space-y-8" data-testid="comprehensive-analytics-dashboard">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight" data-testid="header-title">
+                  Analytics Dashboard
+                </h1>
+                <p className="text-muted-foreground" data-testid="header-description">
+                  Comprehensive insights into your voice appointment management platform
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Badge variant="secondary" className="px-3 py-1">
+                  <BarChart3 className="h-4 w-4 mr-1" />
+                  Live Data
+                </Badge>
+                <Button variant="outline" size="sm" data-testid="button-refresh">
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                  Refresh
+                </Button>
               </div>
             </div>
-          )}
 
-          {error && (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-2" />
-                <p className="text-sm text-red-600">Failed to load analytics data</p>
-              </div>
-            </div>
-          )}
+            {/* Analytics Sections */}
+            <Tabs defaultValue="performance" className="space-y-6">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="performance" data-testid="tab-performance">Performance</TabsTrigger>
+                <TabsTrigger value="calls" data-testid="tab-calls">Call Activity</TabsTrigger>
+                <TabsTrigger value="appointments" data-testid="tab-appointments">Appointments</TabsTrigger>
+                <TabsTrigger value="system" data-testid="tab-system">System Health</TabsTrigger>
+              </TabsList>
 
-          {analytics && (
-            <div className="space-y-6" data-testid="contact-analytics-dashboard">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight" data-testid="header-title">
-            Contact Analytics
-          </h1>
-          <p className="text-muted-foreground" data-testid="header-description">
-            Comprehensive insights into your contact management and appointment performance
-          </p>
-        </div>
-        <Badge variant="secondary" className="px-3 py-1">
-          <BarChart3 className="h-4 w-4 mr-1" />
-          Live Data
-        </Badge>
-      </div>
+              <TabsContent value="performance" className="space-y-6">
+                <PerformanceOverviewSection />
+              </TabsContent>
 
-      {/* Overview Metrics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <MetricCard
-          title="Total Contacts"
-          value={analytics.overview.totalContacts}
-          description="All contacts in system"
-          icon={Users}
-        />
-        <MetricCard
-          title="Active Contacts"
-          value={analytics.overview.activeContacts}
-          description="Currently active contacts"
-          icon={CheckCircle}
-        />
-        <MetricCard
-          title="Contact Groups"
-          value={analytics.overview.totalGroups}
-          description="Organizational groups"
-          icon={Target}
-        />
-        <MetricCard
-          title="Avg Group Size"
-          value={analytics.overview.averageGroupSize}
-          description="Average contacts per group"
-          icon={TrendingUp}
-        />
-      </div>
+              <TabsContent value="calls" className="space-y-6">
+                <CallActivitySection />
+              </TabsContent>
 
-      {/* Analytics Tabs */}
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
-          <TabsTrigger value="performance" data-testid="tab-performance">Performance</TabsTrigger>
-          <TabsTrigger value="trends" data-testid="tab-trends">Trends</TabsTrigger>
-          <TabsTrigger value="sources" data-testid="tab-sources">Sources</TabsTrigger>
-        </TabsList>
+              <TabsContent value="appointments" className="space-y-6">
+                <AppointmentInsightsSection />
+              </TabsContent>
 
-        {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
-                  Appointment Status Distribution
-                </CardTitle>
-                <CardDescription>
-                  Breakdown of appointment statuses across all contacts
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <StatusChart data={analytics.statusDistribution} />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Phone className="h-5 w-5" />
-                  Preferred Contact Methods
-                </CardTitle>
-                <CardDescription>
-                  How your contacts prefer to be reached
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={analytics.contactMethodAnalysis} data-testid="chart-contact-methods">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="method" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="#8884d8" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Priority Breakdown */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5" />
-                Priority Level Analysis
-              </CardTitle>
-              <CardDescription>
-                Distribution of contact priority levels
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-3">
-                {analytics.priorityBreakdown.map((item) => (
-                  <div key={item.priority} className="text-center p-4 border rounded-lg">
-                    <div className="text-2xl font-bold" style={{ 
-                      color: priorityColors[item.priority as keyof typeof priorityColors] 
-                    }}>
-                      {item.count}
-                    </div>
-                    <div className="text-sm text-muted-foreground capitalize">
-                      {item.priority} Priority
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {item.percentage}% of total
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Performance Tab */}
-        <TabsContent value="performance" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Target className="h-5 w-5" />
-                Group Performance Analysis
-              </CardTitle>
-              <CardDescription>
-                Effectiveness and size metrics for each contact group
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <GroupPerformanceChart data={analytics.groupPerformance} />
-            </CardContent>
-          </Card>
-
-          {/* Group Details Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Group Details</CardTitle>
-              <CardDescription>Detailed breakdown of group performance</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {analytics.groupPerformance.map((group, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div 
-                        className="w-4 h-4 rounded-full" 
-                        style={{ backgroundColor: group.color }}
-                      ></div>
-                      <div>
-                        <div className="font-medium">{group.groupName}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {group.memberCount} members
-                        </div>
-                      </div>
-                    </div>
-                    <Badge variant={group.confirmedRate > 75 ? 'default' : 'secondary'}>
-                      {group.confirmedRate}% confirmed
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Trends Tab */}
-        <TabsContent value="trends" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
-                7-Day Activity Trends
-              </CardTitle>
-              <CardDescription>
-                Contact additions, confirmations, and call success over the past week
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <TrendChart data={analytics.temporalTrends} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Sources Tab */}
-        <TabsContent value="sources" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <PhoneCall className="h-5 w-5" />
-                Booking Source Analysis
-              </CardTitle>
-              <CardDescription>
-                Where your contacts are coming from
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart data-testid="chart-booking-sources">
-                  <Pie
-                    data={analytics.bookingSourceAnalysis}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ source, percentage }) => `${source}: ${percentage}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="count"
-                  >
-                    {analytics.bookingSourceAnalysis.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={['#8884d8', '#82ca9d', '#ffc658', '#ff7300'][index % 4]} 
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          {/* Source Details */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Source Breakdown</CardTitle>
-              <CardDescription>Detailed analysis of contact acquisition sources</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {analytics.bookingSourceAnalysis.map((source, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <div className="font-medium capitalize">{source.source}</div>
-                      <div className="text-sm text-muted-foreground">
-                        Booking source channel
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold">{source.count}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {source.percentage}%
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+              <TabsContent value="system" className="space-y-6">
+                <SystemHealthSection />
+              </TabsContent>
             </Tabs>
-            </div>
-          )}
+          </div>
         </main>
       </div>
     </div>
