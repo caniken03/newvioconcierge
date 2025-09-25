@@ -39,19 +39,17 @@ export function useAuth() {
       // Store token FIRST (atomic operation)
       localStorage.setItem('auth_token', data.token);
       
-      // Small microtask yield to ensure token is persisted
-      await Promise.resolve();
-      
-      // Update auth header for future requests
+      // Update auth state directly instead of invalidating to prevent race condition
       queryClient.setQueryData(['/api/auth/me'], data.user);
       
-      // Refresh auth and dependent queries
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
-      
-      // Navigate to home page AFTER token is saved (prevent race condition)
+      // Navigate to home page AFTER token is saved and state is set
       navigate('/', { replace: true });
+      
+      // Refresh dependent queries after navigation (not auth query)
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
+      }, 100);
       
       toast({
         title: "Welcome back!",

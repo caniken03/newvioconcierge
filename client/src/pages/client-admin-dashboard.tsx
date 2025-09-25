@@ -348,11 +348,13 @@ export default function ClientAdminDashboard() {
             <div className="space-y-4">
               {/* Upcoming Appointments */}
               <div 
-                className="space-y-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded-lg transition-colors" 
-                onClick={() => navigateToAppointments('today')}
+                className="space-y-3"
                 data-testid="todays-schedule-appointments"
               >
-                <div className="flex items-center justify-between">
+                <div 
+                  className="flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded-lg transition-colors"
+                  onClick={() => navigateToAppointments('today')}
+                >
                   <h4 className="text-sm font-medium text-muted-foreground">Next Appointments</h4>
                   <ExternalLink className="w-4 h-4 text-muted-foreground" />
                 </div>
@@ -364,7 +366,15 @@ export default function ClientAdminDashboard() {
                   </div>
                 ) : (
                   todaysAppointments.slice(0, 3).map((appointment: any) => (
-                    <div key={appointment.id} className="flex items-center space-x-3 p-3 bg-muted/30 rounded-lg">
+                    <div 
+                      key={appointment.id} 
+                      className="flex items-center space-x-3 p-3 bg-muted/30 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLocation(`/appointments?search=${encodeURIComponent(appointment.name)}`);
+                      }}
+                      data-testid={`appointment-item-${appointment.id}`}
+                    >
                       <div className="text-center min-w-[60px]">
                         <p className="text-sm font-medium">
                           {new Date(appointment.appointmentTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

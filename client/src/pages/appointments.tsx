@@ -32,6 +32,8 @@ export default function Appointments() {
   useEffect(() => {
     const params = new URLSearchParams(location.split('?')[1] || '');
     const statusParam = params.get('status');
+    const searchParam = params.get('search');
+    
     if (statusParam && ['confirmed', 'pending', 'completed', 'cancelled', 'no_show', 'today'].includes(statusParam)) {
       if (statusParam === 'today') {
         // For today filter, we'll filter by date in the filtering logic
@@ -39,6 +41,11 @@ export default function Appointments() {
       } else {
         setStatusFilter(statusParam);
       }
+    }
+    
+    if (searchParam) {
+      const decodedSearch = decodeURIComponent(searchParam);
+      setSearchQuery(decodedSearch);
     }
   }, [location]);
 
@@ -137,7 +144,11 @@ export default function Appointments() {
 
             {/* Stats Cards */}
             <div className="grid gap-4 md:grid-cols-4">
-              <Card>
+              <Card 
+                className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-blue-200" 
+                onClick={() => setStatusFilter("all")}
+                data-testid="stats-card-total"
+              >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Total Appointments</CardTitle>
                   <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -146,7 +157,11 @@ export default function Appointments() {
                   <div className="text-2xl font-bold">{stats.total}</div>
                 </CardContent>
               </Card>
-              <Card>
+              <Card 
+                className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-orange-200" 
+                onClick={() => setStatusFilter("today")}
+                data-testid="stats-card-today"
+              >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Today</CardTitle>
                   <Clock className="h-4 w-4 text-muted-foreground" />
@@ -155,7 +170,11 @@ export default function Appointments() {
                   <div className="text-2xl font-bold">{stats.today}</div>
                 </CardContent>
               </Card>
-              <Card>
+              <Card 
+                className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-green-200" 
+                onClick={() => setStatusFilter("confirmed")}
+                data-testid="stats-card-confirmed"
+              >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Confirmed</CardTitle>
                   <User className="h-4 w-4 text-muted-foreground" />
@@ -164,7 +183,11 @@ export default function Appointments() {
                   <div className="text-2xl font-bold">{stats.confirmed}</div>
                 </CardContent>
               </Card>
-              <Card>
+              <Card 
+                className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-yellow-200" 
+                onClick={() => setStatusFilter("pending")}
+                data-testid="stats-card-pending"
+              >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Pending</CardTitle>
                   <Phone className="h-4 w-4 text-muted-foreground" />
