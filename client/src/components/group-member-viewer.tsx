@@ -49,6 +49,7 @@ import {
   ArrowUpDown,
   PhoneIcon,
 } from "lucide-react";
+import { BulkCallConfigModal, type BulkCallConfig } from "@/components/modals/bulk-call-config-modal";
 import type { ContactGroup, Contact } from "@/types";
 
 interface GroupMemberViewerProps {
@@ -71,7 +72,8 @@ export function GroupMemberViewer({ group, isOpen, onClose }: GroupMemberViewerP
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [statusFilter, setStatusFilter] = useState<FilterOption>('all');
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
-  const [showBulkCallConfirm, setShowBulkCallConfirm] = useState(false);
+  const [showBulkCallConfig, setShowBulkCallConfig] = useState(false);
+  const [bulkCallContactIds, setBulkCallContactIds] = useState<string[]>([]);
 
   // Fetch group members
   const { data: members = [], isLoading } = useQuery({
@@ -83,22 +85,29 @@ export function GroupMemberViewer({ group, isOpen, onClose }: GroupMemberViewerP
     enabled: isOpen && !!group?.id,
   });
 
-  // Bulk call mutation
+  // Bulk call mutation with configuration support
   const bulkCallMutation = useMutation({
-    mutationFn: async (contactIds: string[]) => {
-      // This would integrate with your calling system (Retell AI, etc.)
+    mutationFn: async ({ contactIds, config }: { contactIds: string[], config: BulkCallConfig }) => {
       return await apiRequest('POST', '/api/call-sessions/bulk', {
         contactIds,
         groupId: group.id,
+        callTiming: config.callTiming,
+        scheduledDateTime: config.scheduledDateTime,
+        staggerDurationMinutes: config.staggerDurationMinutes,
+        overrideCallTiming: config.overrideCallTiming,
+        customHoursBefore: config.customHoursBefore,
+        customMessage: config.customMessage,
+        priorityLevel: config.priorityLevel,
       });
     },
-    onSuccess: () => {
+    onSuccess: (response, variables) => {
       toast({
-        title: "Bulk calls initiated",
-        description: `Started calling ${selectedContactIds.length} contacts from ${group.name}`,
+        title: "Bulk call campaign initiated",
+        description: `Started calling ${variables.contactIds.length} contacts from ${group.name}`,
       });
       setSelectedContactIds([]);
-      setShowBulkCallConfirm(false);
+      setBulkCallContactIds([]);
+      setShowBulkCallConfig(false);
     },
     onError: (error: Error) => {
       toast({
@@ -209,16 +218,18 @@ export function GroupMemberViewer({ group, isOpen, onClose }: GroupMemberViewerP
       });
       return;
     }
-    setShowBulkCallConfirm(true);
+    setBulkCallContactIds(selectedContactIds);
+    setShowBulkCallConfig(true);
   };
 
-  const confirmBulkCall = () => {
-    bulkCallMutation.mutate(selectedContactIds);
+  const handleBulkCallConfig = (config: any) => {
+    bulkCallMutation.mutate({ contactIds: bulkCallContactIds, config });
   };
 
   const handleCallEntireGroup = () => {
-    setSelectedContactIds(members.map(m => m.id));
-    setShowBulkCallConfirm(true);
+    const allContactIds = members.map(m => m.id);
+    setBulkCallContactIds(allContactIds);
+    setShowBulkCallConfig(true);
   };
 
   const getStatusIcon = (status: string) => {
@@ -628,30 +639,15 @@ export function GroupMemberViewer({ group, isOpen, onClose }: GroupMemberViewerP
         </DialogContent>
       </Dialog>
 
-      {/* Bulk Call Confirmation Dialog */}
-      <Dialog open={showBulkCallConfirm} onOpenChange={setShowBulkCallConfirm}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Bulk Call</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to call {selectedContactIds.length} contact{selectedContactIds.length === 1 ? '' : 's'} 
-              from "{group.name}"? This will initiate individual calls to all selected contacts.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowBulkCallConfirm(false)}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={confirmBulkCall}
-              disabled={bulkCallMutation.isPending}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              {bulkCallMutation.isPending ? "Starting Calls..." : "Start Calls"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Bulk Call Configuration Modal */}
+      <BulkCallConfigModal
+        isOpen={showBulkCallConfig}
+        onClose={() => setShowBulkCallConfig(false)}
+        onConfirm={handleBulkCallConfig}
+        contactCount={bulkCallContactIds.length}
+        groupName={group.name}
+        isLoading={bulkCallMutation.isPending}
+      />
     </>
   );
 }
