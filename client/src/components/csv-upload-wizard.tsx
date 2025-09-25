@@ -341,6 +341,9 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
       const mappings = generateFieldMappings(headers, dataRows, businessConfig);
       setFieldMappings(mappings);
       
+      // Clear any previous validation errors when uploading new file
+      setValidationErrors([]);
+      
       toast({
         title: "CSV file uploaded successfully",
         description: `Processed ${csvData.rowCount} rows with ${headers.length} columns`,
@@ -535,6 +538,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     setGroupAssignments([]);
     setImportPreview(null);
     setImportProgress(0);
+    setIsProcessing(false);
     onClose();
   };
 
@@ -643,6 +647,9 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
           }
         : mapping
     ));
+    
+    // Clear validation errors when field mappings change
+    setValidationErrors([]);
   };
 
   // Get confidence color for UI
@@ -899,13 +906,422 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     );
   };
 
-  // Placeholder implementations for other steps
-  const renderDataValidationStep = () => (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Validate Data</h3>
-      <p className="text-muted-foreground">Data validation interface will be implemented here</p>
-    </div>
-  );
+  // Data validation helpers
+  const validateContactRow = (row: string[], rowIndex: number): ValidationError[] => {
+    const errors: ValidationError[] = [];
+    
+    fieldMappings.forEach((mapping, colIndex) => {
+      if (!mapping.contactField) return;
+      
+      const value = row[colIndex] || '';
+      const field = mapping.contactField;
+      
+      // Required field validation
+      if (mapping.required && !value.trim()) {
+        errors.push({
+          row: rowIndex + 1,
+          column: mapping.csvColumn,
+          value,
+          error: `${businessConfig.fieldLabels[field]} is required`,
+          severity: 'error',
+          suggestion: 'Please provide a value for this field'
+        });
+        return;
+      }
+      
+      if (!value.trim()) return; // Skip empty optional fields
+      
+      // Business-specific validation rules
+      const businessValidation = validateBusinessSpecificField(field, value, businessType);
+      if (businessValidation) {
+        errors.push({
+          row: rowIndex + 1,
+          column: mapping.csvColumn,
+          value,
+          error: businessValidation.error,
+          severity: businessValidation.severity,
+          suggestion: businessValidation.suggestion
+        });
+      }
+      
+      // Data type validation
+      const dataTypeValidation = validateFieldDataType(field, value);
+      if (dataTypeValidation) {
+        errors.push({
+          row: rowIndex + 1,
+          column: mapping.csvColumn,
+          value,
+          error: dataTypeValidation.error,
+          severity: dataTypeValidation.severity,
+          suggestion: dataTypeValidation.suggestion
+        });
+      }
+    });
+    
+    return errors;
+  };
+
+  // Business-specific validation rules
+  const validateBusinessSpecificField = (field: ContactFieldType, value: string, businessType: BusinessType): ValidationError | null => {
+    // Medical practice specific validations (HIPAA compliance)
+    if (businessType === 'medical') {
+      if (field === 'notes' && businessConfig.restrictedFields?.includes('notes')) {
+        return {
+          row: 0, column: '', value, 
+          error: 'Notes field may contain PHI and should be avoided in CSV imports',
+          severity: 'warning',
+          suggestion: 'Consider using specialInstructions field instead for HIPAA compliance'
+        };
+      }
+      
+      if (field === 'appointmentType') {
+        const validMedicalTypes = ['consultation', 'follow-up', 'procedure', 'examination', 'surgery', 'therapy'];
+        if (!validMedicalTypes.some(type => value.toLowerCase().includes(type.toLowerCase()))) {
+          return {
+            row: 0, column: '', value,
+            error: 'Appointment type should be medical-related',
+            severity: 'warning',
+            suggestion: `Consider using: ${validMedicalTypes.slice(0, 3).join(', ')}`
+          };
+        }
+      }
+    }
+    
+    // Salon specific validations
+    if (businessType === 'salon') {
+      if (field === 'serviceType') {
+        const validSalonServices = ['haircut', 'color', 'highlights', 'perm', 'styling', 'facial', 'manicure', 'pedicure'];
+        if (!validSalonServices.some(service => value.toLowerCase().includes(service.toLowerCase()))) {
+          return {
+            row: 0, column: '', value,
+            error: 'Service type should be salon-related',
+            severity: 'warning',
+            suggestion: `Consider using: ${validSalonServices.slice(0, 3).join(', ')}`
+          };
+        }
+      }
+    }
+    
+    // Restaurant specific validations
+    if (businessType === 'restaurant') {
+      if (field === 'partySize') {
+        const size = parseInt(value);
+        if (isNaN(size) || size < 1 || size > 20) {
+          return {
+            row: 0, column: '', value,
+            error: 'Party size should be between 1 and 20',
+            severity: 'error',
+            suggestion: 'Enter a valid number between 1 and 20'
+          };
+        }
+      }
+    }
+    
+    return null;
+  };
+
+  // Data type specific validation
+  const validateFieldDataType = (field: ContactFieldType, value: string): ValidationError | null => {
+    switch (field) {
+      case 'phone':
+        // Phone number validation
+        const phoneRegex = /^[\+]?[1-9][\d]{0,15}$|^[\(\)\d\s\-\.\+]{7,}$/;
+        if (!phoneRegex.test(value.replace(/\s/g, ''))) {
+          return {
+            row: 0, column: '', value,
+            error: 'Invalid phone number format',
+            severity: 'error',
+            suggestion: 'Use format: +1234567890 or (123) 456-7890'
+          };
+        }
+        break;
+        
+      case 'email':
+        // Email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(value)) {
+          return {
+            row: 0, column: '', value,
+            error: 'Invalid email format',
+            severity: 'error',
+            suggestion: 'Use format: name@example.com'
+          };
+        }
+        break;
+        
+      case 'appointmentDate':
+        // Date validation
+        const parsedDate = new Date(value);
+        if (isNaN(parsedDate.getTime())) {
+          return {
+            row: 0, column: '', value,
+            error: 'Invalid date format',
+            severity: 'error',
+            suggestion: 'Use format: YYYY-MM-DD or MM/DD/YYYY'
+          };
+        }
+        
+        // Future date validation
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (parsedDate < today) {
+          return {
+            row: 0, column: '', value,
+            error: 'Appointment date is in the past',
+            severity: 'warning',
+            suggestion: 'Verify this is a future appointment date'
+          };
+        }
+        break;
+        
+      case 'appointmentTime':
+        // Time validation
+        const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9](\s?(AM|PM|am|pm))?$|^(1[0-2]|0?[1-9]):[0-5][0-9]\s?(AM|PM|am|pm)$/;
+        if (!timeRegex.test(value)) {
+          return {
+            row: 0, column: '', value,
+            error: 'Invalid time format',
+            severity: 'error',
+            suggestion: 'Use format: 14:30 or 2:30 PM'
+          };
+        }
+        break;
+        
+      case 'duration':
+        // Duration validation
+        const duration = parseInt(value);
+        if (isNaN(duration) || duration < 15 || duration > 480) {
+          return {
+            row: 0, column: '', value,
+            error: 'Duration should be between 15 and 480 minutes',
+            severity: 'warning',
+            suggestion: 'Enter duration in minutes (15-480)'
+          };
+        }
+        break;
+    }
+    
+    return null;
+  };
+
+  // Run validation on all data
+  const runDataValidation = () => {
+    if (!csvFile) {
+      setValidationErrors([]);
+      return [];
+    }
+    
+    console.log('Running validation on', csvFile.rowCount, 'rows');
+    let allErrors: ValidationError[] = [];
+    csvFile.rows.forEach((row, index) => {
+      const rowErrors = validateContactRow(row, index);
+      allErrors = [...allErrors, ...rowErrors];
+    });
+    
+    console.log('Validation completed, found', allErrors.length, 'issues');
+    setValidationErrors(allErrors);
+    return allErrors;
+  };
+
+  // Step 3: Data Validation UI
+  const renderDataValidationStep = () => {
+    if (!csvFile || fieldMappings.length === 0) {
+      return (
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold">Validate Data</h3>
+          <p className="text-muted-foreground">No CSV data loaded. Please go back to upload and map fields.</p>
+        </div>
+      );
+    }
+
+    // Run validation if not already done or if there's no validation data
+    if (validationErrors.length === 0 && csvFile) {
+      setTimeout(() => runDataValidation(), 100);
+    }
+
+    const errorsByRow = validationErrors.reduce((acc, error) => {
+      if (!acc[error.row]) acc[error.row] = [];
+      acc[error.row].push(error);
+      return acc;
+    }, {} as Record<number, ValidationError[]>);
+
+    const totalErrors = validationErrors.filter(e => e.severity === 'error').length;
+    const totalWarnings = validationErrors.filter(e => e.severity === 'warning').length;
+    const validRows = csvFile.rowCount - Object.keys(errorsByRow).length;
+
+    return (
+      <TooltipProvider>
+        <div className="space-y-6">
+          {/* Header with validation summary */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">Data Validation</h3>
+              <p className="text-sm text-muted-foreground">
+                Validating {csvFile.rowCount} rows with {businessType} business rules
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={runDataValidation}>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Re-validate
+              </Button>
+            </div>
+          </div>
+
+          {/* Validation Summary Cards */}
+          <div className="grid grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">{validRows}</div>
+                  <div className="text-xs text-muted-foreground">Valid Rows</div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-red-600">{totalErrors}</div>
+                  <div className="text-xs text-muted-foreground">Errors</div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-yellow-600">{totalWarnings}</div>
+                  <div className="text-xs text-muted-foreground">Warnings</div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {Math.round((validRows / csvFile.rowCount) * 100)}%
+                  </div>
+                  <div className="text-xs text-muted-foreground">Data Quality</div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Errors blocking import */}
+          {totalErrors > 0 && (
+            <Card className="border-red-200 bg-red-50">
+              <CardContent className="pt-4">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-red-800">Import Blocked</p>
+                    <p className="text-xs text-red-600 mt-1">
+                      {totalErrors} error(s) must be fixed before importing. Warnings can be ignored.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Validation Issues List */}
+          {validationErrors.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  Validation Issues ({validationErrors.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-96">
+                  <div className="space-y-3">
+                    {validationErrors.slice(0, 50).map((error, index) => (
+                      <div key={index} className={`p-3 rounded-lg border ${
+                        error.severity === 'error' 
+                          ? 'border-red-200 bg-red-50' 
+                          : 'border-yellow-200 bg-yellow-50'
+                      }`}>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              {error.severity === 'error' ? (
+                                <AlertCircle className="w-4 h-4 text-red-600" />
+                              ) : (
+                                <Info className="w-4 h-4 text-yellow-600" />
+                              )}
+                              <span className="font-medium text-sm">
+                                Row {error.row}: {error.column}
+                              </span>
+                              <Badge variant="secondary" className={
+                                error.severity === 'error' ? 'text-red-700' : 'text-yellow-700'
+                              }>
+                                {error.severity}
+                              </Badge>
+                            </div>
+                            <p className="text-sm mb-1">{error.error}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Value: <code className="bg-muted px-1 rounded">{error.value || '(empty)'}</code>
+                            </p>
+                            {error.suggestion && (
+                              <p className="text-xs text-blue-600 mt-1">
+                                💡 {error.suggestion}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {validationErrors.length > 50 && (
+                      <div className="text-center text-sm text-muted-foreground py-4">
+                        Showing first 50 issues. Total: {validationErrors.length}
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-green-200 bg-green-50">
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
+                  <p className="font-medium text-green-800">All Data Validated Successfully!</p>
+                  <p className="text-sm text-green-600 mt-1">
+                    All {csvFile.rowCount} rows passed validation checks. Ready to proceed.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Business Type Validation Info */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Info className="w-4 h-4" />
+                {businessType.charAt(0).toUpperCase() + businessType.slice(1)} Validation Rules
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm space-y-2">
+                <p><strong>Required Fields:</strong> All rows must have {businessConfig.requiredFields.map(f => businessConfig.fieldLabels[f]).join(', ')}</p>
+                <p><strong>Data Formats:</strong> Phone numbers, emails, dates, and times are validated</p>
+                {businessType === 'medical' && (
+                  <p className="text-blue-600"><strong>HIPAA Compliance:</strong> PHI detection and restricted field warnings applied</p>
+                )}
+                {businessType === 'restaurant' && (
+                  <p className="text-blue-600"><strong>Restaurant Rules:</strong> Party size limits (1-20), reservation time validation</p>
+                )}
+                {businessType === 'salon' && (
+                  <p className="text-blue-600"><strong>Salon Rules:</strong> Service type validation, appointment duration checks</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </TooltipProvider>
+    );
+  };
 
   const renderGroupConfigurationStep = () => (
     <div className="space-y-4">
@@ -1000,7 +1416,8 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
             disabled={
               currentStep === WIZARD_STEPS.length || 
               (currentStep === 1 && !csvFile) ||
-              (currentStep === 2 && fieldMappings.filter(m => m.required && m.contactField).length < businessConfig.requiredFields.length)
+              (currentStep === 2 && fieldMappings.filter(m => m.required && m.contactField).length < businessConfig.requiredFields.length) ||
+              (currentStep === 3 && validationErrors.filter(e => e.severity === 'error').length > 0)
             }
             data-testid="wizard-next-button"
           >
