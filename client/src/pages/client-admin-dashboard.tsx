@@ -250,13 +250,20 @@ export default function ClientAdminDashboard() {
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Failed Calls */}
-            <div className="space-y-3">
+            <div 
+              className="space-y-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded-lg transition-colors" 
+              onClick={navigateToCalls}
+              data-testid="actionable-failed-calls"
+            >
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <PhoneCall className="w-4 h-4" />
                   Failed Calls ({failedCalls.length})
                 </h4>
-                <Badge variant="destructive">{failedCalls.length}</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="destructive">{failedCalls.length}</Badge>
+                  <ExternalLink className="w-4 h-4 text-muted-foreground" />
+                </div>
               </div>
               {failedCalls.slice(0, 2).map((call: any, index: number) => (
                 <div key={call.id || index} className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-800">
@@ -276,13 +283,20 @@ export default function ClientAdminDashboard() {
             </div>
 
             {/* Unconfirmed Appointments */}
-            <div className="space-y-3">
+            <div 
+              className="space-y-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded-lg transition-colors" 
+              onClick={navigateToAppointments}
+              data-testid="actionable-unconfirmed-appointments"
+            >
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <Clock className="w-4 h-4" />
                   Unconfirmed (24h)
                 </h4>
-                <Badge variant="secondary">{unconfirmedIn24h}</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">{unconfirmedIn24h}</Badge>
+                  <ExternalLink className="w-4 h-4 text-muted-foreground" />
+                </div>
               </div>
               <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
                 <p className="text-sm font-medium">{unconfirmedIn24h} appointments need confirmation</p>
@@ -291,13 +305,20 @@ export default function ClientAdminDashboard() {
             </div>
 
             {/* Missing Contact Info */}
-            <div className="space-y-3">
+            <div 
+              className="space-y-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded-lg transition-colors" 
+              onClick={navigateToContacts}
+              data-testid="actionable-missing-info"
+            >
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <Users className="w-4 h-4" />
                   Missing Information
                 </h4>
-                <Badge variant="outline">{contactsMissingPhone}</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">{contactsMissingPhone}</Badge>
+                  <ExternalLink className="w-4 h-4 text-muted-foreground" />
+                </div>
               </div>
               <div className="p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
                 <p className="text-sm font-medium">{contactsMissingPhone} contacts missing phone numbers</p>
@@ -318,8 +339,15 @@ export default function ClientAdminDashboard() {
           <CardContent>
             <div className="space-y-4">
               {/* Upcoming Appointments */}
-              <div className="space-y-3">
-                <h4 className="text-sm font-medium text-muted-foreground">Next Appointments</h4>
+              <div 
+                className="space-y-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded-lg transition-colors" 
+                onClick={navigateToAppointments}
+                data-testid="todays-schedule-appointments"
+              >
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium text-muted-foreground">Next Appointments</h4>
+                  <ExternalLink className="w-4 h-4 text-muted-foreground" />
+                </div>
                 {todaysAppointments.length === 0 ? (
                   <div className="text-center py-6 text-muted-foreground">
                     <Calendar className="w-8 h-8 mx-auto mb-2" />
@@ -347,8 +375,15 @@ export default function ClientAdminDashboard() {
               </div>
 
               {/* Call Queue */}
-              <div className="space-y-3">
-                <h4 className="text-sm font-medium text-muted-foreground">Call Queue Priority</h4>
+              <div 
+                className="space-y-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded-lg transition-colors" 
+                onClick={navigateToCalls}
+                data-testid="todays-schedule-call-queue"
+              >
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium text-muted-foreground">Call Queue Priority</h4>
+                  <ExternalLink className="w-4 h-4 text-muted-foreground" />
+                </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-950/20 rounded-lg">
                     <div>
