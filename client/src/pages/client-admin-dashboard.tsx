@@ -409,11 +409,18 @@ export default function ClientAdminDashboard() {
       {/* Recent Activity & Performance Insights */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Activity Feed */}
-        <Card>
+        <Card 
+          className="cursor-pointer hover:shadow-md transition-shadow" 
+          onClick={navigateToCalls}
+          data-testid="card-recent-activity"
+        >
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="w-5 h-5 text-green-500" />
-              Recent Activity
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Activity className="w-5 h-5 text-green-500" />
+                Recent Activity
+              </div>
+              <ExternalLink className="w-4 h-4 text-muted-foreground" />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -439,11 +446,18 @@ export default function ClientAdminDashboard() {
         </Card>
 
         {/* Performance Insights */}
-        <Card>
+        <Card 
+          className="cursor-pointer hover:shadow-md transition-shadow" 
+          onClick={navigateToAnalytics}
+          data-testid="card-performance-insights"
+        >
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Target className="w-5 h-5 text-purple-500" />
-              Performance Insights
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Target className="w-5 h-5 text-purple-500" />
+                Performance Insights
+              </div>
+              <ExternalLink className="w-4 h-4 text-muted-foreground" />
             </CardTitle>
           </CardHeader>
           <CardContent>
