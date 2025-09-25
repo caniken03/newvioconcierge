@@ -129,7 +129,7 @@ export default function ClientAdminDashboard() {
       {/* Primary KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card 
-          className="cursor-pointer hover:shadow-md transition-shadow" 
+          className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-blue-200" 
           onClick={navigateToAppointments}
           data-testid="card-todays-appointments"
         >
@@ -156,7 +156,7 @@ export default function ClientAdminDashboard() {
         </Card>
 
         <Card 
-          className="cursor-pointer hover:shadow-md transition-shadow" 
+          className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-orange-200" 
           onClick={navigateToCalls}
           data-testid="card-pending-calls"
         >
@@ -183,7 +183,7 @@ export default function ClientAdminDashboard() {
         </Card>
 
         <Card 
-          className="cursor-pointer hover:shadow-md transition-shadow" 
+          className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-green-200" 
           onClick={navigateToAnalytics}
           data-testid="card-success-rate"
         >
@@ -211,7 +211,7 @@ export default function ClientAdminDashboard() {
         </Card>
 
         <Card 
-          className="cursor-pointer hover:shadow-md transition-shadow" 
+          className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-red-200" 
           onClick={navigateToAnalytics}
           data-testid="card-no-show-rate"
         >
@@ -410,7 +410,7 @@ export default function ClientAdminDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Activity Feed */}
         <Card 
-          className="cursor-pointer hover:shadow-md transition-shadow" 
+          className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-green-200" 
           onClick={navigateToCalls}
           data-testid="card-recent-activity"
         >
@@ -447,7 +447,7 @@ export default function ClientAdminDashboard() {
 
         {/* Performance Insights */}
         <Card 
-          className="cursor-pointer hover:shadow-md transition-shadow" 
+          className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-purple-200" 
           onClick={navigateToAnalytics}
           data-testid="card-performance-insights"
         >
