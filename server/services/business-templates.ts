@@ -601,27 +601,12 @@ export class BusinessTemplateService {
 
   /**
    * Generate voice script variables for Retell AI
+   * Uses Clara-compatible Mustache template variables for full personalization
    */
   generateRetellVariables(contact: any, tenantConfig: any, businessType: string): any {
-    const template = this.getTemplate(businessType);
-    if (!template) return this.generateGenericVariables(contact, tenantConfig);
-
-    // Apply field filtering
-    const filteredContact = this.applyFieldOmissionRules(contact, businessType);
-
-    // Generate business-specific variables
-    switch (businessType) {
-      case 'medical':
-        return this.generateMedicalVariables(filteredContact, tenantConfig);
-      case 'dental':
-        return this.generateDentalVariables(filteredContact, tenantConfig);
-      case 'salon':
-        return this.generateSalonVariables(filteredContact, tenantConfig);
-      case 'restaurant':
-        return this.generateRestaurantVariables(filteredContact, tenantConfig);
-      default:
-        return this.generateGenericVariables(filteredContact, tenantConfig);
-    }
+    // ALWAYS generate full Clara-compatible variables regardless of business type
+    // This ensures proper personalization while maintaining call quality
+    return this.generateClaraVariables(contact, tenantConfig, businessType);
   }
 
   /**
@@ -701,22 +686,55 @@ export class BusinessTemplateService {
   }
 
   /**
-   * Generic business variables
+   * Clara-compatible variables with full personalization support
+   * Maps to Clara's Mustache template format: {{variable_name}}
    */
-  private generateGenericVariables(contact: any, tenantConfig: any): any {
+  private generateClaraVariables(contact: any, tenantConfig: any, businessType: string): any {
     const nameParts = (contact.name || '').split(' ');
-    return {
-      // Retell AI agent expects these specific variable names:
+    
+    // Generate full Clara-compatible variable set
+    const variables = {
+      // Core contact information
       first_name: String(nameParts[0] || ''),
       last_name: String(nameParts.slice(1).join(' ') || ''),
+      
+      // Company information
       company_name: String(tenantConfig.companyName || 'our office'),
-      owner_name: String(contact.ownerName || 'your service provider'),
+      owner_name: String(contact.ownerName || 'your provider'),
+      
+      // Appointment details
       appointment_type: String(contact.appointmentType || 'appointment'),
       appointment_spoken: String(this.formatAppointmentSpoken(contact.appointmentTime)),
-      appointment_duration: String(contact.appointmentDuration || ''),
+      appointment_duration: String(contact.appointmentDuration || '60'),
+      appointment_tz: String(contact.timezone || 'UK'),
+      
+      // Personalization
       special_instructions: String(contact.specialInstructions || ''),
-      internal_reference: String(contact.id || '')
+      
+      // Call context
+      call_direction: String('outbound'),
+      internal_reference: String(contact.id || ''),
+      
+      // Location/travel information (if available)
+      nearest_train_station: String(contact.nearestTrainStation || ''),
+      nearest_bus_stop: String(contact.nearestBusStop || ''),
+      bus_routes: String(contact.busRoutes || ''),
+      parking_info: String(contact.parkingInfo || ''),
+      accessibility_notes: String(contact.accessibilityNotes || ''),
+      special_area_notes: String(contact.specialAreaNotes || '')
     };
+
+    console.log(`🎭 Generated Clara-compatible variables for ${businessType} appointment`);
+    console.log(`📋 Key personalization: ${contact.name}, ${contact.appointmentType || 'appointment'}, "${contact.specialInstructions || 'no special instructions'}"`);
+    
+    return variables;
+  }
+
+  /**
+   * Generic business variables (legacy - now redirects to Clara variables)
+   */
+  private generateGenericVariables(contact: any, tenantConfig: any): any {
+    return this.generateClaraVariables(contact, tenantConfig, 'general');
   }
 
   // Helper methods
