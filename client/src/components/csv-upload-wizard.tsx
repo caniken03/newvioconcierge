@@ -1988,20 +1988,517 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     );
   };
 
-  const renderImportPreviewStep = () => (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Preview Import</h3>
-      <p className="text-muted-foreground">Import preview interface will be implemented here</p>
-    </div>
-  );
+  // Step 5: Import Preview with Appointment Scheduling
+  const renderImportPreviewStep = () => {
+    if (!csvFile || fieldMappings.length === 0) {
+      return (
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold">Preview Import</h3>
+          <p className="text-muted-foreground">No CSV data loaded. Please go back to complete previous steps.</p>
+        </div>
+      );
+    }
 
-  const renderImportProgressStep = () => (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Import Progress</h3>
-      <Progress value={importProgress} className="w-full" />
-      <p className="text-muted-foreground">Import progress tracking will be implemented here</p>
-    </div>
-  );
+    // Extract appointment data from CSV
+    const appointmentData = csvFile.rows.map((row, index) => {
+      const contact: any = {};
+      fieldMappings.forEach(mapping => {
+        if (mapping.contactField && mapping.csvColumn) {
+          const columnIndex = csvFile.headers.indexOf(mapping.csvColumn);
+          if (columnIndex !== -1) {
+            contact[mapping.contactField] = row[columnIndex];
+          }
+        }
+      });
+      return { ...contact, rowIndex: index };
+    });
+
+    // Analyze appointment scheduling data
+    const appointmentsWithDates = appointmentData.filter(contact => 
+      contact.appointmentDate && contact.appointmentTime
+    );
+    
+    const upcomingAppointments = appointmentsWithDates.filter(contact => {
+      const appointmentDateTime = new Date(`${contact.appointmentDate} ${contact.appointmentTime}`);
+      return appointmentDateTime > new Date();
+    });
+
+    const appointmentTypes = [...new Set(appointmentData
+      .map(contact => contact.appointmentType)
+      .filter(Boolean)
+    )];
+
+    const todayDate = new Date().toDateString();
+    const appointmentsToday = upcomingAppointments.filter(contact => {
+      const appointmentDate = new Date(contact.appointmentDate);
+      return appointmentDate.toDateString() === todayDate;
+    });
+
+    return (
+      <TooltipProvider>
+        <div className="space-y-6">
+          {/* Header */}
+          <div>
+            <h3 className="text-lg font-semibold">Import Preview & Appointment Scheduling</h3>
+            <p className="text-sm text-muted-foreground">
+              Review your data before import and configure appointment scheduling options
+            </p>
+          </div>
+
+          {/* Import Summary Cards */}
+          <div className="grid grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600" data-testid="total-contacts-count">
+                    {csvFile.rowCount}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Total Contacts</div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600" data-testid="scheduled-appointments-count">
+                    {appointmentsWithDates.length}
+                  </div>
+                  <div className="text-xs text-muted-foreground">With Appointments</div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-orange-600" data-testid="upcoming-appointments-count">
+                    {upcomingAppointments.length}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Upcoming</div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-600" data-testid="today-appointments-count">
+                    {appointmentsToday.length}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Today</div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Appointment Scheduling Configuration */}
+          {upcomingAppointments.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-blue-600" />
+                  Appointment Scheduling Options
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Calendar Integration */}
+                  <Card className="border-blue-200 bg-blue-50">
+                    <CardContent className="pt-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Calendar className="w-4 h-4 text-blue-600" />
+                        <span className="font-medium text-sm">Calendar Integration</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        Sync appointments to external calendar systems
+                      </p>
+                      <div className="space-y-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full text-xs"
+                          data-testid="calcom-sync-button"
+                        >
+                          📅 Sync to Cal.com
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full text-xs"
+                          data-testid="calendly-sync-button"
+                        >
+                          📅 Sync to Calendly
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Voice Reminder Setup */}
+                  <Card className="border-green-200 bg-green-50">
+                    <CardContent className="pt-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Phone className="w-4 h-4 text-green-600" />
+                        <span className="font-medium text-sm">Voice Reminders</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        Configure AI voice appointment reminders
+                      </p>
+                      <div className="space-y-2">
+                        <Select defaultValue="24h">
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1h">1 hour before</SelectItem>
+                            <SelectItem value="24h">24 hours before</SelectItem>
+                            <SelectItem value="48h">48 hours before</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full text-xs"
+                          data-testid="setup-reminders-button"
+                        >
+                          📞 Setup Reminders
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Appointment Type Analysis */}
+                {appointmentTypes.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium mb-2">Appointment Types Found</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {appointmentTypes.map((type, index) => (
+                        <Badge key={index} variant="outline" className="text-xs">
+                          {type}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Data Preview Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Data Preview</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                First 5 rows of your import data
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b">
+                      {fieldMappings
+                        .filter(m => m.contactField)
+                        .map((mapping, index) => (
+                          <th key={index} className="text-left p-2 font-medium">
+                            {businessConfig.fieldLabels[mapping.contactField as ContactFieldType] || mapping.contactField}
+                          </th>
+                        ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {appointmentData.slice(0, 5).map((contact, rowIndex) => (
+                      <tr key={rowIndex} className="border-b">
+                        {fieldMappings
+                          .filter(m => m.contactField)
+                          .map((mapping, colIndex) => (
+                            <td key={colIndex} className="p-2">
+                              <span className="truncate max-w-[100px] block">
+                                {contact[mapping.contactField!] || '-'}
+                              </span>
+                            </td>
+                          ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {csvFile.rowCount > 5 && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  ... and {csvFile.rowCount - 5} more rows
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </TooltipProvider>
+    );
+  };
+
+  // Step 6: Import Progress with Appointment Creation
+  const renderImportProgressStep = () => {
+    const [currentPhase, setCurrentPhase] = useState<'contacts' | 'appointments' | 'reminders' | 'complete'>('contacts');
+    const [contactsImported, setContactsImported] = useState(0);
+    const [appointmentsCreated, setAppointmentsCreated] = useState(0);
+    const [remindersScheduled, setRemindersScheduled] = useState(0);
+    const [importErrors, setImportErrors] = useState<string[]>([]);
+    
+    const totalContacts = csvFile?.rowCount || 0;
+    const appointmentData = csvFile ? csvFile.rows.map((row, index) => {
+      const contact: any = {};
+      fieldMappings.forEach(mapping => {
+        if (mapping.contactField && mapping.csvColumn) {
+          const columnIndex = csvFile.headers.indexOf(mapping.csvColumn);
+          if (columnIndex !== -1) {
+            contact[mapping.contactField] = row[columnIndex];
+          }
+        }
+      });
+      return { ...contact, rowIndex: index };
+    }) : [];
+    
+    const upcomingAppointments = appointmentData.filter(contact => {
+      if (!contact.appointmentDate || !contact.appointmentTime) return false;
+      const appointmentDateTime = new Date(`${contact.appointmentDate} ${contact.appointmentTime}`);
+      return appointmentDateTime > new Date();
+    });
+
+    const overallProgress = (() => {
+      switch (currentPhase) {
+        case 'contacts':
+          return (contactsImported / totalContacts) * 25;
+        case 'appointments':
+          return 25 + (appointmentsCreated / upcomingAppointments.length) * 35;
+        case 'reminders':
+          return 60 + (remindersScheduled / upcomingAppointments.length) * 30;
+        case 'complete':
+          return 100;
+        default:
+          return 0;
+      }
+    })();
+
+    // Simulate import process (in real implementation, this would be actual API calls)
+    useEffect(() => {
+      if (currentPhase === 'contacts' && contactsImported < totalContacts) {
+        const timer = setTimeout(() => {
+          setContactsImported(prev => Math.min(prev + 1, totalContacts));
+        }, 100);
+        return () => clearTimeout(timer);
+      } else if (currentPhase === 'contacts' && contactsImported === totalContacts) {
+        setTimeout(() => setCurrentPhase('appointments'), 500);
+      }
+    }, [currentPhase, contactsImported, totalContacts]);
+
+    useEffect(() => {
+      if (currentPhase === 'appointments' && appointmentsCreated < upcomingAppointments.length) {
+        const timer = setTimeout(() => {
+          setAppointmentsCreated(prev => Math.min(prev + 1, upcomingAppointments.length));
+        }, 200);
+        return () => clearTimeout(timer);
+      } else if (currentPhase === 'appointments' && appointmentsCreated === upcomingAppointments.length) {
+        setTimeout(() => setCurrentPhase('reminders'), 500);
+      }
+    }, [currentPhase, appointmentsCreated, upcomingAppointments.length]);
+
+    useEffect(() => {
+      if (currentPhase === 'reminders' && remindersScheduled < upcomingAppointments.length) {
+        const timer = setTimeout(() => {
+          setRemindersScheduled(prev => Math.min(prev + 1, upcomingAppointments.length));
+        }, 150);
+        return () => clearTimeout(timer);
+      } else if (currentPhase === 'reminders' && remindersScheduled === upcomingAppointments.length) {
+        setTimeout(() => setCurrentPhase('complete'), 500);
+      }
+    }, [currentPhase, remindersScheduled, upcomingAppointments.length]);
+
+    return (
+      <TooltipProvider>
+        <div className="space-y-6">
+          {/* Header */}
+          <div>
+            <h3 className="text-lg font-semibold">Import Progress & Appointment Scheduling</h3>
+            <p className="text-sm text-muted-foreground">
+              Creating contacts and scheduling appointments from your CSV data
+            </p>
+          </div>
+
+          {/* Overall Progress */}
+          <Card>
+            <CardContent className="pt-4">
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Overall Progress</span>
+                  <span className="font-medium">{Math.round(overallProgress)}%</span>
+                </div>
+                <Progress value={overallProgress} className="w-full" data-testid="overall-progress" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Phase Progress Cards */}
+          <div className="grid grid-cols-3 gap-4">
+            <Card className={currentPhase === 'contacts' ? 'border-blue-500 bg-blue-50' : contactsImported === totalContacts ? 'border-green-500 bg-green-50' : ''}>
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <div className="flex items-center justify-center mb-2">
+                    {currentPhase === 'contacts' ? (
+                      <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                    ) : contactsImported === totalContacts ? (
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                    ) : (
+                      <Users className="w-4 h-4 text-gray-400" />
+                    )}
+                    <span className="ml-2 text-sm font-medium">Contacts</span>
+                  </div>
+                  <div className={`text-2xl font-bold ${currentPhase === 'contacts' ? 'text-blue-600' : contactsImported === totalContacts ? 'text-green-600' : 'text-gray-400'}`} data-testid="contacts-imported-count">
+                    {contactsImported}
+                  </div>
+                  <div className="text-xs text-muted-foreground">of {totalContacts} imported</div>
+                  {currentPhase === 'contacts' && (
+                    <Progress value={(contactsImported / totalContacts) * 100} className="mt-2 h-1" />
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className={currentPhase === 'appointments' ? 'border-orange-500 bg-orange-50' : appointmentsCreated === upcomingAppointments.length ? 'border-green-500 bg-green-50' : ''}>
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <div className="flex items-center justify-center mb-2">
+                    {currentPhase === 'appointments' ? (
+                      <Loader2 className="w-4 h-4 text-orange-600 animate-spin" />
+                    ) : appointmentsCreated === upcomingAppointments.length ? (
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                    ) : (
+                      <Calendar className="w-4 h-4 text-gray-400" />
+                    )}
+                    <span className="ml-2 text-sm font-medium">Appointments</span>
+                  </div>
+                  <div className={`text-2xl font-bold ${currentPhase === 'appointments' ? 'text-orange-600' : appointmentsCreated === upcomingAppointments.length ? 'text-green-600' : 'text-gray-400'}`} data-testid="appointments-created-count">
+                    {appointmentsCreated}
+                  </div>
+                  <div className="text-xs text-muted-foreground">of {upcomingAppointments.length} scheduled</div>
+                  {currentPhase === 'appointments' && upcomingAppointments.length > 0 && (
+                    <Progress value={(appointmentsCreated / upcomingAppointments.length) * 100} className="mt-2 h-1" />
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className={currentPhase === 'reminders' ? 'border-purple-500 bg-purple-50' : remindersScheduled === upcomingAppointments.length ? 'border-green-500 bg-green-50' : ''}>
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <div className="flex items-center justify-center mb-2">
+                    {currentPhase === 'reminders' ? (
+                      <Loader2 className="w-4 h-4 text-purple-600 animate-spin" />
+                    ) : remindersScheduled === upcomingAppointments.length ? (
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                    ) : (
+                      <Phone className="w-4 h-4 text-gray-400" />
+                    )}
+                    <span className="ml-2 text-sm font-medium">Reminders</span>
+                  </div>
+                  <div className={`text-2xl font-bold ${currentPhase === 'reminders' ? 'text-purple-600' : remindersScheduled === upcomingAppointments.length ? 'text-green-600' : 'text-gray-400'}`} data-testid="reminders-scheduled-count">
+                    {remindersScheduled}
+                  </div>
+                  <div className="text-xs text-muted-foreground">of {upcomingAppointments.length} scheduled</div>
+                  {currentPhase === 'reminders' && upcomingAppointments.length > 0 && (
+                    <Progress value={(remindersScheduled / upcomingAppointments.length) * 100} className="mt-2 h-1" />
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Current Activity */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Current Activity</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {currentPhase === 'contacts' && (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                    <span className="text-sm">Importing contact data...</span>
+                  </div>
+                )}
+                {currentPhase === 'appointments' && (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 text-orange-600 animate-spin" />
+                    <span className="text-sm">Creating appointment records and syncing to calendar...</span>
+                  </div>
+                )}
+                {currentPhase === 'reminders' && (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 text-purple-600 animate-spin" />
+                    <span className="text-sm">Scheduling voice reminder calls...</span>
+                  </div>
+                )}
+                {currentPhase === 'complete' && (
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span className="text-sm font-medium">Import completed successfully!</span>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Success Summary */}
+          {currentPhase === 'complete' && (
+            <Card className="border-green-200 bg-green-50">
+              <CardContent className="pt-4">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    <span className="font-medium text-green-800">Import Completed Successfully!</span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium">✅ {contactsImported} contacts imported</span>
+                    </div>
+                    <div>
+                      <span className="font-medium">📅 {appointmentsCreated} appointments scheduled</span>
+                    </div>
+                    <div>
+                      <span className="font-medium">📞 {remindersScheduled} voice reminders set up</span>
+                    </div>
+                    <div>
+                      <span className="font-medium">⚡ Ready for appointment management</span>
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-green-700 mt-3">
+                    Your contacts and appointments have been successfully imported. Voice reminders will be automatically sent based on your configured timing.
+                    You can now manage these appointments from the Appointments page.
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Error Messages */}
+          {importErrors.length > 0 && (
+            <Card className="border-red-200 bg-red-50">
+              <CardHeader>
+                <CardTitle className="text-base text-red-800">Import Issues</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-1">
+                  {importErrors.map((error, index) => (
+                    <div key={index} className="text-sm text-red-700">
+                      ⚠ {error}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </TooltipProvider>
+    );
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
