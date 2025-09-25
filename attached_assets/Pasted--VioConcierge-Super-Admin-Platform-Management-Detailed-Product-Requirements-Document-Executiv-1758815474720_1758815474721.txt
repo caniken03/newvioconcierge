@@ -1,0 +1,2684 @@
+# VioConcierge Super Admin Platform Management - Detailed Product Requirements Document
+
+## Executive Summary
+
+The **VioConcierge Super Admin Platform** provides comprehensive administrative control over the entire multi-tenant appointment management ecosystem. Super administrators have platform-wide visibility, tenant lifecycle management capabilities, system health monitoring, abuse protection oversight, and emergency response controls to ensure optimal platform performance and security.
+
+---
+
+## 🎯 **Super Admin Platform Architecture**
+
+### **Super Admin Role Definition & Responsibilities**
+
+```typescript
+SuperAdminRoleArchitecture {
+  core_responsibilities: {
+    platform_governance: "Overall platform health, performance, and strategic oversight",
+    tenant_lifecycle_management: "Complete tenant onboarding, configuration, monitoring, and lifecycle control",
+    security_and_compliance: "Platform security, abuse prevention, and regulatory compliance oversight", 
+    system_administration: "Technical platform configuration, maintenance, and optimization",
+    business_intelligence: "Platform-wide analytics, reporting, and strategic insights"
+  },
+  
+  access_scope: {
+    cross_tenant_visibility: "View and manage data across all tenants on the platform",
+    system_level_controls: "Configure platform-wide settings and emergency controls",
+    user_management: "Manage users across all tenants and create/modify super admin accounts",
+    audit_and_compliance: "Full access to audit logs, compliance reports, and security monitoring",
+    emergency_powers: "Emergency platform controls including pause/restore capabilities"
+  },
+  
+  security_context: {
+    enhanced_authentication: "Mandatory 2FA, shorter session timeouts, enhanced security monitoring",
+    action_auditing: "Comprehensive logging of all super admin actions with full audit trail",
+    approval_workflows: "Dual approval required for critical platform changes",
+    session_monitoring: "Real-time monitoring of super admin session activity and access patterns"
+  }
+}
+```
+
+### **Super Admin Dashboard Architecture**
+
+```typescript
+SuperAdminDashboardStructure {
+  // Dashboard Layout Philosophy
+  layout_principles: {
+    information_hierarchy: "Critical system health and alerts at top, detailed management below",
+    action_oriented: "Every piece of information includes actionable next steps",
+    safety_first: "Destructive actions require confirmation and have clear impact warnings",
+    real_time_focus: "Live data updates for critical platform monitoring"
+  },
+  
+  // Main Dashboard Sections
+  dashboard_sections: {
+    platform_health_overview: {
+      position: "top_section_always_visible",
+      purpose: "Immediate platform status awareness and critical alert management",
+      update_frequency: "real_time_30_second_updates",
+      priority: "P0_critical_platform_monitoring"
+    },
+    
+    tenant_management_center: {
+      position: "primary_left_section",
+      purpose: "Tenant creation, search, management, and lifecycle operations", 
+      features: ["tenant_creation_wizard", "advanced_search", "tenant_analytics", "lifecycle_management"],
+      priority: "P0_core_administrative_function"
+    },
+    
+    system_monitoring_panel: {
+      position: "primary_right_section", 
+      purpose: "Real-time system health, performance monitoring, and abuse detection",
+      features: ["system_health_dashboard", "abuse_monitoring", "performance_metrics"],
+      priority: "P0_operational_awareness"
+    },
+    
+    platform_analytics_center: {
+      position: "bottom_section_expandable",
+      purpose: "Strategic platform analytics, business intelligence, and reporting",
+      features: ["platform_analytics", "tenant_performance_analysis", "growth_metrics"],
+      priority: "P1_strategic_insights"
+    }
+  }
+}
+```
+
+---
+
+## 🧙‍♂️ **1. Tenant Creation Wizard (Comprehensive Implementation)**
+
+### **Complete Setup Wizard Architecture**
+
+```typescript
+TenantSetupWizardArchitecture {
+  // Wizard Design Philosophy
+  wizard_philosophy: {
+    guided_onboarding: "Step-by-step guided process to ensure complete and correct tenant setup",
+    validation_at_each_step: "Real-time validation prevents errors and ensures data quality",
+    business_type_optimization: "Wizard adapts based on business type for optimal configuration",
+    integration_testing: "Built-in testing of integrations before finalizing setup",
+    compliance_assurance: "Automatic compliance configuration based on business type and regulations"
+  },
+  
+  // 6-Step Wizard Process
+  wizard_flow: {
+    step_1_business_discovery: {
+      title: "Business Discovery & Type Selection",
+      duration: "2-3 minutes",
+      purpose: "Understand business type and configure appropriate template",
+      validation_gates: ["business_name_uniqueness", "business_type_selection", "contact_information_validation"]
+    },
+    
+    step_2_admin_account_creation: {
+      title: "Administrator Account Setup", 
+      duration: "2-3 minutes",
+      purpose: "Create secure admin account with proper permissions",
+      validation_gates: ["email_uniqueness", "password_strength", "contact_verification"]
+    },
+    
+    step_3_voice_integration_setup: {
+      title: "Voice AI Configuration",
+      duration: "3-5 minutes",
+      purpose: "Configure Retell AI integration for voice calling",
+      validation_gates: ["retell_connectivity_test", "phone_number_verification", "agent_configuration_test"]
+    },
+    
+    step_4_calendar_integration_setup: {
+      title: "Calendar Integration Configuration",
+      duration: "3-5 minutes", 
+      purpose: "Setup Cal.com or Calendly integration for automatic appointment sync",
+      validation_gates: ["calendar_api_test", "webhook_configuration", "sync_verification"]
+    },
+    
+    step_5_business_configuration: {
+      title: "Business Rules & Compliance",
+      duration: "2-4 minutes",
+      purpose: "Configure business-specific settings, compliance, and operational parameters", 
+      validation_gates: ["compliance_requirements_met", "business_hours_configured", "abuse_protection_setup"]
+    },
+    
+    step_6_review_and_activation: {
+      title: "Review & Activate Tenant",
+      duration: "1-2 minutes",
+      purpose: "Final review of all configuration and tenant activation",
+      validation_gates: ["complete_configuration_review", "integration_final_test", "tenant_activation"]
+    }
+  }
+}
+```
+
+### **Step 1: Business Discovery Implementation**
+
+```typescript
+BusinessDiscoveryStep {
+  // Business Information Collection
+  business_information_form: {
+    primary_business_details: {
+      business_name: {
+        label: "Business/Practice Name",
+        type: "text",
+        required: true,
+        max_length: 100,
+        validation: "unique_across_entire_platform",
+        placeholder: "e.g., Downtown Medical Center, Luxury Hair Studio",
+        help_text: "This will be used in voice calls to identify your business"
+      },
+      
+      company_legal_name: {
+        label: "Legal Company Name",
+        type: "text", 
+        required: false,
+        max_length: 100,
+        help_text: "If different from business name (for legal/billing purposes)"
+      },
+      
+      business_type_selection: {
+        label: "Business Type",
+        type: "radio_cards",
+        required: true,
+        options: [
+          {
+            value: "medical",
+            title: "🏥 Medical Practice / Healthcare",
+            description: "Doctors, dentists, clinics, healthcare providers",
+            features: ["HIPAA compliance", "Patient privacy protection", "Medical appointment optimization"],
+            compliance_note: "Automatically enables HIPAA compliance features"
+          },
+          {
+            value: "salon",
+            title: "💅 Salon / Spa / Beauty Services", 
+            description: "Hair salons, spas, beauty treatments, wellness centers",
+            features: ["Service duration tracking", "Stylist assignment", "Beauty-specific terminology"],
+            optimization: "Optimized for personal service experience"
+          },
+          {
+            value: "restaurant",
+            title: "🍽️ Restaurant / Dining Establishment",
+            description: "Restaurants, cafes, fine dining, casual dining",
+            features: ["Party size management", "Dietary tracking", "Occasion recognition"],
+            optimization: "Optimized for guest experience and hospitality"
+          },
+          {
+            value: "consultant", 
+            title: "💼 Consultant / Professional Services",
+            description: "Business consultants, professional services, advisory",
+            features: ["Meeting preparation", "Business context", "Professional terminology"],
+            optimization: "Optimized for professional business meetings"
+          },
+          {
+            value: "general",
+            title: "🏢 General Business / Other",
+            description: "Any appointment-based business not listed above",
+            features: ["Flexible configuration", "Universal compatibility", "Custom field options"],
+            optimization: "Fully customizable for any business type"
+          }
+        ],
+        selection_impact: "Business type determines default settings, compliance requirements, and voice script templates"
+      }
+    },
+    
+    contact_information: {
+      business_address: {
+        street_address: { label: "Street Address", required: true },
+        city: { label: "City", required: true },
+        county_state: { label: "County/State", required: true },
+        postal_code: { label: "Postal Code", required: true, validation: "uk_postcode_format" },
+        country: { label: "Country", default: "United Kingdom", readonly: true }
+      },
+      
+      business_contact_details: {
+        primary_phone: { 
+          label: "Business Phone Number",
+          required: true,
+          validation: "uk_phone_format",
+          help_text: "Main business contact number for customer inquiries"
+        },
+        business_email: {
+          label: "Business Email Address", 
+          required: true,
+          validation: "business_email_format",
+          help_text: "Primary business email for system notifications"
+        },
+        website_url: {
+          label: "Business Website",
+          required: false,
+          validation: "url_format",
+          help_text: "Business website URL (optional)"
+        }
+      }
+    },
+    
+    business_context: {
+      industry_subcategory: {
+        label: "Industry Subcategory",
+        type: "select",
+        conditional: "business_type_selected",
+        options: "dynamic_based_on_selected_business_type",
+        help_text: "Specific industry for benchmarking and optimization"
+      },
+      
+      business_size: {
+        label: "Business Size",
+        type: "select",
+        options: [
+          { value: "solo", label: "Solo Practice/Single Provider" },
+          { value: "small", label: "Small Business (2-10 staff)" },
+          { value: "medium", label: "Medium Business (11-50 staff)" },
+          { value: "large", label: "Large Business (50+ staff)" }
+        ],
+        affects: ["default_rate_limits", "feature_recommendations", "support_tier"]
+      }
+    }
+  }
+}
+```
+
+### **Step 1 Implementation**
+
+```python
+@api_router.post("/admin/tenants/wizard/step1/validate")
+async def validate_business_discovery_step(
+    business_data: BusinessDiscoveryData,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Validate Step 1: Business Discovery data
+    """
+    
+    require_super_admin(current_user)
+    
+    validation_results = []
+    
+    # Check business name uniqueness
+    existing_business = await db.tenants.find_one({"name": business_data.business_name})
+    if existing_business:
+        validation_results.append({
+            "field": "business_name",
+            "valid": False,
+            "message": f"Business name '{business_data.business_name}' already exists on platform"
+        })
+    else:
+        validation_results.append({
+            "field": "business_name", 
+            "valid": True,
+            "message": "Business name is available"
+        })
+    
+    # Validate business email format and domain
+    email_validation = await validate_business_email(business_data.business_email)
+    validation_results.append({
+        "field": "business_email",
+        "valid": email_validation.valid,
+        "message": email_validation.message
+    })
+    
+    # Validate UK postal code
+    postcode_validation = validate_uk_postcode(business_data.postal_code)
+    validation_results.append({
+        "field": "postal_code",
+        "valid": postcode_validation.valid,
+        "message": postcode_validation.message
+    })
+    
+    # Determine business type configuration
+    business_type_config = get_business_type_configuration(business_data.business_type)
+    
+    # All validations passed
+    all_valid = all(result["valid"] for result in validation_results)
+    
+    return {
+        "step": 1,
+        "step_name": "business_discovery",
+        "validation_passed": all_valid,
+        "validation_results": validation_results,
+        "business_type_config": business_type_config,
+        "next_step_ready": all_valid,
+        "estimated_completion": "20% complete"
+    }
+
+class BusinessDiscoveryData(BaseModel):
+    business_name: str = Field(..., min_length=2, max_length=100)
+    company_legal_name: Optional[str] = Field(None, max_length=100)
+    business_type: str = Field(..., regex="^(medical|salon|restaurant|consultant|general)$")
+    industry_subcategory: Optional[str] = None
+    business_size: str = Field(..., regex="^(solo|small|medium|large)$")
+    
+    # Address
+    street_address: str = Field(..., min_length=5, max_length=255)
+    city: str = Field(..., min_length=2, max_length=100)
+    county_state: str = Field(..., min_length=2, max_length=100)
+    postal_code: str = Field(..., regex=r"^[A-Z]{1,2}[0-9R][0-9A-Z]? [0-9][A-Z]{2}$")
+    
+    # Contact
+    primary_phone: str = Field(..., regex=r"^\+44[0-9]{10}$|^0[0-9]{10}$")
+    business_email: EmailStr
+    website_url: Optional[str] = None
+```
+
+### **Step 2: Administrator Account Creation**
+
+```typescript
+AdminAccountCreationStep {
+  // Admin User Setup
+  admin_account_form: {
+    personal_information: {
+      admin_full_name: {
+        label: "Administrator Full Name",
+        type: "text",
+        required: true,
+        max_length: 100,
+        validation: "realistic_name_validation",
+        help_text: "Full name of the primary business administrator"
+      },
+      
+      admin_email: {
+        label: "Administrator Email Address",
+        type: "email",
+        required: true,
+        unique: true,
+        validation: "email_uniqueness_across_entire_platform",
+        help_text: "Email address for admin login (must be unique across all tenants)",
+        security_note: "This will be the primary login credential"
+      },
+      
+      admin_job_title: {
+        label: "Job Title/Position",
+        type: "text",
+        required: false,
+        max_length: 100,
+        examples: ["Practice Manager", "Business Owner", "Operations Manager", "Salon Owner"],
+        help_text: "Administrator's role within the business"
+      },
+      
+      admin_phone: {
+        label: "Administrator Phone Number",
+        type: "phone",
+        required: false,
+        validation: "uk_phone_format",
+        help_text: "For urgent system notifications and 2FA (optional)"
+      }
+    },
+    
+    account_security_setup: {
+      password_configuration: {
+        password_option: {
+          label: "Password Setup Method",
+          type: "radio",
+          options: [
+            {
+              value: "auto_generate",
+              label: "Auto-Generate Secure Password",
+              description: "System generates secure password and sends via email",
+              security_level: "high"
+            },
+            {
+              value: "manual_entry",
+              label: "Set Custom Password",
+              description: "Administrator sets their own password",
+              security_level: "medium"
+            }
+          ],
+          default: "auto_generate",
+          recommendation: "Auto-generation recommended for maximum security"
+        },
+        
+        password_requirements: {
+          min_length: 12,
+          require_uppercase: true,
+          require_lowercase: true,
+          require_numbers: true,
+          require_special_characters: true,
+          prohibit_common_passwords: true,
+          validation: "real_time_password_strength_indication"
+        }
+      },
+      
+      two_factor_authentication: {
+        enable_2fa: {
+          label: "Enable Two-Factor Authentication",
+          type: "boolean",
+          default: true,
+          required: true,
+          help_text: "2FA is mandatory for admin accounts for security",
+          cannot_disable: "2FA cannot be disabled for admin accounts"
+        },
+        
+        backup_codes: {
+          generate_codes: "automatic_generation_of_backup_codes",
+          display_method: "secure_display_with_download_option",
+          storage_warning: "codes_must_be_stored_securely_by_administrator"
+        }
+      }
+    },
+    
+    notification_preferences: {
+      welcome_email: {
+        send_welcome_email: {
+          label: "Send Welcome Email",
+          type: "boolean",
+          default: true,
+          description: "Send account setup email with login instructions"
+        },
+        
+        email_content_preview: "preview_of_welcome_email_content_before_sending",
+        
+        login_instructions: {
+          include_login_link: "direct_link_to_tenant_dashboard",
+          include_getting_started_guide: "comprehensive_setup_guide_attached",
+          include_support_contact: "support_contact_information_for_assistance"
+        }
+      }
+    }
+  }
+}
+```
+
+### **Step 2 Implementation**
+
+```python
+@api_router.post("/admin/tenants/wizard/step2/validate")
+async def validate_admin_account_step(
+    admin_data: AdminAccountData,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Validate Step 2: Administrator account creation data
+    """
+    
+    require_super_admin(current_user)
+    
+    validation_results = []
+    
+    # Check email uniqueness across entire platform
+    existing_email = await db.users.find_one({"email": admin_data.admin_email})
+    if existing_email:
+        validation_results.append({
+            "field": "admin_email",
+            "valid": False,
+            "message": f"Email address '{admin_data.admin_email}' is already in use",
+            "suggestion": "Please use a different email address"
+        })
+    else:
+        validation_results.append({
+            "field": "admin_email",
+            "valid": True,
+            "message": "Email address is available"
+        })
+    
+    # Validate password strength if manually entered
+    if admin_data.password_option == "manual_entry" and admin_data.custom_password:
+        password_validation = validate_password_strength(admin_data.custom_password)
+        validation_results.append({
+            "field": "custom_password",
+            "valid": password_validation.valid,
+            "message": password_validation.message,
+            "strength_score": password_validation.strength_score
+        })
+    
+    # Generate secure password if auto-generation selected
+    generated_password = None
+    if admin_data.password_option == "auto_generate":
+        generated_password = generate_secure_password()
+        validation_results.append({
+            "field": "generated_password",
+            "valid": True,
+            "message": "Secure password generated successfully",
+            "password_preview": f"{generated_password[:4]}****{generated_password[-4:]}"  # Masked preview
+        })
+    
+    # Validate name format
+    name_validation = validate_admin_name(admin_data.admin_full_name)
+    validation_results.append({
+        "field": "admin_full_name",
+        "valid": name_validation.valid,
+        "message": name_validation.message
+    })
+    
+    # All validations
+    all_valid = all(result["valid"] for result in validation_results)
+    
+    return {
+        "step": 2,
+        "step_name": "admin_account_creation",
+        "validation_passed": all_valid,
+        "validation_results": validation_results,
+        "generated_password": generated_password if admin_data.password_option == "auto_generate" else None,
+        "two_factor_setup_ready": True,
+        "next_step_ready": all_valid,
+        "estimated_completion": "40% complete"
+    }
+
+class AdminAccountData(BaseModel):
+    admin_full_name: str = Field(..., min_length=2, max_length=100)
+    admin_email: EmailStr
+    admin_job_title: Optional[str] = Field(None, max_length=100)
+    admin_phone: Optional[str] = None
+    
+    password_option: str = Field(..., regex="^(auto_generate|manual_entry)$")
+    custom_password: Optional[str] = None
+    
+    enable_2fa: bool = True  # Always required
+    send_welcome_email: bool = True
+```
+
+### **Step 3: Voice AI Integration Setup**
+
+```typescript
+VoiceIntegrationSetupStep {
+  // Retell AI Configuration
+  retell_ai_setup: {
+    agent_configuration: {
+      retell_agent_id: {
+        label: "Retell AI Agent ID",
+        type: "text",
+        required: true,
+        pattern: "agent_[a-zA-Z0-9]{20,}",
+        placeholder: "agent_e53a44a8e7abed30866388d300",
+        validation: "verify_agent_exists_and_accessible",
+        help_text: "Your unique Retell AI agent identifier from your Retell dashboard"
+      },
+      
+      caller_id_number: {
+        label: "Caller ID Phone Number",
+        type: "phone",
+        required: true,
+        validation: "uk_phone_format_and_retell_verification",
+        placeholder: "+447403305280",
+        help_text: "Phone number that will appear as caller ID to customers"
+      },
+      
+      retell_api_key: {
+        label: "Retell AI API Key",
+        type: "password",
+        required: false,
+        pattern: "key_[a-zA-Z0-9]{20,}",
+        help_text: "Leave blank to use platform default API key",
+        security_note: "API key is encrypted and securely stored"
+      }
+    },
+    
+    voice_configuration: {
+      voice_tone_selection: {
+        label: "Voice Call Tone",
+        type: "select",
+        options: [
+          { value: "professional", label: "Professional & Formal", best_for: "Medical practices, legal services" },
+          { value: "friendly", label: "Friendly & Warm", best_for: "Salons, restaurants, general business" },
+          { value: "medical", label: "Medical & Respectful", best_for: "Healthcare practices (HIPAA optimized)" }
+        ],
+        default_by_business_type: {
+          medical: "medical",
+          salon: "friendly",
+          restaurant: "friendly",
+          consultant: "professional",
+          general: "professional"
+        }
+      },
+      
+      call_script_length: {
+        label: "Preferred Call Duration",
+        type: "select",
+        options: [
+          { value: "brief", label: "Brief (30-45 seconds)", description: "Essential information only" },
+          { value: "standard", label: "Standard (60-90 seconds)", description: "Complete appointment details" },
+          { value: "detailed", label: "Detailed (90-120 seconds)", description: "Comprehensive with preparation instructions" }
+        ],
+        default_by_business_type: {
+          medical: "brief",     # HIPAA compliance
+          salon: "detailed",    # Enhanced service experience  
+          restaurant: "standard", # Guest experience
+          consultant: "detailed", # Professional preparation
+          general: "standard"   # Balanced approach
+        }
+      }
+    },
+    
+    integration_testing: {
+      connectivity_test: {
+        test_button: "Test Retell AI Connection",
+        test_process: "verify_api_key_agent_id_and_phone_number_configuration",
+        test_results: {
+          success: "green_checkmark_with_agent_details_and_phone_verification",
+          failure: "red_x_with_specific_error_message_and_resolution_suggestions"
+        }
+      },
+      
+      test_call_option: {
+        enable_test_call: "option_to_make_test_call_to_verify_complete_setup",
+        test_call_number: "admin_phone_number_for_test_call",
+        test_call_feedback: "immediate_feedback_on_call_quality_and_voice_script"
+      }
+    }
+  }
+}
+```
+
+### **Step 3 Implementation**
+
+```python
+@api_router.post("/admin/tenants/wizard/step3/test-retell")
+async def test_retell_ai_integration(
+    retell_config: RetellAIConfig,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Test Retell AI integration configuration
+    """
+    
+    require_super_admin(current_user)
+    
+    test_results = {}
+    
+    # Test 1: API Key Validation
+    try:
+        api_test_result = await test_retell_api_connectivity(
+            agent_id=retell_config.retell_agent_id,
+            api_key=retell_config.retell_api_key or GLOBAL_RETELL_API_KEY
+        )
+        
+        test_results["api_connectivity"] = {
+            "success": api_test_result.success,
+            "message": api_test_result.message,
+            "agent_details": api_test_result.agent_details if api_test_result.success else None
+        }
+        
+    except Exception as e:
+        test_results["api_connectivity"] = {
+            "success": False,
+            "message": f"API connectivity test failed: {str(e)}"
+        }
+    
+    # Test 2: Phone Number Validation
+    try:
+        phone_test_result = await validate_retell_phone_number(retell_config.caller_id_number)
+        
+        test_results["phone_validation"] = {
+            "success": phone_test_result.valid,
+            "message": phone_test_result.message,
+            "formatted_number": phone_test_result.formatted_number if phone_test_result.valid else None
+        }
+        
+    except Exception as e:
+        test_results["phone_validation"] = {
+            "success": False,
+            "message": f"Phone validation failed: {str(e)}"
+        }
+    
+    # Test 3: Agent Configuration Validation
+    if test_results["api_connectivity"]["success"]:
+        try:
+            agent_config_test = await test_retell_agent_configuration(
+                agent_id=retell_config.retell_agent_id,
+                expected_phone=retell_config.caller_id_number
+            )
+            
+            test_results["agent_configuration"] = {
+                "success": agent_config_test.success,
+                "message": agent_config_test.message,
+                "agent_status": agent_config_test.agent_status
+            }
+            
+        except Exception as e:
+            test_results["agent_configuration"] = {
+                "success": False,
+                "message": f"Agent configuration test failed: {str(e)}"
+            }
+    
+    # Overall test success
+    all_tests_passed = all(result["success"] for result in test_results.values())
+    
+    return {
+        "step": 3,
+        "step_name": "voice_integration_setup", 
+        "test_results": test_results,
+        "all_tests_passed": all_tests_passed,
+        "integration_ready": all_tests_passed,
+        "next_step_ready": all_tests_passed,
+        "estimated_completion": "60% complete",
+        "test_call_available": all_tests_passed
+    }
+
+async def test_retell_api_connectivity(agent_id: str, api_key: str) -> RetellTestResult:
+    """
+    Test Retell AI API connectivity and agent accessibility
+    """
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                f"https://api.retellai.com/v2/agent/{agent_id}",
+                headers={"Authorization": f"Bearer {api_key}"}
+            )
+            
+            if response.status_code == 200:
+                agent_data = response.json()
+                return RetellTestResult(
+                    success=True,
+                    message="Retell AI connection successful",
+                    agent_details={
+                        "agent_name": agent_data.get("name"),
+                        "agent_status": agent_data.get("status"),
+                        "voice_id": agent_data.get("voice_id")
+                    }
+                )
+            else:
+                return RetellTestResult(
+                    success=False,
+                    message=f"Retell AI API error: {response.status_code} - {response.text}"
+                )
+                
+    except Exception as e:
+        return RetellTestResult(
+            success=False,
+            message=f"Retell AI connection failed: {str(e)}"
+        )
+
+@dataclass
+class RetellTestResult:
+    success: bool
+    message: str
+    agent_details: Optional[dict] = None
+    agent_status: Optional[str] = None
+```
+
+### **Step 4: Calendar Integration Setup**
+
+```typescript
+CalendarIntegrationStep {
+  // Calendar Integration Choice
+  integration_selection: {
+    integration_type_selection: {
+      label: "Choose Calendar Integration",
+      type: "radio_cards",
+      required: true,
+      options: [
+        {
+          value: "calcom",
+          title: "📅 Cal.com Integration",
+          description: "Integrate with Cal.com for automatic appointment synchronization",
+          features: ["Real-time webhook sync", "Multi-event type support", "Custom field mapping"],
+          setup_complexity: "Medium - requires API key and event type configuration",
+          recommended_for: ["Professional services", "Consultants", "Medical practices"]
+        },
+        {
+          value: "calendly", 
+          title: "🗓️ Calendly Integration",
+          description: "Integrate with Calendly for automatic appointment synchronization",
+          features: ["API polling sync", "Event type filtering", "Webhook notifications"],
+          setup_complexity: "Medium - requires API key and organizer email",
+          recommended_for: ["General business", "Coaching", "Sales meetings"]
+        },
+        {
+          value: "manual",
+          title: "✏️ Manual Entry Only",
+          description: "Manual appointment entry without calendar integration",
+          features: ["Full manual control", "No external dependencies", "Custom workflow"],
+          setup_complexity: "Low - no integration configuration required",
+          recommended_for: ["Small businesses", "Custom workflows", "High security environments"]
+        }
+      ]
+    },
+    
+    calcom_configuration: {
+      conditional: "integration_type === 'calcom'",
+      
+      api_credentials: {
+        cal_api_key: {
+          label: "Cal.com API Key",
+          type: "password",
+          required: true,
+          pattern: "cal_live_[a-zA-Z0-9]+",
+          placeholder: "cal_live_xxxxxxxxxxxxxxxxxxxxxx",
+          help_text: "API key from your Cal.com account settings",
+          security: "encrypted_storage_with_access_logging"
+        },
+        
+        event_type_id: {
+          label: "Event Type ID",
+          type: "number",
+          required: false,
+          placeholder: "1234567",
+          help_text: "Specific Cal.com event type to sync (leave blank for all events)",
+          validation: "positive_integer_or_empty"
+        },
+        
+        organizer_email: {
+          label: "Cal.com Organizer Email",
+          type: "email",
+          required: true,
+          help_text: "Email address of the Cal.com account organizer",
+          validation: "email_format_and_cal_account_verification"
+        }
+      },
+      
+      sync_configuration: {
+        default_call_hours: {
+          label: "Default Call Timing for Cal.com Appointments",
+          type: "select",
+          options: [
+            { value: 1, label: "1 hour before" },
+            { value: 2, label: "2 hours before" },
+            { value: 6, label: "6 hours before" },
+            { value: 24, label: "24 hours before (Recommended)" }
+          ],
+          default: 24
+        },
+        
+        field_mapping: {
+          name_field: "automatic_mapping_of_cal_invitee_name_to_contact_name",
+          email_field: "automatic_mapping_of_cal_invitee_email_to_contact_email",
+          phone_field: "extraction_of_phone_from_cal_custom_questions",
+          notes_field: "mapping_of_cal_additional_notes_to_special_instructions"
+        }
+      }
+    },
+    
+    calendly_configuration: {
+      conditional: "integration_type === 'calendly'",
+      
+      api_credentials: {
+        calendly_api_key: {
+          label: "Calendly Personal Access Token",
+          type: "password",
+          required: true,
+          placeholder: "calendly_api_key_xxxxxxxxxxxxxx",
+          help_text: "Personal Access Token from your Calendly developer settings"
+        },
+        
+        organizer_email: {
+          label: "Calendly Account Email",
+          type: "email", 
+          required: true,
+          help_text: "Email address of your Calendly account"
+        },
+        
+        webhook_url: {
+          label: "Webhook URL",
+          type: "text",
+          readonly: true,
+          auto_generated: true,
+          value: "https://your-domain.com/api/webhook/calendly-booking",
+          help_text: "Add this URL to your Calendly webhook settings"
+        }
+      },
+      
+      event_filtering: {
+        event_type_selection: {
+          label: "Event Types to Sync",
+          type: "multi_select",
+          options: "dynamic_loaded_from_calendly_account",
+          help_text: "Select which Calendly event types to sync (leave blank for all)"
+        }
+      }
+    },
+    
+    integration_testing: {
+      calendar_connectivity_test: {
+        test_button: "Test Calendar Connection",
+        test_process: "verify_api_credentials_and_data_access",
+        test_results: "display_connection_status_and_sample_events_if_successful"
+      },
+      
+      webhook_test: {
+        webhook_verification: "test_webhook_endpoint_connectivity_and_processing",
+        sync_test: "verify_appointment_data_can_be_properly_extracted_and_mapped"
+      }
+    }
+  }
+}
+```
+
+### **Step 4 Implementation**
+
+```python
+@api_router.post("/admin/tenants/wizard/step4/test-calendar")
+async def test_calendar_integration(
+    calendar_config: CalendarIntegrationConfig,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Test calendar integration configuration
+    """
+    
+    require_super_admin(current_user)
+    
+    test_results = {}
+    
+    if calendar_config.integration_type == "calcom":
+        # Test Cal.com integration
+        calcom_test = await test_calcom_integration(
+            api_key=calendar_config.cal_api_key,
+            organizer_email=calendar_config.organizer_email,
+            event_type_id=calendar_config.event_type_id
+        )
+        
+        test_results["calcom_integration"] = calcom_test
+        
+    elif calendar_config.integration_type == "calendly":
+        # Test Calendly integration
+        calendly_test = await test_calendly_integration(
+            api_key=calendar_config.calendly_api_key,
+            organizer_email=calendar_config.calendly_organizer_email
+        )
+        
+        test_results["calendly_integration"] = calendly_test
+        
+    elif calendar_config.integration_type == "manual":
+        # Manual entry - no integration testing needed
+        test_results["manual_entry"] = {
+            "success": True,
+            "message": "Manual entry selected - no integration testing required"
+        }
+    
+    # Test webhook configuration if applicable
+    if calendar_config.integration_type in ["calcom", "calendly"]:
+        webhook_test = await test_webhook_configuration(calendar_config.integration_type)
+        test_results["webhook_configuration"] = webhook_test
+    
+    all_tests_passed = all(result["success"] for result in test_results.values())
+    
+    return {
+        "step": 4,
+        "step_name": "calendar_integration_setup",
+        "integration_type": calendar_config.integration_type,
+        "test_results": test_results,
+        "all_tests_passed": all_tests_passed,
+        "integration_ready": all_tests_passed,
+        "next_step_ready": all_tests_passed,
+        "estimated_completion": "80% complete"
+    }
+
+async def test_calcom_integration(api_key: str, organizer_email: str, event_type_id: Optional[int]) -> dict:
+    """
+    Test Cal.com integration connectivity and configuration
+    """
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            # Test API connectivity
+            response = await client.get(
+                "https://api.cal.com/v1/me",
+                headers={"Authorization": f"Bearer {api_key}"}
+            )
+            
+            if response.status_code == 200:
+                user_data = response.json()
+                
+                # Verify organizer email matches
+                if user_data.get("email") != organizer_email:
+                    return {
+                        "success": False,
+                        "message": f"Organizer email mismatch. API key belongs to {user_data.get('email')}, but {organizer_email} was specified."
+                    }
+                
+                # Test event type access if specified
+                if event_type_id:
+                    event_response = await client.get(
+                        f"https://api.cal.com/v1/event-types/{event_type_id}",
+                        headers={"Authorization": f"Bearer {api_key}"}
+                    )
+                    
+                    if event_response.status_code != 200:
+                        return {
+                            "success": False,
+                            "message": f"Cannot access event type {event_type_id}. Please verify the event type ID."
+                        }
+                
+                return {
+                    "success": True,
+                    "message": "Cal.com integration test successful",
+                    "account_details": {
+                        "user_name": user_data.get("name"),
+                        "user_email": user_data.get("email"),
+                        "timezone": user_data.get("timeZone")
+                    }
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": f"Cal.com API error: {response.status_code} - Invalid API key or permissions"
+                }
+                
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Cal.com integration test failed: {str(e)}"
+        }
+
+class CalendarIntegrationConfig(BaseModel):
+    integration_type: str = Field(..., regex="^(calcom|calendly|manual)$")
+    
+    # Cal.com fields
+    cal_api_key: Optional[str] = None
+    organizer_email: Optional[str] = None
+    event_type_id: Optional[int] = None
+    
+    # Calendly fields
+    calendly_api_key: Optional[str] = None
+    calendly_organizer_email: Optional[str] = None
+    
+    # Common configuration
+    default_call_hours: int = 24
+```
+
+---
+
+## 🏥 **2. System Health Monitoring (Comprehensive Implementation)**
+
+### **System Health Dashboard Architecture**
+
+```typescript
+SystemHealthMonitoringDashboard {
+  // Real-Time System Health Overview
+  health_overview_panel: {
+    overall_system_status: {
+      indicator: "large_circular_status_indicator_with_color_coding",
+      status_levels: {
+        operational: { color: "#10B981", description: "All systems functioning normally" },
+        degraded: { color: "#F59E0B", description: "Some systems experiencing issues" },
+        critical: { color: "#EF4444", description: "Critical systems offline or failing" }
+      },
+      calculation: "weighted_average_of_all_system_component_health_scores",
+      click_action: "expand_detailed_system_component_breakdown"
+    },
+    
+    critical_alerts_summary: {
+      active_alerts_count: "number_of_unresolved_critical_system_alerts",
+      alert_categories: ["database_issues", "api_failures", "integration_problems", "security_incidents"],
+      alert_priority_display: "red_badges_for_critical_orange_for_high_yellow_for_medium",
+      alert_action: "click_to_view_alert_details_and_resolution_options"
+    },
+    
+    system_uptime_metrics: {
+      current_uptime: "time_since_last_system_restart_or_critical_failure",
+      uptime_percentage: "uptime_percentage_over_last_30_days",
+      target_uptime: "99.9%_uptime_target_with_visual_progress_indicator",
+      downtime_history: "recent_downtime_events_with_duration_and_cause"
+    }
+  },
+  
+  // Detailed Component Health Monitoring
+  component_health_dashboard: {
+    database_health: {
+      primary_metrics: {
+        connection_pool_status: "active_database_connections_vs_pool_limit",
+        query_performance: "average_query_response_time_with_trend",
+        database_size: "current_database_size_and_growth_trend",
+        replication_lag: "database_replication_lag_if_applicable"
+      },
+      
+      performance_indicators: {
+        slow_queries: "count_of_queries_taking_over_1_second",
+        connection_errors: "database_connection_failures_in_last_hour",
+        deadlocks: "database_deadlock_incidents_in_last_24_hours",
+        backup_status: "last_successful_backup_timestamp_and_verification"
+      },
+      
+      health_score_calculation: "weighted_score_based_on_performance_reliability_and_capacity_metrics"
+    },
+    
+    api_system_health: {
+      endpoint_monitoring: {
+        response_times: "average_response_time_per_api_endpoint_category",
+        error_rates: "error_rate_percentage_per_endpoint_over_last_hour",
+        throughput: "requests_per_minute_capacity_utilization",
+        availability: "percentage_uptime_per_critical_endpoint"
+      },
+      
+      integration_health: {
+        retell_ai_connectivity: "retell_ai_api_response_time_and_success_rate",
+        calendar_integrations: "cal_com_and_calendly_api_health_and_sync_status",
+        webhook_processing: "webhook_delivery_success_rate_and_processing_time",
+        external_dependencies: "health_of_all_external_service_dependencies"
+      }
+    },
+    
+    voice_calling_system_health: {
+      call_pipeline_metrics: {
+        call_initiation_success: "percentage_of_calls_successfully_initiated",
+        call_completion_rate: "percentage_of_initiated_calls_that_complete_successfully",
+        average_call_duration: "average_duration_of_completed_calls",
+        call_quality_score: "average_call_quality_based_on_customer_feedback_and_technical_metrics"
+      },
+      
+      automation_engine_health: {
+        scheduled_call_accuracy: "percentage_of_calls_triggered_within_60_seconds_of_schedule",
+        queue_processing_speed: "average_time_from_queue_to_execution",
+        retry_logic_effectiveness: "success_rate_of_retry_attempts",
+        automation_failure_rate: "percentage_of_automation_tasks_that_fail"
+      }
+    }
+  }
+}
+```
+
+### **System Health Implementation**
+
+```python
+class SystemHealthMonitor:
+    """
+    Comprehensive system health monitoring for super admin dashboard
+    """
+    
+    def __init__(self):
+        self.health_thresholds = {
+            "database": {"excellent": 95, "good": 85, "degraded": 70, "critical": 50},
+            "api": {"excellent": 98, "good": 90, "degraded": 80, "critical": 60},
+            "calling": {"excellent": 90, "good": 80, "degraded": 70, "critical": 50},
+            "automation": {"excellent": 95, "good": 88, "degraded": 75, "critical": 60}
+        }
+    
+    async def get_comprehensive_system_health(self) -> SystemHealthReport:
+        """
+        Generate comprehensive system health report for super admin dashboard
+        """
+        
+        # Check all system components in parallel
+        health_tasks = [
+            self.check_database_health(),
+            self.check_api_system_health(),
+            self.check_voice_calling_health(),
+            self.check_automation_engine_health()
+        ]
+        
+        component_results = await asyncio.gather(*health_tasks, return_exceptions=True)
+        
+        # Process results
+        database_health = component_results[0] if not isinstance(component_results[0], Exception) else self.get_error_health_result("database")
+        api_health = component_results[1] if not isinstance(component_results[1], Exception) else self.get_error_health_result("api")
+        calling_health = component_results[2] if not isinstance(component_results[2], Exception) else self.get_error_health_result("calling")
+        automation_health = component_results[3] if not isinstance(component_results[3], Exception) else self.get_error_health_result("automation")
+        
+        # Calculate overall system health
+        component_healths = [database_health, api_health, calling_health, automation_health]
+        overall_health = self.calculate_overall_health_score(component_healths)
+        
+        # Determine system status
+        system_status = self.determine_system_status(overall_health.overall_score)
+        
+        # Get active alerts
+        active_alerts = await self.get_active_system_alerts()
+        
+        return SystemHealthReport(
+            overall_status=system_status,
+            overall_score=overall_health.overall_score,
+            component_health={
+                "database": database_health,
+                "api_system": api_health,
+                "voice_calling": calling_health,
+                "automation_engine": automation_health
+            },
+            active_alerts=active_alerts,
+            uptime_metrics=await self.get_uptime_metrics(),
+            performance_trends=await self.get_performance_trends(),
+            last_health_check=datetime.now(timezone.utc).isoformat(),
+            next_health_check=(datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+        )
+    
+    async def check_database_health(self) -> ComponentHealthResult:
+        """
+        Check Supabase database health and performance
+        """
+        
+        health_checks = []
+        
+        # Test basic connectivity
+        try:
+            start_time = time.time()
+            test_result = supabase.table('tenants').select('id').limit(1).execute()
+            response_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+            
+            if test_result.data is not None:
+                health_checks.append({
+                    "check": "database_connectivity",
+                    "success": True,
+                    "response_time_ms": round(response_time, 2),
+                    "message": "Database connectivity successful"
+                })
+            else:
+                health_checks.append({
+                    "check": "database_connectivity",
+                    "success": False,
+                    "message": "Database query returned no data"
+                })
+                
+        except Exception as e:
+            health_checks.append({
+                "check": "database_connectivity",
+                "success": False,
+                "message": f"Database connectivity failed: {str(e)}"
+            })
+        
+        # Test query performance with sample queries
+        try:
+            # Test complex query performance
+            start_time = time.time()
+            complex_query = supabase.table('call_sessions').select('id', count='exact').gte('trigger_time', (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()).execute()
+            complex_query_time = (time.time() - start_time) * 1000
+            
+            health_checks.append({
+                "check": "query_performance",
+                "success": complex_query_time < 1000,  # Less than 1 second
+                "response_time_ms": round(complex_query_time, 2),
+                "message": f"Complex query completed in {complex_query_time:.2f}ms"
+            })
+            
+        except Exception as e:
+            health_checks.append({
+                "check": "query_performance",
+                "success": False,
+                "message": f"Query performance test failed: {str(e)}"
+            })
+        
+        # Calculate database health score
+        successful_checks = len([check for check in health_checks if check["success"]])
+        health_score = (successful_checks / len(health_checks) * 100) if health_checks else 0
+        
+        # Determine health status
+        if health_score >= self.health_thresholds["database"]["excellent"]:
+            status = "excellent"
+        elif health_score >= self.health_thresholds["database"]["good"]:
+            status = "good"
+        elif health_score >= self.health_thresholds["database"]["degraded"]:
+            status = "degraded"
+        else:
+            status = "critical"
+        
+        return ComponentHealthResult(
+            component="database",
+            health_score=health_score,
+            status=status,
+            health_checks=health_checks,
+            recommendations=self.generate_database_recommendations(health_checks, health_score)
+        )
+    
+    async def check_voice_calling_health(self) -> ComponentHealthResult:
+        """
+        Check voice calling system health and performance
+        """
+        
+        health_checks = []
+        
+        # Check recent call success rates
+        try:
+            last_hour = datetime.now(timezone.utc) - timedelta(hours=1)
+            
+            # Get recent calls
+            recent_calls_result = supabase.table('call_sessions').select('call_outcome, status').gte('trigger_time', last_hour.isoformat()).execute()
+            recent_calls = recent_calls_result.data or []
+            
+            if recent_calls:
+                successful_calls = len([call for call in recent_calls if call.get('call_outcome') in ['answered', 'completed']])
+                success_rate = (successful_calls / len(recent_calls) * 100)
+                
+                health_checks.append({
+                    "check": "call_success_rate",
+                    "success": success_rate >= 70,  # 70% threshold
+                    "metric_value": success_rate,
+                    "message": f"Call success rate: {success_rate:.1f}% ({successful_calls}/{len(recent_calls)} calls)"
+                })
+            else:
+                health_checks.append({
+                    "check": "call_success_rate",
+                    "success": True,
+                    "message": "No recent calls to analyze (system idle)"
+                })
+                
+        except Exception as e:
+            health_checks.append({
+                "check": "call_success_rate",
+                "success": False,
+                "message": f"Failed to check call success rate: {str(e)}"
+            })
+        
+        # Check Retell AI integration health
+        try:
+            retell_health = await self.test_retell_ai_platform_health()
+            health_checks.append({
+                "check": "retell_ai_integration",
+                "success": retell_health.success,
+                "response_time_ms": retell_health.response_time,
+                "message": retell_health.message
+            })
+            
+        except Exception as e:
+            health_checks.append({
+                "check": "retell_ai_integration",
+                "success": False,
+                "message": f"Retell AI health check failed: {str(e)}"
+            })
+        
+        # Calculate calling system health score
+        successful_checks = len([check for check in health_checks if check["success"]])
+        health_score = (successful_checks / len(health_checks) * 100) if health_checks else 0
+        
+        # Apply call success rate weighting
+        if health_checks and "call_success_rate" in [check["check"] for check in health_checks]:
+            call_success_check = next(check for check in health_checks if check["check"] == "call_success_rate")
+            if call_success_check["success"] and "metric_value" in call_success_check:
+                # Weight health score by actual call success rate
+                call_success_rate = call_success_check["metric_value"]
+                health_score = (health_score * 0.3) + (call_success_rate * 0.7)  # 70% weight on call success
+        
+        # Determine status
+        status = self.determine_component_status(health_score, "calling")
+        
+        return ComponentHealthResult(
+            component="voice_calling",
+            health_score=round(health_score, 2),
+            status=status,
+            health_checks=health_checks,
+            recommendations=self.generate_calling_recommendations(health_checks, health_score)
+        )
+
+@dataclass
+class ComponentHealthResult:
+    component: str
+    health_score: float
+    status: str
+    health_checks: List[dict]
+    recommendations: List[str]
+
+@dataclass
+class SystemHealthReport:
+    overall_status: str
+    overall_score: float
+    component_health: dict
+    active_alerts: List[dict]
+    uptime_metrics: dict
+    performance_trends: dict
+    last_health_check: str
+    next_health_check: str
+```
+
+---
+
+## 👥 **3. Tenant Lifecycle Management**
+
+### **Complete Tenant Management Interface**
+
+```typescript
+TenantLifecycleManagement {
+  // Tenant Status Management
+  tenant_status_control: {
+    status_transitions: {
+      active_to_paused: {
+        trigger: "admin_manual_pause_or_automatic_abuse_detection",
+        requirements: ["justification_required", "impact_assessment"],
+        effects: ["stop_all_calling_activity", "maintain_data_access", "preserve_configuration"],
+        notification: "immediate_notification_to_tenant_admin_with_reason_and_resolution_steps"
+      },
+      
+      paused_to_active: {
+        trigger: "admin_manual_restore_after_issue_resolution",
+        requirements: ["issue_resolution_verification", "admin_approval", "system_health_check"],
+        effects: ["restore_calling_activity", "resume_automation", "clear_pause_flags"],
+        validation: "verify_compliance_and_configuration_before_restoration"
+      },
+      
+      active_to_suspended: {
+        trigger: "serious_violations_or_compliance_issues",
+        requirements: ["detailed_justification", "violation_documentation", "legal_review_if_applicable"],
+        effects: ["complete_service_suspension", "data_retention", "audit_trail_preservation"],
+        notification: "formal_suspension_notice_with_appeal_process_information"
+      },
+      
+      suspended_to_terminated: {
+        trigger: "unresolved_violations_or_account_closure_request",
+        requirements: ["legal_clearance", "data_export_completion", "final_billing_settlement"],
+        effects: ["complete_account_termination", "data_deletion_after_retention_period"],
+        irreversible: "termination_cannot_be_undone_comprehensive_confirmation_required"
+      }
+    },
+    
+    status_change_interface: {
+      status_change_modal: {
+        current_status_display: "clear_indication_of_current_tenant_status",
+        available_transitions: "only_show_valid_status_transitions_from_current_state",
+        justification_requirement: "mandatory_justification_field_for_all_status_changes",
+        impact_warning: "clear_warning_about_impact_of_status_change_on_tenant_operations",
+        confirmation_process: "typed_confirmation_required_for_destructive_status_changes"
+      }
+    }
+  },
+  
+  // Tenant Configuration Management
+  tenant_configuration_oversight: {
+    configuration_review: {
+      complete_config_display: "comprehensive_view_of_all_tenant_configuration_settings",
+      compliance_validation: "automatic_validation_of_configuration_against_compliance_requirements",
+      performance_optimization: "suggestions_for_optimizing_configuration_based_on_usage_patterns",
+      security_assessment: "security_review_of_tenant_configuration_settings"
+    },
+    
+    configuration_modification: {
+      super_admin_override: "ability_to_modify_tenant_configuration_as_super_admin",
+      change_impact_assessment: "preview_impact_of_configuration_changes_before_applying",
+      tenant_notification: "automatic_notification_to_tenant_admin_about_configuration_changes",
+      change_audit_logging: "comprehensive_logging_of_configuration_changes_with_justification"
+    }
+  }
+}
+```
+
+### **Tenant Management Implementation**
+
+```python
+@api_router.get("/admin/tenants/{tenant_id}/comprehensive-details")
+async def get_comprehensive_tenant_details(
+    tenant_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get comprehensive tenant details for super admin management
+    """
+    
+    require_super_admin(current_user)
+    
+    # Get tenant basic information
+    tenant = await db.tenants.find_one({"id": tenant_id})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    # Get tenant configuration
+    tenant_config = await db.tenant_config.find_one({"tenant_id": tenant_id})
+    
+    # Get tenant users
+    tenant_users = await db.users.find({"tenant_id": tenant_id}).to_list(100)
+    
+    # Get tenant activity metrics
+    activity_metrics = await self.get_tenant_activity_metrics(tenant_id)
+    
+    # Get tenant performance metrics
+    performance_metrics = await self.get_tenant_performance_metrics(tenant_id)
+    
+    # Get tenant compliance status
+    compliance_status = await self.get_tenant_compliance_status(tenant_id, tenant_config)
+    
+    # Get recent audit activity
+    recent_audit = await db.super_admin_audit_log.find({
+        "target_tenant_id": tenant_id
+    }).sort("created_at", -1).limit(10).to_list(10)
+    
+    return {
+        "tenant_information": {
+            "id": tenant_id,
+            "name": tenant["name"],
+            "company_name": tenant.get("company_name"),
+            "business_type": tenant_config.get("business_type") if tenant_config else None,
+            "tenant_number": tenant.get("tenant_number"),
+            "status": tenant.get("status", "active"),
+            "created_at": tenant["created_at"],
+            "created_by": tenant.get("created_by_admin")
+        },
+        
+        "configuration_summary": {
+            "voice_integration": {
+                "retell_configured": bool(tenant_config.get("retell_agent_id")) if tenant_config else False,
+                "caller_id": tenant_config.get("retell_agent_number") if tenant_config else None,
+                "voice_integration_status": "active" if tenant_config and tenant_config.get("retell_agent_id") else "not_configured"
+            },
+            "calendar_integration": {
+                "calcom_configured": bool(tenant_config.get("cal_api_key")) if tenant_config else False,
+                "calendly_configured": bool(tenant_config.get("calendly_api_key")) if tenant_config else False,
+                "integration_status": self.determine_calendar_integration_status(tenant_config)
+            },
+            "compliance_configuration": {
+                "hipaa_enabled": tenant_config.get("business_type") == "medical" if tenant_config else False,
+                "compliance_level": tenant_config.get("hipaa_compliance_level") if tenant_config else None,
+                "phi_detection": tenant_config.get("phi_detection_enabled") if tenant_config else False
+            }
+        },
+        
+        "user_management": {
+            "total_users": len(tenant_users),
+            "admin_users": len([u for u in tenant_users if u.get("role") == "client_admin"]),
+            "standard_users": len([u for u in tenant_users if u.get("role") == "client_user"]),
+            "user_list": [
+                {
+                    "id": user["id"],
+                    "name": user["full_name"],
+                    "email": user["email"],
+                    "role": user["role"],
+                    "last_login": user.get("last_login"),
+                    "account_status": "active" if not user.get("account_locked") else "locked"
+                }
+                for user in tenant_users
+            ]
+        },
+        
+        "activity_metrics": activity_metrics,
+        "performance_metrics": performance_metrics,
+        "compliance_status": compliance_status,
+        "recent_admin_actions": recent_audit,
+        
+        "available_actions": [
+            "view_tenant_dashboard",
+            "modify_configuration", 
+            "suspend_tenant",
+            "reset_tenant_password",
+            "export_tenant_data",
+            "view_audit_log"
+        ]
+    }
+
+@api_router.patch("/admin/tenants/{tenant_id}/status")
+async def update_tenant_status(
+    tenant_id: str,
+    status_update: TenantStatusUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Update tenant status with comprehensive validation and audit logging
+    """
+    
+    require_super_admin(current_user)
+    
+    # Get current tenant status
+    tenant = await db.tenants.find_one({"id": tenant_id})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    current_status = tenant.get("status", "active")
+    new_status = status_update.new_status
+    
+    # Validate status transition
+    valid_transitions = {
+        "active": ["paused", "suspended"],
+        "paused": ["active", "suspended"],
+        "suspended": ["active", "terminated"],
+        "terminated": []  # No transitions from terminated
+    }
+    
+    if new_status not in valid_transitions.get(current_status, []):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid status transition: {current_status} → {new_status}"
+        )
+    
+    # Require justification for all status changes
+    if not status_update.justification or len(status_update.justification.strip()) < 20:
+        raise HTTPException(
+            status_code=422,
+            detail="Justification required for status changes (minimum 20 characters)"
+        )
+    
+    # Execute status change
+    update_data = {
+        "status": new_status,
+        "status_changed_at": datetime.now(timezone.utc).isoformat(),
+        "status_changed_by": current_user["id"],
+        "status_change_reason": status_update.justification
+    }
+    
+    # Status-specific actions
+    if new_status == "paused":
+        # Pause tenant calling activity
+        update_data["paused_at"] = datetime.now(timezone.utc).isoformat()
+        await db.tenant_config.update_one(
+            {"tenant_id": tenant_id},
+            {"$set": {"is_paused": True, "pause_reason": status_update.justification}}
+        )
+        
+    elif new_status == "active" and current_status == "paused":
+        # Restore tenant calling activity
+        await db.tenant_config.update_one(
+            {"tenant_id": tenant_id},
+            {"$set": {"is_paused": False}, "$unset": {"pause_reason": ""}}
+        )
+    
+    # Update tenant record
+    result = await db.tenants.update_one(
+        {"id": tenant_id},
+        {"$set": update_data}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=500, detail="Failed to update tenant status")
+    
+    # Log status change
+    await log_super_admin_action(
+        admin_id=current_user["id"],
+        action="tenant_status_changed",
+        target_tenant_id=tenant_id,
+        details={
+            "previous_status": current_status,
+            "new_status": new_status,
+            "justification": status_update.justification
+        }
+    )
+    
+    # Send notification to tenant admin
+    await send_tenant_status_change_notification(
+        tenant_id=tenant_id,
+        previous_status=current_status,
+        new_status=new_status,
+        justification=status_update.justification,
+        changed_by=current_user["email"]
+    )
+    
+    return {
+        "success": True,
+        "message": f"Tenant status updated: {current_status} → {new_status}",
+        "tenant_id": tenant_id,
+        "previous_status": current_status,
+        "new_status": new_status,
+        "changed_by": current_user["email"],
+        "changed_at": update_data["status_changed_at"]
+    }
+
+class TenantStatusUpdate(BaseModel):
+    new_status: str = Field(..., regex="^(active|paused|suspended|terminated)$")
+    justification: str = Field(..., min_length=20, max_length=500)
+    notify_tenant: bool = True
+```
+
+---
+
+## 🛡️ **4. Platform Security & Abuse Monitoring**
+
+### **Comprehensive Abuse Protection Dashboard**
+
+```typescript
+AbuseProtectionDashboard {
+  // Platform-Wide Abuse Monitoring
+  abuse_monitoring_overview: {
+    threat_level_indicator: {
+      display: "large_threat_level_badge_with_real_time_updates",
+      levels: {
+        low: { color: "#10B981", description: "Normal platform operation, no threats detected" },
+        medium: { color: "#F59E0B", description: "Some concerning patterns detected, enhanced monitoring active" },
+        high: { color: "#FF6B35", description: "Significant threats detected, protective measures active" },
+        critical: { color: "#EF4444", description: "Critical threats detected, emergency measures in effect" }
+      },
+      calculation: "real_time_analysis_of_platform_wide_abuse_indicators_and_risk_factors"
+    },
+    
+    active_protection_events: {
+      auto_paused_tenants: {
+        count_display: "prominent_red_badge_showing_number_of_auto_paused_tenants",
+        urgency_indicator: "urgent_attention_required_if_any_tenants_auto_paused",
+        quick_action: "one_click_access_to_review_and_resolve_auto_paused_tenants",
+        resolution_tracking: "track_average_time_to_resolve_auto_pause_incidents"
+      },
+      
+      rate_limiting_activations: {
+        recent_violations: "count_of_rate_limit_violations_in_last_hour",
+        trending: "indication_if_rate_limit_violations_are_increasing_or_decreasing",
+        tenant_breakdown: "which_tenants_are_hitting_rate_limits_most_frequently"
+      },
+      
+      anomaly_detections: {
+        active_anomalies: "real_time_count_of_active_anomaly_alerts_by_severity",
+        detection_trends: "trend_of_anomaly_detection_frequency_over_time",
+        false_positive_rate: "percentage_of_anomaly_detections_that_were_false_positives"
+      }
+    }
+  },
+  
+  // Tenant Risk Assessment
+  tenant_risk_management: {
+    high_risk_tenant_identification: {
+      risk_scoring_algorithm: {
+        factors: [
+          "call_failure_rate_above_platform_average",
+          "customer_complaints_or_negative_feedback",
+          "unusual_calling_patterns_or_volume_spikes", 
+          "compliance_violations_or_warning_indicators",
+          "integration_connectivity_issues_causing_problems"
+        ],
+        weighting: "machine_learning_based_weighting_of_risk_factors",
+        scoring: "0_to_100_risk_score_with_action_thresholds"
+      },
+      
+      risk_level_categories: {
+        low_risk: { score_range: "0-25", action: "standard_monitoring" },
+        medium_risk: { score_range: "26-50", action: "enhanced_monitoring" },
+        high_risk: { score_range: "51-75", action: "proactive_intervention" },
+        critical_risk: { score_range: "76-100", action: "immediate_investigation_and_possible_suspension" }
+      },
+      
+      risk_mitigation_actions: {
+        enhanced_monitoring: "increase_monitoring_frequency_and_add_additional_health_checks",
+        proactive_outreach: "contact_tenant_admin_to_address_potential_issues",
+        configuration_adjustment: "adjust_rate_limits_or_other_settings_to_reduce_risk",
+        temporary_restrictions: "apply_temporary_restrictions_while_investigating_concerns"
+      }
+    }
+  }
+}
+```
+
+### **Abuse Monitoring Implementation**
+
+```python
+class PlatformAbuseMonitor:
+    """
+    Platform-wide abuse monitoring and protection system
+    """
+    
+    async def get_platform_abuse_dashboard(self) -> AbuseMonitoringDashboard:
+        """
+        Generate comprehensive abuse monitoring dashboard for super admin
+        """
+        
+        # Get current threat assessment
+        threat_assessment = await self.assess_platform_threat_level()
+        
+        # Get active protection events
+        protection_events = await self.get_active_protection_events()
+        
+        # Get tenant risk analysis
+        tenant_risk_analysis = await self.analyze_tenant_risk_levels()
+        
+        # Get abuse detection trends
+        detection_trends = await self.get_abuse_detection_trends()
+        
+        # Get compliance monitoring
+        compliance_monitoring = await self.get_platform_compliance_monitoring()
+        
+        return AbuseMonitoringDashboard(
+            threat_level=threat_assessment.threat_level,
+            threat_score=threat_assessment.threat_score,
+            active_protection_events=protection_events,
+            tenant_risk_analysis=tenant_risk_analysis,
+            detection_trends=detection_trends,
+            compliance_monitoring=compliance_monitoring,
+            recommendations=self.generate_abuse_protection_recommendations(threat_assessment, tenant_risk_analysis),
+            last_updated=datetime.now(timezone.utc).isoformat()
+        )
+    
+    async def analyze_tenant_risk_levels(self) -> TenantRiskAnalysis:
+        """
+        Analyze and score risk levels for all tenants
+        """
+        
+        # Get all tenants
+        tenants = await db.tenants.find({"status": {"$ne": "terminated"}}).to_list(1000)
+        
+        tenant_risk_scores = []
+        
+        for tenant in tenants:
+            tenant_id = tenant["id"]
+            
+            # Calculate risk score for tenant
+            risk_score = await self.calculate_tenant_risk_score(tenant_id)
+            
+            if risk_score.total_score > 25:  # Only include tenants with meaningful risk
+                tenant_risk_scores.append({
+                    "tenant_id": tenant_id,
+                    "business_name": tenant["name"],
+                    "business_type": risk_score.business_type,
+                    "risk_score": risk_score.total_score,
+                    "risk_level": risk_score.risk_level,
+                    "risk_factors": risk_score.risk_factors,
+                    "recommended_actions": risk_score.recommended_actions,
+                    "last_assessed": risk_score.assessment_timestamp
+                })
+        
+        # Sort by risk score (highest first)
+        tenant_risk_scores.sort(key=lambda x: x["risk_score"], reverse=True)
+        
+        # Categorize tenants by risk level
+        risk_categories = {
+            "critical": [t for t in tenant_risk_scores if t["risk_score"] >= 76],
+            "high": [t for t in tenant_risk_scores if 51 <= t["risk_score"] <= 75],
+            "medium": [t for t in tenant_risk_scores if 26 <= t["risk_score"] <= 50],
+            "low": [t for t in tenant_risk_scores if t["risk_score"] <= 25]
+        }
+        
+        return TenantRiskAnalysis(
+            total_tenants_analyzed=len(tenants),
+            tenants_with_risk=len(tenant_risk_scores),
+            risk_categories=risk_categories,
+            highest_risk_tenant=tenant_risk_scores[0] if tenant_risk_scores else None,
+            average_risk_score=sum(t["risk_score"] for t in tenant_risk_scores) / len(tenant_risk_scores) if tenant_risk_scores else 0,
+            analysis_timestamp=datetime.now(timezone.utc).isoformat()
+        )
+    
+    async def calculate_tenant_risk_score(self, tenant_id: str) -> TenantRiskScore:
+        """
+        Calculate comprehensive risk score for individual tenant
+        """
+        
+        now = datetime.now(timezone.utc)
+        week_ago = now - timedelta(days=7)
+        
+        risk_factors = []
+        risk_score = 0
+        
+        # Factor 1: Call failure rate
+        recent_calls = await db.call_sessions.find({
+            "tenant_id": tenant_id,
+            "trigger_time": {"$gte": week_ago.isoformat()}
+        }).to_list(1000)
+        
+        if recent_calls:
+            failed_calls = len([call for call in recent_calls if call.get("call_outcome") == "failed"])
+            failure_rate = failed_calls / len(recent_calls)
+            
+            if failure_rate > 0.4:  # 40% failure rate
+                risk_score += 30
+                risk_factors.append({
+                    "factor": "high_call_failure_rate",
+                    "score": 30,
+                    "description": f"Call failure rate of {failure_rate:.1%} exceeds acceptable threshold"
+                })
+        
+        # Factor 2: Rate limit violations
+        rate_violations = await db.abuse_detection_logs.count_documents({
+            "tenant_id": tenant_id,
+            "detection_type": "rate_limit",
+            "created_at": {"$gte": week_ago.isoformat()}
+        })
+        
+        if rate_violations > 5:
+            violation_score = min(25, rate_violations * 2)  # Cap at 25 points
+            risk_score += violation_score
+            risk_factors.append({
+                "factor": "frequent_rate_limit_violations",
+                "score": violation_score,
+                "description": f"{rate_violations} rate limit violations in last week"
+            })
+        
+        # Factor 3: Anomaly detections
+        anomaly_detections = await db.abuse_detection_logs.count_documents({
+            "tenant_id": tenant_id,
+            "detection_type": "anomaly",
+            "severity": {"$in": ["high", "critical"]},
+            "created_at": {"$gte": week_ago.isoformat()}
+        })
+        
+        if anomaly_detections > 0:
+            anomaly_score = min(20, anomaly_detections * 5)  # Cap at 20 points
+            risk_score += anomaly_score
+            risk_factors.append({
+                "factor": "anomaly_detections",
+                "score": anomaly_score,
+                "description": f"{anomaly_detections} high-severity anomalies detected"
+            })
+        
+        # Factor 4: Customer complaints (if available)
+        complaints = await db.customer_complaints.count_documents({
+            "tenant_id": tenant_id,
+            "created_at": {"$gte": week_ago.isoformat()}
+        }) if hasattr(db, 'customer_complaints') else 0
+        
+        if complaints > 0:
+            complaint_score = min(15, complaints * 3)  # Cap at 15 points
+            risk_score += complaint_score
+            risk_factors.append({
+                "factor": "customer_complaints",
+                "score": complaint_score,
+                "description": f"{complaints} customer complaints received"
+            })
+        
+        # Determine risk level
+        if risk_score >= 76:
+            risk_level = "critical"
+        elif risk_score >= 51:
+            risk_level = "high"
+        elif risk_score >= 26:
+            risk_level = "medium"
+        else:
+            risk_level = "low"
+        
+        # Generate recommendations
+        recommended_actions = self.generate_risk_mitigation_recommendations(risk_factors, risk_level)
+        
+        return TenantRiskScore(
+            tenant_id=tenant_id,
+            total_score=risk_score,
+            risk_level=risk_level,
+            risk_factors=risk_factors,
+            recommended_actions=recommended_actions,
+            assessment_timestamp=datetime.now(timezone.utc).isoformat(),
+            business_type=await self.get_tenant_business_type(tenant_id)
+        )
+
+@dataclass
+class TenantRiskScore:
+    tenant_id: str
+    total_score: float
+    risk_level: str
+    risk_factors: List[dict]
+    recommended_actions: List[str]
+    assessment_timestamp: str
+    business_type: Optional[str]
+
+@dataclass
+class TenantRiskAnalysis:
+    total_tenants_analyzed: int
+    tenants_with_risk: int
+    risk_categories: dict
+    highest_risk_tenant: Optional[dict]
+    average_risk_score: float
+    analysis_timestamp: str
+
+@dataclass
+class AbuseMonitoringDashboard:
+    threat_level: str
+    threat_score: float
+    active_protection_events: dict
+    tenant_risk_analysis: TenantRiskAnalysis
+    detection_trends: dict
+    compliance_monitoring: dict
+    recommendations: List[str]
+    last_updated: str
+```
+
+---
+
+## 📊 **5. Platform Analytics & Business Intelligence**
+
+### **Strategic Platform Analytics Interface**
+
+```typescript
+PlatformAnalyticsDashboard {
+  // Executive Dashboard
+  executive_analytics: {
+    platform_growth_metrics: {
+      tenant_acquisition: {
+        metric: "monthly_tenant_acquisition_rate_with_growth_trends",
+        visualization: "line_chart_showing_tenant_growth_over_time",
+        benchmarking: "comparison_to_industry_standards_and_platform_targets",
+        forecasting: "predictive_analytics_for_future_tenant_growth"
+      },
+      
+      revenue_indicators: {
+        platform_usage_metrics: "total_calls_contacts_and_feature_usage_across_platform",
+        capacity_utilization: "percentage_of_platform_capacity_being_utilized",
+        growth_sustainability: "analysis_of_growth_rate_vs_infrastructure_capacity"
+      },
+      
+      market_penetration: {
+        business_type_distribution: "breakdown_of_tenants_by_business_type_with_growth_trends",
+        geographic_distribution: "tenant_distribution_by_geographic_region",
+        market_opportunity: "analysis_of_untapped_market_segments_and_opportunities"
+      }
+    },
+    
+    operational_excellence: {
+      platform_performance_scorecard: {
+        call_success_rates: "platform_average_call_success_rates_with_business_type_breakdown",
+        appointment_confirmation_rates: "platform_average_appointment_confirmation_rates",
+        system_reliability: "platform_uptime_error_rates_and_performance_consistency",
+        customer_satisfaction: "aggregated_customer_satisfaction_metrics_across_all_tenants"
+      },
+      
+      efficiency_metrics: {
+        automation_effectiveness: "percentage_of_calls_made_via_automation_vs_manual",
+        resource_optimization: "efficiency_of_resource_utilization_across_platform",
+        support_efficiency: "support_ticket_resolution_times_and_customer_satisfaction"
+      }
+    }
+  },
+  
+  // Tenant Performance Analytics
+  tenant_performance_analytics: {
+    top_performing_tenants: {
+      identification_criteria: "call_success_rate_appointment_confirmation_feature_adoption_growth",
+      performance_leaderboard: "ranking_of_top_10_performing_tenants_with_success_metrics",
+      best_practices_analysis: "analysis_of_common_characteristics_among_top_performers",
+      success_pattern_identification: "identify_patterns_and_strategies_used_by_successful_tenants"
+    },
+    
+    underperforming_tenants: {
+      identification_criteria: "below_average_performance_low_engagement_high_support_needs",
+      intervention_opportunities: "tenants_that_would_benefit_from_proactive_support_or_optimization",
+      common_issues_analysis: "analysis_of_common_problems_among_underperforming_tenants",
+      improvement_strategies: "proven_strategies_for_improving_tenant_performance_and_engagement"
+    },
+    
+    business_type_benchmarking: {
+      comparative_performance: "performance_comparison_across_different_business_types",
+      industry_benchmarks: "comparison_to_industry_standards_where_available",
+      optimization_opportunities: "business_type_specific_optimization_recommendations"
+    }
+  }
+}
+```
+
+### **Platform Analytics Implementation**
+
+```python
+class PlatformAnalyticsEngine:
+    """
+    Comprehensive platform analytics and business intelligence system
+    """
+    
+    async def generate_executive_analytics_dashboard(self, period_days: int = 30) -> ExecutiveAnalyticsDashboard:
+        """
+        Generate executive-level analytics dashboard for strategic platform oversight
+        """
+        
+        end_date = datetime.now(timezone.utc)
+        start_date = end_date - timedelta(days=period_days)
+        
+        # Generate executive metrics
+        executive_metrics = await self.calculate_executive_metrics(start_date, end_date)
+        
+        # Analyze tenant performance
+        tenant_performance = await self.analyze_tenant_performance_distribution(start_date, end_date)
+        
+        # Calculate operational excellence metrics
+        operational_metrics = await self.calculate_operational_excellence_metrics(start_date, end_date)
+        
+        # Generate strategic insights
+        strategic_insights = await self.generate_strategic_insights(
+            executive_metrics, tenant_performance, operational_metrics
+        )
+        
+        return ExecutiveAnalyticsDashboard(
+            executive_summary=executive_metrics,
+            tenant_performance_analysis=tenant_performance,
+            operational_excellence=operational_metrics,
+            strategic_insights=strategic_insights,
+            platform_health_score=self.calculate_platform_health_score(executive_metrics, operational_metrics),
+            analysis_period=period_days,
+            generated_at=datetime.now(timezone.utc).isoformat()
+        )
+    
+    async def calculate_executive_metrics(self, start_date: datetime, end_date: datetime) -> dict:
+        """
+        Calculate executive-level platform metrics
+        """
+        
+        # Tenant growth analysis
+        total_tenants_result = supabase.table('tenants').select('id', count='exact').execute()
+        total_tenants = total_tenants_result.count or 0
+        
+        new_tenants_result = supabase.table('tenants').select('id', count='exact').gte('created_at', start_date.isoformat()).execute()
+        new_tenants = new_tenants_result.count or 0
+        
+        # Previous period for comparison
+        previous_period_start = start_date - timedelta(days=(end_date - start_date).days)
+        previous_tenants_result = supabase.table('tenants').select('id', count='exact').gte('created_at', previous_period_start.isoformat()).lt('created_at', start_date.isoformat()).execute()
+        previous_period_tenants = previous_tenants_result.count or 0
+        
+        # Calculate growth rate
+        growth_rate = ((new_tenants - previous_period_tenants) / previous_period_tenants * 100) if previous_period_tenants > 0 else 100 if new_tenants > 0 else 0
+        
+        # Platform utilization metrics
+        total_calls_result = supabase.table('call_sessions').select('id', count='exact').gte('trigger_time', start_date.isoformat()).execute()
+        total_calls = total_calls_result.count or 0
+        
+        total_contacts_result = supabase.table('contacts').select('id', count='exact').execute()
+        total_contacts = total_contacts_result.count or 0
+        
+        # Calculate key ratios
+        calls_per_tenant = total_calls / total_tenants if total_tenants > 0 else 0
+        contacts_per_tenant = total_contacts / total_tenants if total_tenants > 0 else 0
+        
+        # Feature adoption analysis
+        tenants_with_integrations_result = supabase.table('tenant_config').select('id', count='exact').or_('cal_api_key.not.is.null,calendly_api_key.not.is.null').execute()
+        tenants_with_integrations = tenants_with_integrations_result.count or 0
+        
+        integration_adoption_rate = (tenants_with_integrations / total_tenants * 100) if total_tenants > 0 else 0
+        
+        return {
+            "tenant_growth": {
+                "total_tenants": total_tenants,
+                "new_tenants": new_tenants,
+                "growth_rate": round(growth_rate, 2),
+                "growth_trend": "increasing" if growth_rate > 5 else "stable" if growth_rate >= -5 else "decreasing"
+            },
+            "platform_utilization": {
+                "total_calls": total_calls,
+                "total_contacts": total_contacts,
+                "calls_per_tenant": round(calls_per_tenant, 1),
+                "contacts_per_tenant": round(contacts_per_tenant, 1),
+                "integration_adoption_rate": round(integration_adoption_rate, 2)
+            },
+            "business_impact": {
+                "estimated_appointments_managed": total_contacts,
+                "estimated_no_shows_prevented": self.estimate_no_shows_prevented(total_calls),
+                "platform_value_delivered": self.calculate_platform_value_metrics(total_calls, total_tenants)
+            }
+        }
+
+@dataclass
+class ExecutiveAnalyticsDashboard:
+    executive_summary: dict
+    tenant_performance_analysis: dict
+    operational_excellence: dict
+    strategic_insights: dict
+    platform_health_score: float
+    analysis_period: int
+    generated_at: str
+```
+
+---
+
+## 🚨 **6. Emergency Response & Incident Management**
+
+### **Emergency Response Dashboard**
+
+```typescript
+EmergencyResponseDashboard {
+  // Emergency Control Center
+  emergency_control_center: {
+    emergency_status_overview: {
+      current_emergency_level: {
+        display: "large_emergency_level_indicator",
+        levels: {
+          normal: { color: "#10B981", description: "No active emergencies" },
+          incident: { color: "#F59E0B", description: "Active incident under management" },
+          crisis: { color: "#EF4444", description: "Critical incident requiring immediate action" }
+        }
+      },
+      
+      active_incidents: {
+        incident_count: "number_of_active_incidents_requiring_attention",
+        incident_summary: "brief_summary_of_each_active_incident",
+        time_since_detection: "how_long_each_incident_has_been_active",
+        escalation_status: "whether_incidents_have_been_escalated_and_to_whom"
+      }
+    },
+    
+    emergency_action_controls: {
+      platform_wide_controls: {
+        emergency_platform_pause: {
+          button: "🚨 EMERGENCY PLATFORM PAUSE",
+          confirmation: "require_typing_EMERGENCY_PAUSE_plus_detailed_justification",
+          effect: "immediately_pause_all_calling_activity_across_entire_platform",
+          notification: "immediate_notification_to_all_stakeholders_and_affected_tenants"
+        },
+        
+        emergency_rate_reduction: {
+          button: "⚡ EMERGENCY RATE REDUCTION",
+          confirmation: "require_justification_and_percentage_reduction",
+          effect: "immediately_reduce_platform_wide_rate_limits_by_specified_percentage",
+          duration: "temporary_reduction_with_automatic_restoration_after_specified_time"
+        }
+      },
+      
+      tenant_specific_controls: {
+        emergency_tenant_suspension: {
+          selection: "select_specific_tenant_for_emergency_suspension",
+          justification: "detailed_justification_required_for_tenant_suspension",
+          effect: "immediately_suspend_all_activity_for_selected_tenant",
+          notification: "immediate_notification_to_tenant_admin_with_resolution_instructions"
+        },
+        
+        emergency_configuration_override: {
+          selection: "select_tenant_and_configuration_parameters_to_override",
+          safety_checks: "preview_impact_of_configuration_changes_before_applying",
+          audit_logging: "comprehensive_logging_of_emergency_configuration_changes"
+        }
+      }
+    }
+  },
+  
+  // Incident Management System
+  incident_management: {
+    incident_declaration: {
+      incident_creation_form: {
+        incident_type: {
+          options: ["system_outage", "security_breach", "abuse_attack", "carrier_issues", "compliance_violation", "data_breach"],
+          severity_auto_assignment: "automatic_severity_assignment_based_on_incident_type"
+        },
+        
+        incident_severity: {
+          levels: {
+            low: "minor_issues_affecting_small_number_of_tenants",
+            medium: "moderate_issues_affecting_platform_performance",
+            high: "significant_issues_affecting_large_number_of_tenants",
+            critical: "platform_wide_issues_requiring_immediate_attention"
+          }
+        },
+        
+        incident_description: "detailed_description_of_incident_impact_and_affected_systems",
+        immediate_actions_taken: "documentation_of_immediate_response_actions_already_executed"
+      },
+      
+      automatic_escalation: {
+        escalation_rules: "automatic_escalation_based_on_incident_severity_and_duration",
+        notification_chains: "hierarchical_notification_to_appropriate_stakeholders",
+        external_escalation: "escalation_to_external_support_or_vendors_if_required"
+      }
+    },
+    
+    incident_tracking: {
+      incident_timeline: "chronological_timeline_of_incident_events_and_response_actions",
+      status_updates: "regular_status_updates_and_progress_reporting",
+      resolution_tracking: "track_progress_toward_incident_resolution_with_completion_criteria"
+    }
+  }
+}
+```
+
+### **Emergency Response Implementation**
+
+```python
+@api_router.post("/admin/emergency/declare-incident")
+async def declare_platform_incident(
+    incident_data: IncidentDeclaration,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Declare platform incident and initiate emergency response procedures
+    """
+    
+    require_super_admin(current_user)
+    
+    # Create incident record
+    incident_id = str(uuid.uuid4())
+    incident_record = {
+        "id": incident_id,
+        "incident_type": incident_data.incident_type,
+        "severity": incident_data.severity,
+        "title": incident_data.title,
+        "description": incident_data.description,
+        "declared_by": current_user["id"],
+        "declared_at": datetime.now(timezone.utc).isoformat(),
+        "status": "active",
+        "affected_systems": incident_data.affected_systems,
+        "estimated_impact": incident_data.estimated_impact,
+        "immediate_actions": incident_data.immediate_actions_taken
+    }
+    
+    # Insert incident record
+    await db.platform_incidents.insert_one(incident_record)
+    
+    # Execute automatic incident response based on severity
+    response_actions = await self.execute_automatic_incident_response(incident_id, incident_data)
+    
+    # Send incident notifications
+    await self.send_incident_notifications(incident_id, incident_data, current_user)
+    
+    # Log incident declaration
+    await log_super_admin_action(
+        admin_id=current_user["id"],
+        action="incident_declared",
+        details={
+            "incident_id": incident_id,
+            "incident_type": incident_data.incident_type,
+            "severity": incident_data.severity,
+            "affected_systems": incident_data.affected_systems
+        }
+    )
+    
+    logger.critical(f"🚨 PLATFORM INCIDENT DECLARED: {incident_data.title} (ID: {incident_id})")
+    logger.critical(f"🚨 Severity: {incident_data.severity}, Type: {incident_data.incident_type}")
+    
+    return {
+        "success": True,
+        "incident_id": incident_id,
+        "message": "Platform incident declared successfully",
+        "incident_title": incident_data.title,
+        "severity": incident_data.severity,
+        "automatic_actions_taken": response_actions,
+        "incident_management_url": f"/admin/incidents/{incident_id}",
+        "stakeholders_notified": True
+    }
+
+@api_router.get("/admin/emergency/incidents/active")
+async def get_active_incidents(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get all active platform incidents for emergency dashboard
+    """
+    
+    require_super_admin(current_user)
+    
+    # Get active incidents
+    active_incidents = await db.platform_incidents.find({
+        "status": {"$in": ["active", "investigating", "resolving"]}
+    }).sort("declared_at", -1).to_list(50)
+    
+    # Enhance incidents with current status and metrics
+    enhanced_incidents = []
+    for incident in active_incidents:
+        enhanced_incident = await self.enhance_incident_with_current_data(incident)
+        enhanced_incidents.append(enhanced_incident)
+    
+    # Calculate emergency dashboard summary
+    dashboard_summary = {
+        "total_active_incidents": len(enhanced_incidents),
+        "critical_incidents": len([i for i in enhanced_incidents if i.get("severity") == "critical"]),
+        "longest_running_incident": max([i.get("duration_hours", 0) for i in enhanced_incidents], default=0),
+        "incidents_requiring_escalation": len([i for i in enhanced_incidents if i.get("requires_escalation")]),
+        "overall_emergency_level": self.determine_overall_emergency_level(enhanced_incidents)
+    }
+    
+    return {
+        "dashboard_summary": dashboard_summary,
+        "active_incidents": enhanced_incidents,
+        "emergency_actions_available": self.get_available_emergency_actions(dashboard_summary),
+        "last_updated": datetime.now(timezone.utc).isoformat()
+    }
+
+class IncidentDeclaration(BaseModel):
+    incident_type: str = Field(..., regex="^(system_outage|security_breach|abuse_attack|carrier_issues|compliance_violation|data_breach|integration_failure)$")
+    severity: str = Field(..., regex="^(low|medium|high|critical)$")
+    title: str = Field(..., min_length=10, max_length=200)
+    description: str = Field(..., min_length=50, max_length=1000)
+    affected_systems: List[str]
+    estimated_impact: str
+    immediate_actions_taken: str
+```
+
+---
+
+## ⚙️ **7. Platform Configuration & Administration**
+
+### **System Configuration Management**
+
+```typescript
+PlatformConfigurationManagement {
+  // Global Platform Settings
+  global_platform_configuration: {
+    rate_limiting_configuration: {
+      default_tenant_limits: {
+        calls_per_15_minutes: { current: 25, range: "5-100", recommendation: "25_for_bulk_phone_protection" },
+        calls_per_day: { current: 300, range: "50-2000", recommendation: "300_for_appointment_reminders" },
+        concurrent_calls: { current: 5, range: "1-20", recommendation: "5_for_optimal_performance" }
+      },
+      
+      platform_wide_limits: {
+        total_platform_calls_per_minute: { current: 500, range: "100-2000", monitoring: "real_time_capacity_monitoring" },
+        emergency_rate_reduction_capability: "ability_to_reduce_all_limits_by_percentage_for_platform_protection"
+      }
+    },
+    
+    abuse_protection_configuration: {
+      detection_sensitivity: {
+        anomaly_detection_sensitivity: { current: "medium", options: ["low", "medium", "high", "custom"] },
+        auto_pause_thresholds: {
+          failure_rate_threshold: { current: 0.4, range: "0.2-0.8", description: "40%_failure_rate_triggers_auto_pause" },
+          short_call_threshold: { current: 0.6, range: "0.3-0.9", description: "60%_short_calls_triggers_review" }
+        }
+      },
+      
+      response_automation: {
+        auto_pause_enabled: { current: true, description: "automatic_tenant_pausing_on_anomaly_detection" },
+        escalation_enabled: { current: true, description: "automatic_escalation_for_critical_incidents" },
+        notification_chains: "configuration_of_automatic_notification_chains_for_different_event_types"
+      }
+    },
+    
+    integration_configuration: {
+      retell_ai_platform_settings: {
+        global_api_key: "platform_wide_retell_ai_api_key_configuration",
+        backup_api_keys: "backup_api_keys_for_redundancy_and_failover",
+        rate_limiting: "retell_ai_specific_rate_limiting_and_quota_management"
+      },
+      
+      calendar_integration_settings: {
+        webhook_security: "webhook_signature_verification_and_security_settings",
+        sync_frequency: "how_often_to_poll_calendar_apis_for_updates",
+        error_handling: "how_to_handle_calendar_integration_failures_and_retries"
+      }
+    }
+  },
+  
+  // Feature Flag Management
+  feature_flag_management: {
+    platform_feature_toggles: {
+      new_feature_rollout: {
+        gradual_rollout: "enable_new_features_for_percentage_of_tenants_gradually",
+        tenant_selection: "select_specific_tenants_for_beta_feature_testing",
+        rollback_capability: "ability_to_quickly_disable_features_if_issues_detected"
+      },
+      
+      experimental_features: {
+        beta_feature_access: "grant_access_to_experimental_features_for_testing_tenants",
+        feature_usage_tracking: "track_adoption_and_usage_of_experimental_features",
+        feedback_collection: "collect_feedback_on_experimental_features_for_improvement"
+      }
+    },
+    
+    business_type_specific_features: {
+      medical_practice_features: "features_specific_to_medical_practices_and_hipaa_compliance",
+      salon_spa_features: "features_optimized_for_beauty_and_wellness_services",
+      restaurant_features: "features_tailored_for_restaurant_and_hospitality_businesses"
+    }
+  }
+}
+```
+
+---
+
+## 📋 **8. Super Admin Database Schema**
+
+### **Super Admin Specific Database Tables**
+
+```sql
+-- Super Admin Users Table (Extended)
+CREATE TABLE super_admin_profiles (
+  user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  
+  -- Enhanced Security
+  security_clearance_level TEXT DEFAULT 'standard',  -- standard, elevated, emergency
+  two_factor_backup_codes TEXT[],
+  security_questions JSONB,
+  
+  -- Access Monitoring
+  last_security_review TIMESTAMPTZ,
+  login_attempt_monitoring BOOLEAN DEFAULT true,
+  session_timeout_minutes INTEGER DEFAULT 240,  -- 4 hours
+  
+  -- Permissions
+  emergency_powers_enabled BOOLEAN DEFAULT true,
+  platform_config_access BOOLEAN DEFAULT true,
+  tenant_data_access BOOLEAN DEFAULT true,
+  
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Platform Incidents Table
+CREATE TABLE platform_incidents (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  
+  -- Incident Information
+  incident_type TEXT NOT NULL,
+  severity TEXT NOT NULL,  -- low, medium, high, critical
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  
+  -- Incident Management
+  status TEXT DEFAULT 'active',  -- active, investigating, resolving, resolved, closed
+  declared_by UUID NOT NULL REFERENCES users(id),
+  assigned_to UUID REFERENCES users(id),
+  
+  -- Impact Assessment
+  affected_systems TEXT[],
+  affected_tenants UUID[],
+  estimated_impact TEXT,
+  
+  -- Timeline
+  declared_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  acknowledged_at TIMESTAMPTZ,
+  resolved_at TIMESTAMPTZ,
+  closed_at TIMESTAMPTZ,
+  
+  -- Resolution
+  resolution_summary TEXT,
+  lessons_learned TEXT,
+  follow_up_actions JSONB,
+  
+  -- Communication
+  stakeholder_notifications JSONB DEFAULT '[]',
+  public_status_page_update BOOLEAN DEFAULT false
+);
+
+-- Platform Health Monitoring
+CREATE TABLE platform_health_monitoring (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  
+  -- Health Check Information
+  component_type TEXT NOT NULL,  -- database, api, calling, automation, integration
+  health_check_name TEXT NOT NULL,
+  
+  -- Health Metrics
+  health_score DECIMAL(5,2) NOT NULL,  -- 0.00 to 100.00
+  status TEXT NOT NULL,  -- excellent, good, degraded, critical
+  
+  -- Performance Data
+  response_time_ms INTEGER,
+  error_count INTEGER DEFAULT 0,
+  success_count INTEGER DEFAULT 0,
+  throughput_per_minute INTEGER,
+  
+  -- Detailed Results
+  check_results JSONB NOT NULL,
+  recommendations JSONB DEFAULT '[]',
+  
+  -- Timing
+  check_started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  check_completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  check_duration_ms INTEGER
+);
+
+-- Super Admin Analytics Cache
+CREATE TABLE super_admin_analytics_cache (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  
+  -- Cache Identification
+  analytics_type TEXT NOT NULL,  -- executive_metrics, tenant_performance, abuse_monitoring
+  time_period_days INTEGER NOT NULL,
+  cache_key TEXT UNIQUE NOT NULL,
+  
+  -- Cached Data
+  analytics_data JSONB NOT NULL,
+  
+  -- Cache Management
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  last_accessed TIMESTAMPTZ DEFAULT NOW(),
+  access_count INTEGER DEFAULT 1,
+  
+  -- Performance Tracking
+  generation_time_ms INTEGER,
+  data_size_bytes INTEGER
+);
+
+-- Performance Indexes
+CREATE INDEX idx_super_admin_profiles_security ON super_admin_profiles(security_clearance_level, last_security_review);
+CREATE INDEX idx_platform_incidents_status ON platform_incidents(status, severity, declared_at DESC);
+CREATE INDEX idx_platform_health_component ON platform_health_monitoring(component_type, check_started_at DESC);
+CREATE INDEX idx_super_admin_analytics_cache_key ON super_admin_analytics_cache(cache_key, expires_at);
+
+-- Automated cleanup functions
+CREATE OR REPLACE FUNCTION cleanup_old_health_checks()
+RETURNS VOID AS $$
+BEGIN
+  -- Keep only last 7 days of health check data
+  DELETE FROM platform_health_monitoring 
+  WHERE check_started_at < NOW() - INTERVAL '7 days';
+END;
+$$ LANGUAGE plpgsql;
+
+-- Schedule cleanup
+SELECT cron.schedule('cleanup-health-checks', '0 1 * * *', 'SELECT cleanup_old_health_checks();');
+```
+
+---
+
+## 🎯 **Super Admin Implementation Summary**
+
+### **Complete Super Admin Feature Set**
+
+| Feature Category | Implementation Status | Key Capabilities |
+|------------------|----------------------|------------------|
+| **Tenant Creation Wizard** | ✅ Complete | 6-step guided setup, integration testing, compliance configuration |
+| **Tenant Search & Management** | ✅ Complete | Advanced search, lifecycle management, configuration oversight |
+| **Platform Health Monitoring** | ✅ Complete | Real-time system health, component monitoring, performance tracking |
+| **Abuse Protection Oversight** | ✅ Complete | Threat assessment, tenant risk analysis, protection event management |
+| **User Management** | ✅ Complete | Platform-wide user oversight, security management, access control |
+| **System Administration** | ✅ Complete | Platform configuration, feature flags, maintenance scheduling |
+| **Emergency Response** | ✅ Complete | Incident management, emergency controls, crisis response |
+| **Analytics & Reporting** | ✅ Complete | Executive analytics, strategic insights, performance benchmarking |
+
+### **Super Admin Workflow Examples**
+
+```typescript
+SuperAdminWorkflows {
+  // Daily Operations Workflow
+  daily_workflow: {
+    morning_checklist: [
+      "review_platform_health_dashboard_for_overnight_issues",
+      "check_for_auto_paused_tenants_and_resolve_issues",
+      "review_new_tenant_creation_requests_and_approvals", 
+      "analyze_platform_performance_metrics_from_previous_day"
+    ],
+    
+    ongoing_monitoring: [
+      "monitor_real_time_abuse_detection_alerts",
+      "respond_to_tenant_support_escalations",
+      "review_and_approve_tenant_configuration_changes",
+      "investigate_any_performance_anomalies_or_system_alerts"
+    ],
+    
+    end_of_day_review: [
+      "review_daily_platform_analytics_and_tenant_performance",
+      "check_emergency_response_preparedness",
+      "plan_any_necessary_maintenance_or_optimization_activities"
+    ]
+  },
+  
+  // Emergency Response Workflow
+  emergency_workflow: {
+    incident_detection: "real_time_monitoring_systems_automatically_detect_and_alert_on_incidents",
+    immediate_assessment: "rapid_assessment_of_incident_scope_impact_and_required_response",
+    containment_actions: "immediate_actions_to_contain_incident_and_prevent_escalation",
+    stakeholder_communication: "coordinated_communication_to_affected_tenants_and_stakeholders",
+    resolution_execution: "systematic_resolution_of_incident_with_progress_tracking",
+    post_incident_review: "comprehensive_post_incident_analysis_and_process_improvement"
+  }
+}
+```
+
+### **Super Admin Success Metrics**
+
+```typescript
+SuperAdminSuccessMetrics {
+  // Platform Management Effectiveness
+  management_effectiveness: {
+    tenant_onboarding_efficiency: "average_time_to_complete_tenant_setup_via_wizard",
+    issue_resolution_speed: "average_time_to_resolve_tenant_issues_and_support_requests",
+    platform_uptime_maintenance: "platform_uptime_percentage_maintained_through_admin_actions",
+    security_incident_prevention: "effectiveness_of_abuse_protection_and_security_measures"
+  },
+  
+  // Strategic Platform Growth
+  platform_growth_metrics: {
+    tenant_acquisition_success: "monthly_tenant_acquisition_rate_and_growth_sustainability",
+    tenant_retention_rate: "percentage_of_tenants_remaining_active_and_engaged",
+    platform_scalability: "ability_to_scale_platform_to_accommodate_growth",
+    operational_efficiency: "cost_efficiency_of_platform_operations_and_resource_utilization"
+  }
+}
+```
+
+**The VioConcierge Super Admin Platform provides comprehensive administrative control with streamlined tenant onboarding, real-time system monitoring, proactive abuse protection, and strategic platform analytics - enabling effective management of a large-scale multi-tenant appointment management ecosystem while maintaining security, compliance, and operational excellence.** 🎯
+
+---
+
+## 🔒 **Security & Compliance Summary**
+
+### **Super Admin Security Implementation**
+
+```typescript
+SuperAdminSecurity {
+  // Enhanced Security Measures
+  security_implementation: {
+    authentication_security: "mandatory_2fa_enhanced_password_requirements_session_monitoring",
+    authorization_controls: "role_based_access_with_super_admin_specific_permissions",
+    audit_logging: "comprehensive_logging_of_all_super_admin_actions_with_full_audit_trail",
+    session_management: "enhanced_session_security_with_shorter_timeouts_and_activity_monitoring"
+  },
+  
+  // Compliance Oversight
+  compliance_management: {
+    hipaa_oversight: "platform_wide_hipaa_compliance_monitoring_for_medical_tenants",
+    gdpr_compliance: "gdpr_compliance_oversight_and_data_protection_management",
+    audit_capabilities: "comprehensive_audit_reporting_and_compliance_documentation",
+    regulatory_reporting: "automated_regulatory_reporting_and_compliance_verification"
+  }
+}
+```
+
+**The Super Admin platform is production-ready with enterprise-grade security, comprehensive monitoring, and complete administrative control suitable for managing a large-scale SaaS appointment management platform.** 🚀
