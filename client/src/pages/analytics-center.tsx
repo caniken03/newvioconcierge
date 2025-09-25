@@ -15,6 +15,9 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
+import Sidebar from "@/components/layout/sidebar";
+import Header from "@/components/layout/header";
 
 interface PlatformAnalytics {
   overview: {
@@ -57,9 +60,23 @@ interface TenantAnalytics {
 }
 
 export default function AnalyticsCenter() {
+  const { user } = useAuth();
   const [timePeriod, setTimePeriod] = useState("30");
   const [selectedIndustry, setSelectedIndustry] = useState("all");
   const { toast } = useToast();
+
+  // Ensure only super admins can access
+  if (!user || user.role !== 'super_admin') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
+          <p className="text-muted-foreground">You don't have permission to access the Analytics Center.</p>
+        </div>
+      </div>
+    );
+  }
 
   // Fetch platform-wide analytics
   const { data: platformData, isLoading: platformLoading } = useQuery<PlatformAnalytics>({
@@ -250,50 +267,60 @@ export default function AnalyticsCenter() {
 
   if (platformLoading) {
     return (
-      <div className="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {[...Array(4)].map((_, i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="p-6">
-                <div className="h-4 bg-muted rounded mb-2"></div>
-                <div className="h-8 bg-muted rounded mb-4"></div>
-                <div className="h-3 bg-muted rounded w-3/4"></div>
-              </CardContent>
-            </Card>
-          ))}
+      <div className="min-h-screen flex">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header />
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              {[...Array(4)].map((_, i) => (
+                <Card key={i} className="animate-pulse">
+                  <CardContent className="p-6">
+                    <div className="h-4 bg-muted rounded mb-2"></div>
+                    <div className="h-8 bg-muted rounded mb-4"></div>
+                    <div className="h-3 bg-muted rounded w-3/4"></div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-8" data-testid="analytics-center">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Analytics Center</h1>
-          <p className="text-muted-foreground mt-1">
-            Executive insights and platform performance analysis
-          </p>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Select value={timePeriod} onValueChange={setTimePeriod}>
-            <SelectTrigger className="w-32">
-              <SelectValue placeholder="Time Period" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7">Last 7 days</SelectItem>
-              <SelectItem value="30">Last 30 days</SelectItem>
-              <SelectItem value="90">Last 90 days</SelectItem>
-              <SelectItem value="365">Last year</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button variant="outline" onClick={handleExportReport} data-testid="button-export-report">
-            <Download className="w-4 h-4 mr-2" />
-            Export Report
-          </Button>
-        </div>
-      </div>
+    <div className="min-h-screen flex">
+      <Sidebar />
+      <div className="flex-1 flex flex-col">
+        <Header />
+        <div className="p-6 space-y-8" data-testid="analytics-center">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">Analytics Center</h1>
+              <p className="text-muted-foreground mt-1">
+                Executive insights and platform performance analysis
+              </p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Select value={timePeriod} onValueChange={setTimePeriod}>
+                <SelectTrigger className="w-32">
+                  <SelectValue placeholder="Time Period" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7">Last 7 days</SelectItem>
+                  <SelectItem value="30">Last 30 days</SelectItem>
+                  <SelectItem value="90">Last 90 days</SelectItem>
+                  <SelectItem value="365">Last year</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" onClick={handleExportReport} data-testid="button-export-report">
+                <Download className="w-4 h-4 mr-2" />
+                Export Report
+              </Button>
+            </div>
+          </div>
 
       {/* Executive Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -586,6 +613,8 @@ export default function AnalyticsCenter() {
           </Card>
         </TabsContent>
       </Tabs>
+        </div>
+      </div>
     </div>
   );
 }
