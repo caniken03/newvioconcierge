@@ -162,25 +162,24 @@ export class CallSchedulerService {
   }
 
   /**
-   * Create a retry task for failed calls
+   * Create a single follow-up task for failed calls
    */
   private async createRetryTask(originalTask: FollowUpTask, currentAttempts: number): Promise<void> {
-    // Calculate retry delay (exponential backoff: 15min, 30min, 1hr)
-    const retryDelays = [15, 30, 60]; // minutes
-    const delayMinutes = retryDelays[currentAttempts - 1] || 60; // currentAttempts is 1-based for delay index
+    // Single follow-up delay: 1-2 hours after failed call
+    const delayMinutes = 90; // 1.5 hours fixed delay
     const retryTime = new Date(Date.now() + delayMinutes * 60 * 1000);
 
     const retryTask = await storage.createFollowUpTask({
       tenantId: originalTask.tenantId,
       contactId: originalTask.contactId,
       scheduledTime: retryTime,
-      taskType: 'retry_call',
+      taskType: 'follow_up_call',
       autoExecution: true,
-      attempts: currentAttempts, // Carry forward current attempts
-      maxAttempts: originalTask.maxAttempts
+      attempts: currentAttempts, // This will be 1 (original failed, this is the single follow-up)
+      maxAttempts: originalTask.maxAttempts // Will be 2 (original + 1 follow-up)
     });
 
-    console.log(`🔄 Created retry task ${retryTask.id} scheduled for ${retryTime.toISOString()} (attempt ${currentAttempts}/${originalTask.maxAttempts}) - ${delayMinutes}min delay`);
+    console.log(`🔄 Scheduled single follow-up call for ${retryTime.toISOString()} (1.5 hours after failed attempt)`);
   }
 
   /**
@@ -215,7 +214,7 @@ export class CallSchedulerService {
             taskType: interval.type,
             autoExecution: true,
             attempts: 0,
-            maxAttempts: 3 // Allow up to 3 attempts for each reminder
+            maxAttempts: 2 // Original call + 1 follow-up only
           });
 
           console.log(`📅 Scheduled ${interval.description} reminder for ${contact.name} at ${reminderTime.toISOString()}`);
