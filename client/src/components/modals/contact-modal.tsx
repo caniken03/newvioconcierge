@@ -95,7 +95,7 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
       name: contact?.name || "",
       phone: contact?.phone || "",
       email: contact?.email || "",
-      groupId: "",
+      groupId: "none",
       eventType: contact?.appointmentType || "",
       contactPerson: contact?.ownerName || "",
       businessName: contact?.companyName || "",
@@ -143,7 +143,7 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
         name: contact.name,
         phone: contact.phone,
         email: contact.email || "",
-        groupId: currentMembership || "",
+        groupId: currentMembership || "none",
         eventType: contact.appointmentType || "",
         contactPerson: contact.ownerName || "",
         businessName: contact.companyName || "",
@@ -159,7 +159,7 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
         name: "",
         phone: "",
         email: "",
-        groupId: "",
+        groupId: "none",
         eventType: "",
         contactPerson: "",
         businessName: "",
@@ -179,7 +179,7 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
         name: "",
         phone: "",
         email: "",
-        groupId: "",
+        groupId: "none",
         eventType: "",
         contactPerson: "",
         businessName: "",
@@ -214,7 +214,7 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
       const newContact = await response.json();
       
       // If a group was selected, add the contact to that group
-      if (data.groupId) {
+      if (data.groupId && data.groupId !== "none") {
         await apiRequest('POST', `/api/contact-groups/${data.groupId}/contacts`, {
           contactId: newContact.id
         });
@@ -264,15 +264,16 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
       const updatedContact = await response.json();
       
       // Handle group assignment changes
-      if (currentMembership !== data.groupId) {
+      const newGroupId = data.groupId === "none" ? null : data.groupId;
+      if (currentMembership !== newGroupId) {
         // Remove from current group if they were in one
         if (currentMembership) {
           await apiRequest('DELETE', `/api/contact-groups/${currentMembership}/contacts/${contact.id}`);
         }
         
         // Add to new group if one was selected
-        if (data.groupId) {
-          await apiRequest('POST', `/api/contact-groups/${data.groupId}/contacts`, {
+        if (newGroupId) {
+          await apiRequest('POST', `/api/contact-groups/${newGroupId}/contacts`, {
             contactId: contact.id
           });
         }
@@ -394,12 +395,12 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
                 <FormItem>
                   <FormLabel className="text-sm font-medium text-gray-700">Contact Group (Optional)</FormLabel>
                   <FormControl>
-                    <Select value={field.value || ""} onValueChange={field.onChange}>
+                    <Select value={field.value || "none"} onValueChange={field.onChange}>
                       <SelectTrigger data-testid="select-contact-group" className="border-gray-300 rounded-md">
                         <SelectValue placeholder="Select a group (optional)" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">No Group</SelectItem>
+                        <SelectItem value="none">No Group</SelectItem>
                         {contactGroups.map((group: any) => (
                           <SelectItem key={group.id} value={group.id}>
                             <div className="flex items-center gap-2">
