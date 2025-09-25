@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,8 +11,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import Sidebar from '@/components/layout/sidebar';
 import Header from '@/components/layout/header';
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
   Building, 
   User, 
@@ -24,11 +29,215 @@ import {
   Key,
   Globe,
   Mail,
-  Smartphone
+  Smartphone,
+  Clock,
+  AlertCircle
 } from "lucide-react";
+
+// Call Settings Component
+function CallSettingsContent() {
+  const { toast } = useToast();
+  const [selectedReminderHours, setSelectedReminderHours] = useState<number[]>([24, 1]);
+  const [followUpRetryMinutes, setFollowUpRetryMinutes] = useState<number>(90);
+
+  // Fetch current tenant configuration
+  const { data: config, isLoading } = useQuery({
+    queryKey: ['/api/tenant/config'],
+  });
+
+  // Update local state when config is loaded
+  useEffect(() => {
+    if (config) {
+      // Type assertion for tenant config with new timing fields
+      const typedConfig = config as any;
+      setSelectedReminderHours(typedConfig.reminderHoursBefore || [24, 1]);
+      setFollowUpRetryMinutes(typedConfig.followUpRetryMinutes || 90);
+    }
+  }, [config]);
+
+  // Save configuration mutation
+  const saveConfigMutation = useMutation({
+    mutationFn: async (data: { reminderHoursBefore: number[]; followUpRetryMinutes: number }) => {
+      const response = await apiRequest('POST', '/api/tenant/config', data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tenant/config'] });
+      toast({
+        title: "Settings saved",
+        description: "Your call timing preferences have been updated.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to save settings",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Handle reminder hour selection
+  const toggleReminderHour = (hour: number) => {
+    setSelectedReminderHours(prev => 
+      prev.includes(hour) 
+        ? prev.filter(h => h !== hour)
+        : [...prev, hour].sort((a, b) => b - a) // Sort descending
+    );
+  };
+
+  const handleSave = () => {
+    if (selectedReminderHours.length === 0) {
+      toast({
+        title: "Invalid selection",
+        description: "Please select at least one reminder time.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    saveConfigMutation.mutate({
+      reminderHoursBefore: selectedReminderHours,
+      followUpRetryMinutes,
+    });
+  };
+
+  const reminderOptions = [
+    { hours: 168, label: "1 week before", description: "Major procedures, surgeries" },
+    { hours: 48, label: "2 days before", description: "Important meetings" },
+    { hours: 24, label: "1 day before", description: "Standard appointments" },
+    { hours: 12, label: "12 hours before", description: "Same-day confirmation" },
+    { hours: 3, label: "3 hours before", description: "Last-minute reminders" },
+    { hours: 2, label: "2 hours before", description: "Short-notice services" },
+    { hours: 1, label: "1 hour before", description: "Final reminder call" },
+  ];
+
+  const followUpOptions = [
+    { minutes: 60, label: "1 hour", description: "Quick follow-up for urgent appointments" },
+    { minutes: 90, label: "1.5 hours", description: "Balanced timing (recommended)" },
+    { minutes: 120, label: "2 hours", description: "Give clients more time to respond" },
+  ];
+
+  return (
+    <TabsContent value="calls" className="space-y-6">
+      <Card data-testid="call-preferences-section">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Phone className="w-5 h-5" />
+            Call Settings & Preferences
+          </CardTitle>
+          <CardDescription>
+            Configure appointment reminder timing and missed call follow-up settings
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-8">
+          {/* Reminder Hours Selection */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Clock className="w-5 h-5" />
+              <h3 className="text-lg font-medium">Appointment Reminder Times</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Select when to send appointment reminder calls. You can choose multiple times for comprehensive coverage.
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {reminderOptions.map((option) => (
+                <div 
+                  key={option.hours}
+                  className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                >
+                  <Checkbox
+                    id={`reminder-${option.hours}`}
+                    checked={selectedReminderHours.includes(option.hours)}
+                    onCheckedChange={() => toggleReminderHour(option.hours)}
+                    data-testid={`checkbox-reminder-${option.hours}h`}
+                  />
+                  <div className="grid gap-1 flex-1">
+                    <Label 
+                      htmlFor={`reminder-${option.hours}`}
+                      className="text-sm font-medium cursor-pointer"
+                    >
+                      {option.label}
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {option.description}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {selectedReminderHours.length > 0 && (
+              <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg">
+                <AlertCircle className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">
+                  Selected: {selectedReminderHours.sort((a, b) => b - a).map(h => 
+                    `${h}h`
+                  ).join(", ")} before appointment
+                </span>
+              </div>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Follow-up Timing */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Phone className="w-5 h-5" />
+              <h3 className="text-lg font-medium">Missed Call Follow-up</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              How long to wait before making a follow-up call if the initial appointment reminder goes unanswered.
+            </p>
+            
+            <RadioGroup
+              value={followUpRetryMinutes.toString()}
+              onValueChange={(value) => setFollowUpRetryMinutes(parseInt(value))}
+              data-testid="radio-group-followup-timing"
+            >
+              {followUpOptions.map((option) => (
+                <div key={option.minutes} className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+                  <RadioGroupItem 
+                    value={option.minutes.toString()} 
+                    id={`followup-${option.minutes}`}
+                    data-testid={`radio-followup-${option.minutes}min`}
+                  />
+                  <div className="grid gap-1 flex-1">
+                    <Label 
+                      htmlFor={`followup-${option.minutes}`}
+                      className="text-sm font-medium cursor-pointer"
+                    >
+                      {option.label}
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {option.description}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </RadioGroup>
+          </div>
+
+          <div className="flex justify-end pt-4">
+            <Button 
+              onClick={handleSave}
+              disabled={saveConfigMutation.isPending || isLoading}
+              data-testid="button-save-call-preferences"
+            >
+              {saveConfigMutation.isPending ? "Saving..." : "Save Call Settings"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </TabsContent>
+  );
+}
 
 export default function Profile() {
   const { user } = useAuth();
+  const { toast } = useToast();
   
   if (!user) return null;
 
@@ -378,54 +587,7 @@ export default function Profile() {
           }
 
           if (section.id === "calls") {
-            return (
-              <TabsContent key="calls" value="calls" className="space-y-6">
-          <Card data-testid="call-preferences-section">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Phone className="w-5 h-5" />
-                Call Settings & Preferences
-              </CardTitle>
-              <CardDescription>
-                Configure voice calling behavior, timing, and retry settings
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Call Timing */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium">Default Call Timing</h3>
-                <div className="space-y-2">
-                  <Label htmlFor="default-call-timing">Default Hours Before Appointment</Label>
-                  <Select defaultValue="36" data-testid="select-default-call-timing">
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">1 hour before (Same-day reminders)</SelectItem>
-                      <SelectItem value="2">2 hours before (Short-notice appointments)</SelectItem>
-                      <SelectItem value="6">6 hours before (Professional services)</SelectItem>
-                      <SelectItem value="36">36 hours before (Recommended)</SelectItem>
-                      <SelectItem value="24">24 hours before</SelectItem>
-                      <SelectItem value="48">48 hours before (Important meetings)</SelectItem>
-                      <SelectItem value="168">1 week before (Major procedures)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Default timing for new contacts (can be customized per contact)
-                  </p>
-                </div>
-              </div>
-
-
-              <div className="flex justify-end pt-4">
-                <Button data-testid="button-save-call-preferences">
-                  Save Call Settings
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-            );
+            return <CallSettingsContent key="calls" />;
           }
 
           if (section.id === "integrations") {
