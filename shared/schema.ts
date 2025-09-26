@@ -273,7 +273,7 @@ export const tenantConfig = pgTable("tenant_config", {
   // Rate limiting and protection
   isPaused: boolean("is_paused").default(false),
   maxCallsPerDay: integer("max_calls_per_day").default(300),
-  maxCallsPer15Min: integer("max_calls_per_15m").default(25),
+  maxCallsPer15Min: integer("max_calls_per_15m").default(75),
   quietStart: time("quiet_start").default("20:00"),
   quietEnd: time("quiet_end").default("08:00"),
   createdAt: timestamp("created_at").defaultNow(),

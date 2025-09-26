@@ -2841,13 +2841,13 @@ export class DatabaseStorage implements IStorage {
 
     // Get the appropriate day configuration
     const dayConfigs = [
-      JSON.parse(config.sundayHours || '{"enabled": false}'),
+      JSON.parse(config.sundayHours || '{"enabled": true, "start": "10:00", "end": "16:00"}'),
       JSON.parse(config.mondayHours || '{"enabled": true, "start": "08:00", "end": "20:00"}'),
       JSON.parse(config.tuesdayHours || '{"enabled": true, "start": "08:00", "end": "20:00"}'),
       JSON.parse(config.wednesdayHours || '{"enabled": true, "start": "08:00", "end": "20:00"}'),
       JSON.parse(config.thursdayHours || '{"enabled": true, "start": "08:00", "end": "20:00"}'),
       JSON.parse(config.fridayHours || '{"enabled": true, "start": "08:00", "end": "20:00"}'),
-      JSON.parse(config.saturdayHours || '{"enabled": false}')
+      JSON.parse(config.saturdayHours || '{"enabled": true, "start": "09:00", "end": "17:00"}')
     ];
 
     const dayConfig = dayConfigs[dayOfWeek];

@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, ArrowRight, Clock, Settings, Shield } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { ArrowLeft, ArrowRight, Clock, Settings, Shield, Calendar } from "lucide-react";
 
 const TIMEZONE_OPTIONS = [
   { value: "Europe/London", label: "London (GMT)" },
@@ -31,9 +32,14 @@ export default function BusinessConfigStep({ data, onUpdate, onNext, onPrevious 
     },
     operationalSettings: {
       maxCallsPerDay: data.operationalSettings?.maxCallsPerDay || 300,
-      maxCallsPer15Min: data.operationalSettings?.maxCallsPer15Min || 20,
+      maxCallsPer15Min: data.operationalSettings?.maxCallsPer15Min || 75,
       quietStart: data.operationalSettings?.quietStart || "20:00",
       quietEnd: data.operationalSettings?.quietEnd || "08:00",
+    },
+    weekendCalling: {
+      enabled: data.weekendCalling?.enabled !== false, // Default to true (enabled)
+      saturdayHours: data.weekendCalling?.saturdayHours || { start: "09:00", end: "17:00" },
+      sundayHours: data.weekendCalling?.sundayHours || { start: "10:00", end: "16:00" },
     },
   });
 
@@ -47,7 +53,12 @@ export default function BusinessConfigStep({ data, onUpdate, onNext, onPrevious 
           operationalSettings: {
             ...prev.operationalSettings,
             maxCallsPerDay: 500,
-            maxCallsPer15Min: 30,
+            maxCallsPer15Min: 100,
+          },
+          weekendCalling: {
+            enabled: true,
+            saturdayHours: { start: "08:00", end: "16:00" },
+            sundayHours: { start: "10:00", end: "14:00" }
           },
         }));
         break;
@@ -58,7 +69,12 @@ export default function BusinessConfigStep({ data, onUpdate, onNext, onPrevious 
           operationalSettings: {
             ...prev.operationalSettings,
             maxCallsPerDay: 200,
-            maxCallsPer15Min: 15,
+            maxCallsPer15Min: 50,
+          },
+          weekendCalling: {
+            enabled: true,
+            saturdayHours: { start: "09:00", end: "18:00" },
+            sundayHours: { start: "11:00", end: "17:00" }
           },
         }));
         break;
@@ -69,7 +85,12 @@ export default function BusinessConfigStep({ data, onUpdate, onNext, onPrevious 
           operationalSettings: {
             ...prev.operationalSettings,
             maxCallsPerDay: 400,
-            maxCallsPer15Min: 25,
+            maxCallsPer15Min: 75,
+          },
+          weekendCalling: {
+            enabled: true,
+            saturdayHours: { start: "10:00", end: "23:00" },
+            sundayHours: { start: "10:00", end: "21:00" }
           },
         }));
         break;
@@ -312,6 +333,118 @@ export default function BusinessConfigStep({ data, onUpdate, onNext, onPrevious 
           <p className="text-xs text-muted-foreground">
             Quiet hours prevent automatic calls during specified times (e.g., evenings and early mornings)
           </p>
+        </CardContent>
+      </Card>
+
+      {/* Weekend Calling Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Calendar className="w-5 h-5" />
+            <span>Weekend Calling</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label>Enable Weekend Calling</Label>
+              <p className="text-xs text-muted-foreground">
+                Allow appointment reminders on Saturdays and Sundays
+              </p>
+            </div>
+            <Switch
+              checked={config.weekendCalling.enabled}
+              onCheckedChange={(checked) => setConfig(prev => ({
+                ...prev,
+                weekendCalling: { ...prev.weekendCalling, enabled: checked }
+              }))}
+              data-testid="switch-weekend-calling"
+            />
+          </div>
+
+          {config.weekendCalling.enabled && (
+            <div className="space-y-4 border-t pt-4">
+              <div>
+                <Label className="text-sm font-medium">Saturday Hours</Label>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <div>
+                    <Label htmlFor="saturday-start" className="text-xs">Start</Label>
+                    <Input
+                      id="saturday-start"
+                      type="time"
+                      value={config.weekendCalling.saturdayHours.start}
+                      onChange={(e) => setConfig(prev => ({
+                        ...prev,
+                        weekendCalling: {
+                          ...prev.weekendCalling,
+                          saturdayHours: { ...prev.weekendCalling.saturdayHours, start: e.target.value }
+                        }
+                      }))}
+                      data-testid="input-saturday-start"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="saturday-end" className="text-xs">End</Label>
+                    <Input
+                      id="saturday-end"
+                      type="time"
+                      value={config.weekendCalling.saturdayHours.end}
+                      onChange={(e) => setConfig(prev => ({
+                        ...prev,
+                        weekendCalling: {
+                          ...prev.weekendCalling,
+                          saturdayHours: { ...prev.weekendCalling.saturdayHours, end: e.target.value }
+                        }
+                      }))}
+                      data-testid="input-saturday-end"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium">Sunday Hours</Label>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <div>
+                    <Label htmlFor="sunday-start" className="text-xs">Start</Label>
+                    <Input
+                      id="sunday-start"
+                      type="time"
+                      value={config.weekendCalling.sundayHours.start}
+                      onChange={(e) => setConfig(prev => ({
+                        ...prev,
+                        weekendCalling: {
+                          ...prev.weekendCalling,
+                          sundayHours: { ...prev.weekendCalling.sundayHours, start: e.target.value }
+                        }
+                      }))}
+                      data-testid="input-sunday-start"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="sunday-end" className="text-xs">End</Label>
+                    <Input
+                      id="sunday-end"
+                      type="time"
+                      value={config.weekendCalling.sundayHours.end}
+                      onChange={(e) => setConfig(prev => ({
+                        ...prev,
+                        weekendCalling: {
+                          ...prev.weekendCalling,
+                          sundayHours: { ...prev.weekendCalling.sundayHours, end: e.target.value }
+                        }
+                      }))}
+                      data-testid="input-sunday-end"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                Weekend hours are typically shorter than weekdays. Many businesses operate 10am-4pm on weekends.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
