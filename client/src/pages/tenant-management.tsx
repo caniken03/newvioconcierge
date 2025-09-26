@@ -17,6 +17,24 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import TenantSetupWizard from "@/components/tenant-wizard/TenantSetupWizard";
+import { 
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter 
+} from "@/components/ui/dialog";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import type { Tenant } from "@/types";
 
 // Wizard state management (no form schema needed since wizard handles its own validation)
@@ -28,6 +46,8 @@ export default function TenantManagement() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [tenantToDelete, setTenantToDelete] = useState<string | null>(null);
 
   // Fetch tenants
   const { data: tenants = [], isLoading } = useQuery<Tenant[]>({
@@ -62,12 +82,59 @@ export default function TenantManagement() {
     },
   });
 
+  // Delete tenant mutation
+  const deleteTenantMutation = useMutation({
+    mutationFn: async (tenantId: string) => {
+      await apiRequest('DELETE', `/api/admin/tenants/${tenantId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/tenants'] });
+      toast({
+        title: "Tenant deleted",
+        description: "Tenant has been successfully deleted.",
+      });
+      setTenantToDelete(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to delete tenant",
+        description: error.message,
+        variant: "destructive",
+      });
+      setTenantToDelete(null);
+    },
+  });
+
   const handleStatusChange = (tenantId: string, status: string) => {
     updateTenantMutation.mutate({ id: tenantId, status });
   };
 
   const handleWizardComplete = () => {
     queryClient.invalidateQueries({ queryKey: ['/api/admin/tenants'] });
+  };
+
+  const handleViewTenant = (tenant: Tenant) => {
+    setSelectedTenant(tenant);
+    setIsViewModalOpen(true);
+  };
+
+  const handleEditTenant = (tenantId: string) => {
+    // Navigate to tenant edit page or open edit modal
+    // For now, we'll show a toast indicating the feature
+    toast({
+      title: "Edit Tenant",
+      description: "Tenant editing functionality will be implemented here.",
+    });
+  };
+
+  const handleDeleteTenant = (tenantId: string) => {
+    setTenantToDelete(tenantId);
+  };
+
+  const confirmDeleteTenant = () => {
+    if (tenantToDelete) {
+      deleteTenantMutation.mutate(tenantToDelete);
+    }
   };
 
   const displayedTenants = searchQuery.length > 2 ? searchResults : tenants;
@@ -305,7 +372,7 @@ export default function TenantManagement() {
                           <td className="px-6 py-4 text-center">
                             <div className="flex items-center justify-center space-x-2">
                               <button
-                                onClick={() => setSelectedTenant(tenant)}
+                                onClick={() => handleViewTenant(tenant)}
                                 className="text-muted-foreground hover:text-primary transition-colors"
                                 data-testid={`button-view-tenant-${tenant.id}`}
                                 title="View details"
@@ -313,6 +380,7 @@ export default function TenantManagement() {
                                 <i className="fas fa-eye text-sm"></i>
                               </button>
                               <button
+                                onClick={() => handleEditTenant(tenant.id)}
                                 className="text-muted-foreground hover:text-primary transition-colors"
                                 data-testid={`button-edit-tenant-${tenant.id}`}
                                 title="Edit tenant"
@@ -320,6 +388,7 @@ export default function TenantManagement() {
                                 <i className="fas fa-edit text-sm"></i>
                               </button>
                               <button
+                                onClick={() => handleDeleteTenant(tenant.id)}
                                 className="text-muted-foreground hover:text-destructive transition-colors"
                                 data-testid={`button-delete-tenant-${tenant.id}`}
                                 title="Delete tenant"
@@ -343,6 +412,84 @@ export default function TenantManagement() {
             onClose={() => setIsWizardOpen(false)}
             onComplete={handleWizardComplete}
           />
+
+          {/* Tenant Details Modal */}
+          <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Tenant Details</DialogTitle>
+              </DialogHeader>
+              {selectedTenant && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Tenant Name</label>
+                      <p className="text-sm font-medium">{selectedTenant.name}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Company Name</label>
+                      <p className="text-sm">{selectedTenant.companyName || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Contact Email</label>
+                      <p className="text-sm">{selectedTenant.contactEmail || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Status</label>
+                      <Badge
+                        variant={selectedTenant.status === 'active' ? 'default' : 'secondary'}
+                        className={
+                          selectedTenant.status === 'active'
+                            ? 'bg-green-100 text-green-800'
+                            : selectedTenant.status === 'suspended'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }
+                      >
+                        {selectedTenant.status}
+                      </Badge>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Created Date</label>
+                      <p className="text-sm">{new Date(selectedTenant.createdAt).toLocaleDateString()}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Tenant Number</label>
+                      <p className="text-sm">{selectedTenant.tenantNumber || 'N/A'}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <DialogFooter>
+                <Button onClick={() => setIsViewModalOpen(false)}>
+                  Close
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Delete Confirmation Dialog */}
+          <AlertDialog open={!!tenantToDelete} onOpenChange={() => setTenantToDelete(null)}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. This will permanently delete the tenant
+                  and all associated data.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={confirmDeleteTenant}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  disabled={deleteTenantMutation.isPending}
+                >
+                  {deleteTenantMutation.isPending ? 'Deleting...' : 'Delete'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </main>
       </div>
     </div>
