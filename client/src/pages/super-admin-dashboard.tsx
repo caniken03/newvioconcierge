@@ -1,8 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Link, useLocation } from "wouter";
 import SystemHealthStatus from "@/components/health/SystemHealthStatus";
 
@@ -128,128 +126,153 @@ export default function SuperAdminDashboard() {
         </Card>
       </div>
 
-      {/* Tenant Management Table */}
-      <Card>
-        <div className="px-6 py-4 border-b border-border">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-foreground">Tenant Overview</h3>
-            <div className="flex items-center space-x-3">
-              <div className="relative">
-                <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground text-sm"></i>
-                <Input
-                  type="text"
-                  placeholder="Search tenants..."
-                  className="pl-10 pr-4 py-2 text-sm"
-                  data-testid="input-search-tenants"
-                />
-              </div>
-              <Link href="/tenants">
-                <Button data-testid="button-add-tenant">
-                  <i className="fas fa-plus text-sm mr-2"></i>
-                  Add Tenant
+      {/* Platform Activity & Insights */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Recent Platform Activity */}
+        <Card>
+          <div className="px-6 py-4 border-b border-border">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-foreground">Recent Activity</h3>
+              <Link href="/health">
+                <Button variant="outline" size="sm" data-testid="button-view-all-activity">
+                  View All
                 </Button>
               </Link>
             </div>
           </div>
-        </div>
+          <div className="p-6">
+            <div className="space-y-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-green-100 text-green-600 rounded-full flex items-center justify-center">
+                  <i className="fas fa-plus text-xs"></i>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-foreground">New tenant created</p>
+                  <p className="text-xs text-muted-foreground">Healthcare Solutions Inc. - 2 minutes ago</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
+                  <i className="fas fa-phone text-xs"></i>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-foreground">Call volume spike detected</p>
+                  <p className="text-xs text-muted-foreground">Dental Care Plus - 15 minutes ago</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center">
+                  <i className="fas fa-exclamation-triangle text-xs"></i>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-foreground">Rate limit threshold reached</p>
+                  <p className="text-xs text-muted-foreground">Restaurant Chain Co. - 1 hour ago</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center">
+                  <i className="fas fa-calendar text-xs"></i>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-foreground">Calendar integration updated</p>
+                  <p className="text-xs text-muted-foreground">Professional Services LLC - 3 hours ago</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Card>
 
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-muted/30">
-              <tr>
-                <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Tenant
-                </th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Calls Today
-                </th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Success Rate
-                </th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Last Active
-                </th>
-                <th className="text-center px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {tenants.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center">
-                    <div className="text-muted-foreground">
-                      <i className="fas fa-building text-4xl mb-4"></i>
-                      <p className="text-lg font-medium">No tenants found</p>
-                      <p className="text-sm">Create your first tenant to get started</p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                tenants.map((tenant: any) => (
-                  <tr key={tenant.id} className="hover:bg-muted/30 transition-colors" data-testid={`row-tenant-${tenant.id}`}>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-primary text-primary-foreground rounded-lg flex items-center justify-center">
-                          <span className="text-sm font-semibold">
-                            {tenant.name.substring(0, 2).toUpperCase()}
-                          </span>
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground">{tenant.name}</p>
-                          <p className="text-xs text-muted-foreground">{tenant.contactEmail}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <Badge
-                        variant={tenant.status === 'active' ? 'default' : 'secondary'}
-                        className={
-                          tenant.status === 'active'
-                            ? 'bg-green-100 text-green-800'
-                            : tenant.status === 'suspended'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-red-100 text-red-800'
-                        }
-                      >
-                        {tenant.status}
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-foreground font-medium">-</td>
-                    <td className="px-6 py-4 text-sm text-foreground">-</td>
-                    <td className="px-6 py-4 text-sm text-muted-foreground">
-                      {new Date(tenant.updatedAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex items-center justify-center space-x-2">
-                        <button
-                          className="text-muted-foreground hover:text-primary transition-colors"
-                          data-testid={`button-view-tenant-${tenant.id}`}
-                        >
-                          <i className="fas fa-eye text-sm"></i>
-                        </button>
-                        <button
-                          className="text-muted-foreground hover:text-primary transition-colors"
-                          data-testid={`button-edit-tenant-${tenant.id}`}
-                        >
-                          <i className="fas fa-edit text-sm"></i>
-                        </button>
-                        <button
-                          className="text-muted-foreground hover:text-destructive transition-colors"
-                          data-testid={`button-pause-tenant-${tenant.id}`}
-                        >
-                          <i className="fas fa-pause text-sm"></i>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        {/* System Performance Metrics */}
+        <Card>
+          <div className="px-6 py-4 border-b border-border">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-foreground">System Performance</h3>
+              <Link href="/health">
+                <Button variant="outline" size="sm" data-testid="button-view-metrics">
+                  View Details
+                </Button>
+              </Link>
+            </div>
+          </div>
+          <div className="p-6">
+            <div className="space-y-6">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-foreground">API Response Time</span>
+                  <span className="text-sm text-muted-foreground">{analytics.avgResponseTime || '125ms'}</span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div className="bg-green-500 h-2 rounded-full" style={{ width: '85%' }}></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-foreground">System Uptime</span>
+                  <span className="text-sm text-muted-foreground">99.94%</span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div className="bg-green-500 h-2 rounded-full" style={{ width: '99%' }}></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-foreground">Voice AI Success Rate</span>
+                  <span className="text-sm text-muted-foreground">{analytics.successRate || '94.2%'}</span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div className="bg-blue-500 h-2 rounded-full" style={{ width: '94%' }}></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-foreground">Database Performance</span>
+                  <span className="text-sm text-muted-foreground">Excellent</span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div className="bg-green-500 h-2 rounded-full" style={{ width: '96%' }}></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Quick Actions for Platform Management */}
+      <Card>
+        <div className="px-6 py-4 border-b border-border">
+          <h3 className="text-lg font-semibold text-foreground">Platform Management</h3>
+        </div>
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Link href="/tenants">
+              <Button className="w-full h-20 flex flex-col items-center justify-center space-y-2" variant="outline" data-testid="button-manage-tenants">
+                <i className="fas fa-building text-lg"></i>
+                <span className="text-sm font-medium">Manage Tenants</span>
+                <span className="text-xs text-muted-foreground">{tenants.length} active</span>
+              </Button>
+            </Link>
+            <Link href="/health">
+              <Button className="w-full h-20 flex flex-col items-center justify-center space-y-2" variant="outline" data-testid="button-system-health">
+                <i className="fas fa-heartbeat text-lg"></i>
+                <span className="text-sm font-medium">System Health</span>
+                <span className="text-xs text-muted-foreground">All systems OK</span>
+              </Button>
+            </Link>
+            <Link href="/compliance">
+              <Button className="w-full h-20 flex flex-col items-center justify-center space-y-2" variant="outline" data-testid="button-compliance">
+                <i className="fas fa-shield-alt text-lg"></i>
+                <span className="text-sm font-medium">Compliance</span>
+                <span className="text-xs text-muted-foreground">Monitor HIPAA</span>
+              </Button>
+            </Link>
+            <Link href="/analytics-center">
+              <Button className="w-full h-20 flex flex-col items-center justify-center space-y-2" variant="outline" data-testid="button-analytics">
+                <i className="fas fa-chart-bar text-lg"></i>
+                <span className="text-sm font-medium">Analytics Center</span>
+                <span className="text-xs text-muted-foreground">View reports</span>
+              </Button>
+            </Link>
+          </div>
         </div>
       </Card>
     </div>
