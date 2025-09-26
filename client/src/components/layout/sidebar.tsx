@@ -2,14 +2,22 @@ import { useAuth } from "@/hooks/use-auth";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import type { Tenant } from "@/types";
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+
+  // Fetch tenant count for super admin badge
+  const { data: tenants = [] } = useQuery<Tenant[]>({
+    queryKey: ['/api/admin/tenants'],
+    enabled: !!user && user.role === 'super_admin',
+  });
 
   if (!user) return null;
 
@@ -163,7 +171,7 @@ export default function Sidebar() {
               href="/tenants" 
               icon="fas fa-building" 
               testId="nav-tenant-management"
-              badge={{ count: 12, variant: 'secondary' }}
+              badge={{ count: tenants.length, variant: 'secondary' }}
             >
               Tenant Management
             </NavLink>
