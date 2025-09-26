@@ -1595,13 +1595,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let rowCount = 0;
 
       return new Promise((resolve, reject) => {
-        fs.createReadStream(filePath!)
-          .pipe(csv())
-          .on('data', (data) => {
+        const readStream = fs.createReadStream(filePath!);
+        const csvStream = readStream.pipe(csv());
+        
+        csvStream.on('data', (data) => {
             rowCount++;
             
-            // Enforce row limit
+            // Enforce row limit with proper stream cleanup
             if (rowCount > CSV_MAX_ROWS) {
+              csvStream.destroy();
+              readStream.destroy();
               reject(new Error(`CSV file exceeds maximum ${CSV_MAX_ROWS} rows`));
               return;
             }
@@ -2737,19 +2740,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Missing tenant ID in webhook metadata' });
       }
 
-      // Get tenant configuration for Retell API key (used as HMAC secret)
+      // Get tenant configuration for Retell webhook secret (SECURITY FIX)
       const tenantConfig = await storage.getTenantConfig(tenantId);
-      if (!tenantConfig?.retellApiKey) {
-        console.warn(`Retell API key not configured for tenant ${tenantId}`);
-        return res.status(400).json({ message: 'Retell API key not configured' });
+      if (!tenantConfig?.retellWebhookSecret) {
+        console.warn(`Retell webhook secret not configured for tenant ${tenantId}`);
+        return res.status(400).json({ message: 'Retell webhook secret not configured' });
       }
 
-      // SECURITY: Proper HMAC verification using raw body and tenant's API key
+      // SECURITY: Proper HMAC verification using raw body and tenant's WEBHOOK SECRET (not API key)
       const rawPayload = req.body.toString();
       
       // Defensive signature verification with proper error handling
       try {
-        if (!verifyRetellWebhookSignature(rawPayload, signature as string, tenantConfig.retellApiKey)) {
+        if (!verifyRetellWebhookSignature(rawPayload, signature as string, tenantConfig.retellWebhookSecret)) {
           console.warn(`Invalid Retell webhook signature for tenant ${tenantId}`);
           return res.status(401).json({ message: 'Invalid webhook signature' });
         }

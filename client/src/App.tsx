@@ -23,6 +23,22 @@ import AbuseProtection from "@/pages/abuse-protection";
 import SuperAdminGuide from "@/pages/super-admin-guide";
 import ClientAdminGuide from "@/pages/client-admin-guide";
 
+// Role-based route protection component
+function ProtectedRoute({ 
+  component: Component, 
+  allowedRoles, 
+  user 
+}: { 
+  component: React.ComponentType; 
+  allowedRoles: string[]; 
+  user: any;
+}) {
+  if (!allowedRoles.includes(user?.role)) {
+    return <NotFound />;
+  }
+  return <Component />;
+}
+
 function Router() {
   const { user, isLoading } = useAuth();
 
@@ -44,21 +60,56 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
-      <Route path="/super-admin" component={SuperAdminDashboard} />
-      <Route path="/client-admin" component={ClientAdminDashboard} />
-      <Route path="/contacts" component={Contacts} />
-      <Route path="/calls" component={Calls} />
-      <Route path="/appointments" component={Appointments} />
-      <Route path="/analytics" component={ContactAnalytics} />
-      <Route path="/analytics-center" component={AnalyticsCenter} />
-      <Route path="/tenants" component={TenantManagement} />
-      <Route path="/health" component={HealthMonitoring} />
-      <Route path="/compliance" component={Compliance} />
-      <Route path="/abuse-protection" component={AbuseProtection} />
-      <Route path="/system" component={SystemSettings} />
+      
+      {/* Super Admin Only Routes */}
+      <Route path="/super-admin">
+        <ProtectedRoute component={SuperAdminDashboard} allowedRoles={['super_admin']} user={user} />
+      </Route>
+      <Route path="/tenants">
+        <ProtectedRoute component={TenantManagement} allowedRoles={['super_admin']} user={user} />
+      </Route>
+      <Route path="/analytics-center">
+        <ProtectedRoute component={AnalyticsCenter} allowedRoles={['super_admin']} user={user} />
+      </Route>
+      <Route path="/health">
+        <ProtectedRoute component={HealthMonitoring} allowedRoles={['super_admin']} user={user} />
+      </Route>
+      <Route path="/compliance">
+        <ProtectedRoute component={Compliance} allowedRoles={['super_admin']} user={user} />
+      </Route>
+      <Route path="/abuse-protection">
+        <ProtectedRoute component={AbuseProtection} allowedRoles={['super_admin']} user={user} />
+      </Route>
+      <Route path="/system">
+        <ProtectedRoute component={SystemSettings} allowedRoles={['super_admin']} user={user} />
+      </Route>
+      <Route path="/super-admin-guide">
+        <ProtectedRoute component={SuperAdminGuide} allowedRoles={['super_admin']} user={user} />
+      </Route>
+      
+      {/* Client Admin and Client User Routes */}
+      <Route path="/client-admin">
+        <ProtectedRoute component={ClientAdminDashboard} allowedRoles={['client_admin', 'client_user']} user={user} />
+      </Route>
+      <Route path="/contacts">
+        <ProtectedRoute component={Contacts} allowedRoles={['client_admin', 'client_user']} user={user} />
+      </Route>
+      <Route path="/calls">
+        <ProtectedRoute component={Calls} allowedRoles={['client_admin', 'client_user']} user={user} />
+      </Route>
+      <Route path="/appointments">
+        <ProtectedRoute component={Appointments} allowedRoles={['client_admin', 'client_user']} user={user} />
+      </Route>
+      <Route path="/analytics">
+        <ProtectedRoute component={ContactAnalytics} allowedRoles={['client_admin', 'client_user']} user={user} />
+      </Route>
+      <Route path="/client-admin-guide">
+        <ProtectedRoute component={ClientAdminGuide} allowedRoles={['client_admin', 'client_user']} user={user} />
+      </Route>
+      
+      {/* All authenticated users routes */}
       <Route path="/profile" component={Profile} />
-      <Route path="/super-admin-guide" component={SuperAdminGuide} />
-      <Route path="/client-admin-guide" component={ClientAdminGuide} />
+      
       <Route component={NotFound} />
     </Switch>
   );
