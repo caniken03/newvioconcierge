@@ -53,6 +53,178 @@ const upload = multer({
 // Security helpers
 const CSV_MAX_ROWS = 10000; // Maximum rows to process
 
+// SECURITY: Comprehensive Rate Limiting and Account Lockout System
+interface LoginAttempt {
+  timestamp: number;
+  ip: string;
+  success: boolean;
+}
+
+interface AccountLockout {
+  lockedUntil: number;
+  attemptCount: number;
+  lastAttemptIp: string;
+}
+
+// In-memory stores for rate limiting (In production, use Redis for distributed systems)
+const loginAttempts = new Map<string, LoginAttempt[]>(); // email -> attempts
+const ipAttempts = new Map<string, LoginAttempt[]>(); // ip -> attempts  
+const accountLockouts = new Map<string, AccountLockout>(); // email -> lockout info
+
+// Security configuration
+const RATE_LIMIT_CONFIG = {
+  MAX_ATTEMPTS_PER_EMAIL: 5, // Max attempts per email in time window
+  MAX_ATTEMPTS_PER_IP: 10, // Max attempts per IP in time window
+  TIME_WINDOW_MS: 15 * 60 * 1000, // 15 minutes
+  LOCKOUT_DURATION_MS: 30 * 60 * 1000, // 30 minutes lockout
+  MAX_LOCKOUT_DURATION_MS: 24 * 60 * 60 * 1000, // 24 hours max lockout
+  CLEANUP_INTERVAL_MS: 5 * 60 * 1000, // Cleanup every 5 minutes
+};
+
+// Cleanup expired attempts and lockouts
+const cleanupExpiredAttempts = () => {
+  const now = Date.now();
+  const cutoff = now - RATE_LIMIT_CONFIG.TIME_WINDOW_MS;
+  
+  // Clean up login attempts
+  for (const [key, attempts] of loginAttempts.entries()) {
+    const validAttempts = attempts.filter(attempt => attempt.timestamp > cutoff);
+    if (validAttempts.length === 0) {
+      loginAttempts.delete(key);
+    } else {
+      loginAttempts.set(key, validAttempts);
+    }
+  }
+  
+  // Clean up IP attempts
+  for (const [key, attempts] of ipAttempts.entries()) {
+    const validAttempts = attempts.filter(attempt => attempt.timestamp > cutoff);
+    if (validAttempts.length === 0) {
+      ipAttempts.delete(key);
+    } else {
+      ipAttempts.set(key, validAttempts);
+    }
+  }
+  
+  // Clean up expired lockouts
+  for (const [email, lockout] of accountLockouts.entries()) {
+    if (lockout.lockedUntil < now) {
+      accountLockouts.delete(email);
+    }
+  }
+};
+
+// Start cleanup service
+setInterval(cleanupExpiredAttempts, RATE_LIMIT_CONFIG.CLEANUP_INTERVAL_MS);
+
+// Check if account is locked
+const isAccountLocked = (email: string): { locked: boolean; remainingTime?: number } => {
+  const lockout = accountLockouts.get(email);
+  if (!lockout) return { locked: false };
+  
+  const now = Date.now();
+  if (lockout.lockedUntil > now) {
+    return { 
+      locked: true, 
+      remainingTime: Math.ceil((lockout.lockedUntil - now) / 1000 / 60) // minutes
+    };
+  }
+  
+  // Lockout expired, remove it
+  accountLockouts.delete(email);
+  return { locked: false };
+};
+
+// Check rate limits
+const checkRateLimit = (email: string, ip: string): { allowed: boolean; reason?: string } => {
+  const now = Date.now();
+  const cutoff = now - RATE_LIMIT_CONFIG.TIME_WINDOW_MS;
+  
+  // Check account lockout first
+  const lockStatus = isAccountLocked(email);
+  if (lockStatus.locked) {
+    return { 
+      allowed: false, 
+      reason: `Account locked for ${lockStatus.remainingTime} more minutes due to repeated failed attempts`
+    };
+  }
+  
+  // Check email-based rate limit
+  const emailAttempts = loginAttempts.get(email) || [];
+  const recentEmailAttempts = emailAttempts.filter(attempt => 
+    attempt.timestamp > cutoff && !attempt.success
+  );
+  
+  if (recentEmailAttempts.length >= RATE_LIMIT_CONFIG.MAX_ATTEMPTS_PER_EMAIL) {
+    return { 
+      allowed: false, 
+      reason: 'Too many failed login attempts for this account. Please try again later.'
+    };
+  }
+  
+  // Check IP-based rate limit
+  const ipAttemptsArray = ipAttempts.get(ip) || [];
+  const recentIpAttempts = ipAttemptsArray.filter(attempt => 
+    attempt.timestamp > cutoff && !attempt.success
+  );
+  
+  if (recentIpAttempts.length >= RATE_LIMIT_CONFIG.MAX_ATTEMPTS_PER_IP) {
+    return { 
+      allowed: false, 
+      reason: 'Too many failed login attempts from this location. Please try again later.'
+    };
+  }
+  
+  return { allowed: true };
+};
+
+// Record login attempt
+const recordLoginAttempt = (email: string, ip: string, success: boolean) => {
+  const attempt: LoginAttempt = {
+    timestamp: Date.now(),
+    ip,
+    success
+  };
+  
+  // Record email attempt
+  const emailAttempts = loginAttempts.get(email) || [];
+  emailAttempts.push(attempt);
+  loginAttempts.set(email, emailAttempts);
+  
+  // Record IP attempt
+  const ipAttemptsArray = ipAttempts.get(ip) || [];
+  ipAttemptsArray.push(attempt);
+  ipAttempts.set(ip, ipAttemptsArray);
+  
+  // Handle account lockout for failed attempts
+  if (!success) {
+    const cutoff = Date.now() - RATE_LIMIT_CONFIG.TIME_WINDOW_MS;
+    const recentFailedAttempts = emailAttempts.filter(a => 
+      !a.success && a.timestamp > cutoff
+    );
+    
+    if (recentFailedAttempts.length >= RATE_LIMIT_CONFIG.MAX_ATTEMPTS_PER_EMAIL) {
+      const existingLockout = accountLockouts.get(email);
+      const lockoutDuration = existingLockout 
+        ? Math.min(RATE_LIMIT_CONFIG.LOCKOUT_DURATION_MS * 2, RATE_LIMIT_CONFIG.MAX_LOCKOUT_DURATION_MS)
+        : RATE_LIMIT_CONFIG.LOCKOUT_DURATION_MS;
+      
+      accountLockouts.set(email, {
+        lockedUntil: Date.now() + lockoutDuration,
+        attemptCount: recentFailedAttempts.length,
+        lastAttemptIp: ip
+      });
+      
+      console.warn(`🔒 Account locked: ${email} from ${ip} for ${lockoutDuration / 1000 / 60} minutes`);
+    }
+  } else {
+    // Successful login - clear failed attempts and lockouts
+    const emailAttempts = loginAttempts.get(email) || [];
+    loginAttempts.set(email, emailAttempts.filter(a => a.success));
+    accountLockouts.delete(email);
+  }
+};
+
 // Webhook signature verification
 function verifyWebhookSignature(payload: string, signature: string, secret: string, algorithm: 'sha256' | 'sha1' = 'sha256'): boolean {
   if (!secret || !signature) return false;
@@ -510,13 +682,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // SECURITY: Log authentication attempt for audit trail
       console.log(`🔐 Auth attempt: ${email} from ${clientIp} at ${timestamp}`);
       
-      // SECURITY: Check for rate limiting/brute force protection
-      const rateLimitKey = `login_attempts:${clientIp}:${email}`;
-      // Note: In production, implement Redis-based rate limiting here
+      // SECURITY: Check rate limiting and account lockouts BEFORE authentication
+      const rateLimitCheck = checkRateLimit(email, clientIp);
+      if (!rateLimitCheck.allowed) {
+        console.warn(`🚫 Rate limit exceeded: ${email} from ${clientIp} - ${rateLimitCheck.reason}`);
+        recordLoginAttempt(email, clientIp, false);
+        return res.status(429).json({ 
+          message: rateLimitCheck.reason,
+          retryAfter: RATE_LIMIT_CONFIG.TIME_WINDOW_MS / 1000 
+        });
+      }
       
       const user = await storage.authenticateUser(email, password);
       if (!user) {
-        // SECURITY: Log failed authentication attempt
+        // SECURITY: Record failed attempt and log
+        recordLoginAttempt(email, clientIp, false);
         console.warn(`❌ Failed auth: ${email} from ${clientIp} - Invalid credentials`);
         return res.status(401).json({ message: 'Invalid credentials' });
       }
@@ -544,6 +724,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { expiresIn: '24h' }
       );
 
+      // SECURITY: Record successful login attempt
+      recordLoginAttempt(email, clientIp, true);
+      
       // SECURITY: Log successful authentication
       console.log(`✅ Successful auth: ${email} (${userRole}) from ${clientIp}`);
 
