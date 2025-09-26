@@ -55,6 +55,7 @@ export default function TenantManagement() {
     enabled: !!user && user.role === 'super_admin',
   });
 
+
   // Search tenants
   const { data: searchResults = [], isLoading: searchLoading } = useQuery<Tenant[]>({
     queryKey: ['/api/admin/tenants/search', { q: searchQuery }],
@@ -134,9 +135,12 @@ export default function TenantManagement() {
     mutationFn: async (tenantId: string) => {
       return await apiRequest('POST', `/api/admin/tenants/${tenantId}/impersonate`);
     },
-    onSuccess: (response: any) => {
-      // Ensure response structure is valid
-      if (!response || !response.impersonationToken || !response.tenant) {
+    onSuccess: async (response: any) => {
+      // Handle both possible response formats: { impersonationToken, tenant } or { token, tenant }
+      const token = response?.impersonationToken || response?.token;
+      const tenant = response?.tenant;
+      
+      if (!response || !token) {
         toast({
           title: "Failed to visit tenant",
           description: "Invalid response from server. Please try again or contact support.",
@@ -146,15 +150,21 @@ export default function TenantManagement() {
       }
 
       // Store the impersonation token (use correct key)
-      localStorage.setItem('auth_token', response.impersonationToken);
+      localStorage.setItem('auth_token', token);
+      
+      // Invalidate auth queries to refresh context
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/tenants'] });
       
       toast({
         title: "Visiting Tenant",
-        description: `Now acting as admin for ${response.tenant.name}. You can make changes on their behalf.`,
+        description: `Now acting as admin for ${tenant?.name || 'the selected tenant'}. You can make changes on their behalf.`,
       });
       
-      // Reload the page to update auth context
-      window.location.href = '/dashboard';
+      // Brief delay then redirect to allow auth context to update
+      setTimeout(() => {
+        window.location.href = '/dashboard';
+      }, 100);
     },
     onError: (error: Error) => {
       toast({
