@@ -113,6 +113,13 @@ export default function TenantManagement() {
     queryClient.invalidateQueries({ queryKey: ['/api/admin/tenants'] });
   };
 
+  // Fetch detailed tenant information when viewing details
+  const { data: tenantDetails, isLoading: isLoadingDetails } = useQuery({
+    queryKey: ['tenant-details', selectedTenant?.id],
+    queryFn: () => selectedTenant?.id ? fetch(`/api/admin/tenants/${selectedTenant.id}/details`).then(res => res.json()) : null,
+    enabled: !!selectedTenant?.id && isViewModalOpen,
+  });
+
   const handleViewTenant = (tenant: Tenant) => {
     setSelectedTenant(tenant);
     setIsViewModalOpen(true);
@@ -444,45 +451,203 @@ export default function TenantManagement() {
               <DialogHeader>
                 <DialogTitle>Tenant Details</DialogTitle>
               </DialogHeader>
-              {selectedTenant && (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Tenant Name</label>
-                      <p className="text-sm font-medium">{selectedTenant.name}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Company Name</label>
-                      <p className="text-sm">{selectedTenant.companyName || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Contact Email</label>
-                      <p className="text-sm">{selectedTenant.contactEmail || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Status</label>
-                      <Badge
-                        variant={selectedTenant.status === 'active' ? 'default' : 'secondary'}
-                        className={
-                          selectedTenant.status === 'active'
-                            ? 'bg-green-100 text-green-800'
-                            : selectedTenant.status === 'suspended'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-red-100 text-red-800'
-                        }
-                      >
-                        {selectedTenant.status}
-                      </Badge>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Created Date</label>
-                      <p className="text-sm">{new Date(selectedTenant.createdAt).toLocaleDateString()}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Tenant Number</label>
-                      <p className="text-sm">{selectedTenant.tenantNumber || 'N/A'}</p>
+              {isLoadingDetails ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  <span className="ml-2 text-muted-foreground">Loading tenant details...</span>
+                </div>
+              ) : tenantDetails ? (
+                <div className="space-y-6 max-h-[70vh] overflow-y-auto">
+                  {/* Basic Information */}
+                  <div>
+                    <h4 className="font-semibold text-lg mb-3 border-b pb-2">Basic Information</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Tenant Name</label>
+                        <p className="text-sm font-medium">{tenantDetails.name}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Company Name</label>
+                        <p className="text-sm">{tenantDetails.companyName || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Contact Email</label>
+                        <p className="text-sm">{tenantDetails.contactEmail || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Status</label>
+                        <Badge
+                          variant={tenantDetails.status === 'active' ? 'default' : 'secondary'}
+                          className={
+                            tenantDetails.status === 'active'
+                              ? 'bg-green-100 text-green-800'
+                              : tenantDetails.status === 'suspended'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-red-100 text-red-800'
+                          }
+                        >
+                          {tenantDetails.status}
+                        </Badge>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Created Date</label>
+                        <p className="text-sm">{new Date(tenantDetails.createdAt).toLocaleDateString()}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Tenant Number</label>
+                        <p className="text-sm">{tenantDetails.tenantNumber || 'N/A'}</p>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Configuration Status */}
+                  <div>
+                    <h4 className="font-semibold text-lg mb-3 border-b pb-2">Configuration Status</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm">Retell AI Integration</span>
+                          <Badge variant={tenantDetails.configuration.retellConfigured ? "default" : "secondary"}>
+                            {tenantDetails.configuration.retellConfigured ? "✓ Configured" : "✗ Not Set"}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm">Calendar Integration</span>
+                          <Badge variant={tenantDetails.configuration.calendarConfigured ? "default" : "secondary"}>
+                            {tenantDetails.configuration.calendarConfigured ? "✓ Configured" : "✗ Not Set"}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm">Business Hours</span>
+                          <Badge variant={tenantDetails.configuration.businessHoursConfigured ? "default" : "secondary"}>
+                            {tenantDetails.configuration.businessHoursConfigured ? "✓ Set" : "✗ Default"}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm">Webhooks</span>
+                          <Badge variant={tenantDetails.configuration.webhooksConfigured ? "default" : "secondary"}>
+                            {tenantDetails.configuration.webhooksConfigured ? "✓ Active" : "✗ None"}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Timezone</label>
+                          <p className="text-sm">{tenantDetails.configuration.timezone}</p>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Business Type</label>
+                          <p className="text-sm capitalize">{tenantDetails.configuration.businessType}</p>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Call Limits</label>
+                          <p className="text-sm">{tenantDetails.configuration.maxCallsPer15Min}/15min, {tenantDetails.configuration.maxCallsPerDay}/day</p>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Quiet Hours</label>
+                          <p className="text-sm">{tenantDetails.configuration.quietHours}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Users & Activity */}
+                  <div>
+                    <h4 className="font-semibold text-lg mb-3 border-b pb-2">Users & Activity</h4>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">User Statistics</label>
+                          <div className="mt-1 space-y-1">
+                            <p className="text-sm">👥 Total Users: <span className="font-medium">{tenantDetails.users.total}</span></p>
+                            <p className="text-sm">👑 Admin Users: <span className="font-medium">{tenantDetails.users.admins}</span></p>
+                            <p className="text-sm">👤 Regular Users: <span className="font-medium">{tenantDetails.users.regular}</span></p>
+                          </div>
+                        </div>
+                        {tenantDetails.users.adminEmails.length > 0 && (
+                          <div>
+                            <label className="text-sm font-medium text-muted-foreground">Admin Contacts</label>
+                            <div className="mt-1 space-y-1">
+                              {tenantDetails.users.adminEmails.map((email: string, idx: number) => (
+                                <p key={idx} className="text-xs text-blue-600">{email}</p>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Activity Overview</label>
+                          <div className="mt-1 space-y-1">
+                            <p className="text-sm">📞 Total Contacts: <span className="font-medium">{tenantDetails.activity.totalContacts}</span></p>
+                            <p className="text-sm">📈 Recent Calls (30d): <span className="font-medium">{tenantDetails.activity.recentCalls}</span></p>
+                            {tenantDetails.activity.lastActivity && (
+                              <p className="text-sm">⏰ Last Activity: <span className="font-medium">{new Date(tenantDetails.activity.lastActivity).toLocaleDateString()}</span></p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Integrations */}
+                  <div>
+                    <h4 className="font-semibold text-lg mb-3 border-b pb-2">Integration Details</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Retell AI Voice</label>
+                        {tenantDetails.integrations.retell.configured ? (
+                          <div className="mt-1 space-y-1">
+                            <p className="text-xs">🤖 Agent ID: <span className="font-mono">{tenantDetails.integrations.retell.agentId}</span></p>
+                            {tenantDetails.integrations.retell.phoneNumber && (
+                              <p className="text-xs">📞 Phone: <span className="font-mono">{tenantDetails.integrations.retell.phoneNumber}</span></p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground mt-1">Not configured</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Calendar System</label>
+                        {tenantDetails.integrations.calendar.configured ? (
+                          <div className="mt-1">
+                            <p className="text-xs">🗓️ Type: <span className="font-medium">{tenantDetails.integrations.calendar.type}</span></p>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground mt-1">Not configured</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Health Score */}
+                  <div>
+                    <h4 className="font-semibold text-lg mb-3 border-b pb-2">Health Score</h4>
+                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="text-sm font-medium">Configuration Completeness</p>
+                        <p className="text-xs text-muted-foreground">{tenantDetails.health.configurationScore}/{tenantDetails.health.totalConfigurationItems} items configured</p>
+                      </div>
+                      <div className="text-right">
+                        <Badge 
+                          variant={tenantDetails.health.configurationScore >= 3 ? "default" : tenantDetails.health.configurationScore >= 2 ? "secondary" : "destructive"}
+                          className={
+                            tenantDetails.health.configurationScore >= 3 
+                              ? 'bg-green-100 text-green-800'
+                              : tenantDetails.health.configurationScore >= 2
+                              ? 'bg-yellow-100 text-yellow-800' 
+                              : 'bg-red-100 text-red-800'
+                          }
+                        >
+                          {Math.round((tenantDetails.health.configurationScore / tenantDetails.health.totalConfigurationItems) * 100)}% Complete
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : selectedTenant && (
+                <div className="text-center py-8 text-muted-foreground">
+                  Failed to load tenant details
                 </div>
               )}
               <DialogFooter>

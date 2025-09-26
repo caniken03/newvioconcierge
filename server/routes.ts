@@ -611,6 +611,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get comprehensive tenant details for the details modal
+  app.get('/api/admin/tenants/:id/details', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
+    try {
+      const tenantId = req.params.id;
+      
+      // Get basic tenant info
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: 'Tenant not found' });
+      }
+      
+      // Get tenant configuration
+      const tenantConfig = await storage.getTenantConfig(tenantId);
+      
+      // Get user information
+      const users = await storage.getUsersByTenant(tenantId);
+      const adminUsers = users.filter(u => u.role?.includes('admin'));
+      
+      // Get contact count
+      const contacts = await storage.getContactsByTenant(tenantId);
+      
+      // Get recent call sessions count (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const recentCalls = await storage.getCallSessionsByTenant(tenantId, thirtyDaysAgo);
+      
+      // Configuration status
+      const configurationStatus = {
+        retellConfigured: !!(tenantConfig?.retellAgentId && tenantConfig?.retellApiKey),
+        calendarConfigured: !!(tenantConfig?.calApiKey || tenantConfig?.calendlyApiKey),
+        businessHoursConfigured: !!(tenantConfig?.timezone),
+        webhooksConfigured: !!(tenantConfig?.retellWebhookSecret || tenantConfig?.calWebhookSecret),
+      };
+      
+      // Compile comprehensive details
+      const details = {
+        // Basic information
+        id: tenant.id,
+        name: tenant.name,
+        companyName: tenant.companyName,
+        contactEmail: tenant.contactEmail,
+        status: tenant.status,
+        createdAt: tenant.createdAt,
+        updatedAt: tenant.updatedAt,
+        tenantNumber: tenant.tenantNumber,
+        
+        // Configuration status
+        configuration: {
+          ...configurationStatus,
+          timezone: tenantConfig?.timezone || 'Not set',
+          businessType: tenantConfig?.businessType || 'Not specified',
+          maxCallsPerDay: tenantConfig?.maxCallsPerDay || 300,
+          maxCallsPer15Min: tenantConfig?.maxCallsPer15Min || 75,
+          isPaused: tenantConfig?.isPaused || false,
+          quietHours: tenantConfig ? `${tenantConfig.quietStart} - ${tenantConfig.quietEnd}` : 'Not set',
+        },
+        
+        // User statistics
+        users: {
+          total: users.length,
+          admins: adminUsers.length,
+          regular: users.length - adminUsers.length,
+          adminEmails: adminUsers.map(u => u.email),
+        },
+        
+        // Activity statistics  
+        activity: {
+          totalContacts: contacts.length,
+          recentCalls: recentCalls.length,
+          lastActivity: recentCalls.length > 0 ? recentCalls[0]?.createdAt : null,
+        },
+        
+        // Integration details
+        integrations: {
+          retell: tenantConfig?.retellAgentId ? {
+            agentId: tenantConfig.retellAgentId,
+            phoneNumber: tenantConfig.retellAgentNumber,
+            configured: true
+          } : { configured: false },
+          calendar: tenantConfig?.calApiKey || tenantConfig?.calendlyApiKey ? {
+            type: tenantConfig.calApiKey ? 'Cal.com' : 'Calendly',
+            configured: true
+          } : { configured: false },
+        },
+        
+        // Health indicators
+        health: {
+          configurationScore: Object.values(configurationStatus).filter(Boolean).length,
+          totalConfigurationItems: Object.keys(configurationStatus).length,
+          hasUsers: users.length > 0,
+          hasAdmins: adminUsers.length > 0,
+          hasContacts: contacts.length > 0,
+          hasRecentActivity: recentCalls.length > 0,
+        }
+      };
+      
+      res.json(details);
+    } catch (error) {
+      console.error('Error fetching tenant details:', error);
+      res.status(500).json({ message: 'Failed to fetch tenant details' });
+    }
+  });
+
   // Enhanced tenant creation via wizard
   app.post('/api/admin/tenants/wizard', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
     try {
@@ -843,13 +946,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Tenant not found' });
       }
       
-      // Get or create a client_admin user for this tenant for impersonation
-      let tenantAdmin = await storage.getUsersByTenant(tenantId);
-      tenantAdmin = tenantAdmin.find(user => user.role === 'client_admin');
+      // Get users for this tenant and find an admin (try client_admin first, then any admin role)
+      const tenantUsers = await storage.getUsersByTenant(tenantId);
+      let tenantAdmin = tenantUsers.find(user => user.role === 'client_admin') || 
+                       tenantUsers.find(user => user.role?.includes('admin')) ||
+                       tenantUsers[0]; // Fallback to first user if no admin found
       
       if (!tenantAdmin) {
-        return res.status(404).json({ message: 'No admin user found for this tenant' });
+        return res.status(404).json({ 
+          message: 'No users found for this tenant. Please ensure the tenant has at least one user created.',
+          debug: {
+            tenantId,
+            tenantName: tenant.name,
+            userCount: tenantUsers.length
+          }
+        });
       }
+      
+      // If we're using a non-admin user, temporarily promote them for the impersonation session
+      const impersonationRole = tenantAdmin.role === 'client_admin' ? 'client_admin' : 'client_admin';
       
       // Create impersonation token with tenant context but track original super admin
       const impersonationToken = jwt.sign(
