@@ -114,9 +114,13 @@ export default function TenantManagement() {
   };
 
   // Fetch detailed tenant information when viewing details
-  const { data: tenantDetails, isLoading: isLoadingDetails } = useQuery({
-    queryKey: ['tenant-details', selectedTenant?.id],
-    queryFn: () => selectedTenant?.id ? fetch(`/api/admin/tenants/${selectedTenant.id}/details`).then(res => res.json()) : null,
+  const { data: tenantDetails, isLoading: isLoadingDetails, error: tenantDetailsError } = useQuery<any>({
+    queryKey: ['/api/admin/tenants', selectedTenant?.id, 'details'],
+    queryFn: async () => {
+      if (!selectedTenant?.id) return null;
+      const response = await apiRequest('GET', `/api/admin/tenants/${selectedTenant.id}/details`);
+      return response;
+    },
     enabled: !!selectedTenant?.id && isViewModalOpen,
   });
 
