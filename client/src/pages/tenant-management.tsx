@@ -139,7 +139,7 @@ export default function TenantManagement() {
       if (!response || !response.impersonationToken || !response.tenant) {
         toast({
           title: "Failed to visit tenant",
-          description: "Invalid response from server. Please try again.",
+          description: "Invalid response from server. Please try again or contact support.",
           variant: "destructive",
         });
         return;
@@ -290,7 +290,7 @@ export default function TenantManagement() {
                     <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground text-sm"></i>
                     <Input
                       type="text"
-                      placeholder="Search tenants..."
+                      placeholder="Search by name, company, email or tenant number..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-10 pr-4 py-2 text-sm w-64"
@@ -323,6 +323,9 @@ export default function TenantManagement() {
                         Tenant
                       </th>
                       <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Tenant #
+                      </th>
+                      <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Status
                       </th>
                       <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -339,7 +342,7 @@ export default function TenantManagement() {
                   <tbody className="divide-y divide-border">
                     {displayedTenants.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center">
+                        <td colSpan={6} className="px-6 py-12 text-center">
                           <div className="text-muted-foreground">
                             <i className="fas fa-building text-4xl mb-4"></i>
                             <p className="text-lg font-medium mb-2">No tenants found</p>
@@ -375,6 +378,13 @@ export default function TenantManagement() {
                                   <p className="text-xs text-muted-foreground">{tenant.contactEmail}</p>
                                 )}
                               </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm">
+                              <span className="font-mono text-muted-foreground" data-testid={`text-tenant-number-${tenant.id}`}>
+                                {tenant.tenantNumber || 'Not assigned'}
+                              </span>
                             </div>
                           </td>
                           <td className="px-6 py-4">

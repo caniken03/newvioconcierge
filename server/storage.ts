@@ -431,7 +431,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(tenants)
       .where(
-        sql`${tenants.name} ILIKE ${`%${query}%`} OR ${tenants.companyName} ILIKE ${`%${query}%`} OR ${tenants.contactEmail} ILIKE ${`%${query}%`}`
+        sql`${tenants.name} ILIKE ${`%${query}%`} OR ${tenants.companyName} ILIKE ${`%${query}%`} OR ${tenants.contactEmail} ILIKE ${`%${query}%`} OR ${tenants.tenantNumber} ILIKE ${`%${query}%`}`
       )
       .orderBy(desc(tenants.createdAt));
   }
