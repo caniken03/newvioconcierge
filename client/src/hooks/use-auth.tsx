@@ -14,7 +14,6 @@ interface User {
 interface LoginCredentials {
   email: string;
   password: string;
-  role?: 'super_admin' | 'client_admin' | 'client_user';
 }
 
 export function useAuth() {
