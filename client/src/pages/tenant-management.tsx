@@ -131,8 +131,18 @@ export default function TenantManagement() {
       return await apiRequest('POST', `/api/admin/tenants/${tenantId}/impersonate`);
     },
     onSuccess: (response: any) => {
-      // Store the impersonation token and redirect to tenant dashboard
-      localStorage.setItem('authToken', response.impersonationToken);
+      // Ensure response structure is valid
+      if (!response || !response.impersonationToken || !response.tenant) {
+        toast({
+          title: "Failed to visit tenant",
+          description: "Invalid response from server. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Store the impersonation token (use correct key)
+      localStorage.setItem('auth_token', response.impersonationToken);
       
       toast({
         title: "Visiting Tenant",
