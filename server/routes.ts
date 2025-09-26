@@ -633,9 +633,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const contacts = await storage.getContactsByTenant(tenantId);
       
       // Get recent call sessions count (last 30 days)
+      const allCalls = await storage.getCallSessionsByTenant(tenantId);
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const recentCalls = await storage.getCallSessionsByTenant(tenantId, thirtyDaysAgo);
+      const recentCalls = allCalls.filter(call => 
+        call.createdAt && new Date(call.createdAt) >= thirtyDaysAgo
+      );
       
       // Configuration status
       const configurationStatus = {
