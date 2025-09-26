@@ -168,17 +168,26 @@ export class NotificationService {
     originalRequest: NotificationRequest,
     reminderAttempt: number
   ): Promise<NotificationResponse> {
+    // CRITICAL: Generate responseToken FIRST before content generation
+    const responseToken = this.generateResponseToken(originalRequest.reschedulingRequestId);
+    const expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000); // 12 hours
+
+    // Store reminder token in responseTokens map BEFORE generating content
+    this.responseTokens.set(responseToken, {
+      reschedulingRequestId: originalRequest.reschedulingRequestId,
+      tenantId: originalRequest.tenantId,
+      contactId: originalRequest.contactId,
+      expiresAt,
+      availableSlots: originalRequest.availableSlots
+    });
+
     // Modify urgency and content for reminder
     const reminderRequest: NotificationRequest = {
       ...originalRequest,
       urgencyLevel: reminderAttempt > 1 ? 'high' : 'normal'
     };
 
-    const content = this.generateReminderContent(reminderRequest, reminderAttempt);
-    
-    // Use shorter response window for reminders
-    const responseToken = this.generateResponseToken(originalRequest.reschedulingRequestId);
-    const expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000); // 12 hours
+    const content = this.generateReminderContent(reminderRequest, reminderAttempt, responseToken);
 
     try {
       switch (originalRequest.contactMethod) {
@@ -275,11 +284,12 @@ Expires in 24hrs.
 
   private generateReminderContent(
     request: NotificationRequest,
-    reminderAttempt: number
+    reminderAttempt: number,
+    responseToken: string
   ): { subject: string; body: string; smsText: string } {
     const urgencyText = reminderAttempt > 1 ? '🚨 FINAL REMINDER' : '⏰ REMINDER';
     
-    const baseContent = this.generateNotificationContent(request, '');
+    const baseContent = this.generateNotificationContent(request, responseToken);
     
     return {
       subject: `${urgencyText}: ${baseContent.subject}`,
@@ -369,6 +379,24 @@ Expires in 24hrs.
         this.responseTokens.delete(token);
       }
     }
+  }
+
+  /**
+   * Get response data for a specific token (used by routes)
+   */
+  getResponseData(responseToken: string): { 
+    reschedulingRequestId: string; 
+    tenantId: string; 
+    contactId: string; 
+    expiresAt: Date;
+    availableSlots: AvailableSlot[];
+  } | null {
+    const data = this.responseTokens.get(responseToken);
+    if (!data || new Date() > data.expiresAt) {
+      if (data) this.responseTokens.delete(responseToken);
+      return null;
+    }
+    return data;
   }
 
   /**

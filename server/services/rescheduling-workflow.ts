@@ -1,6 +1,7 @@
 import type { ReschedulingRequest, Contact, TenantConfig } from "@shared/schema";
 import { calComService } from "./cal-com";
 import { calendlyService } from "./calendly";
+import { notificationService, type NotificationRequest } from './notification-service';
 
 export interface RescheduleRequestData {
   contactId: string;
@@ -778,7 +779,7 @@ class ConfirmationProcessor implements WorkflowStageProcessor {
         if (availableSlots.length > 0) {
           const selectedSlot = availableSlots[0];
           
-          await context.storage.updateReschedulingRequest(request.id, {
+          await context.storage.updateReschedulingRequest(request.id, request.tenantId, {
             finalSelectedTime: new Date(selectedSlot.startTime)
           });
 
@@ -796,7 +797,62 @@ class ConfirmationProcessor implements WorkflowStageProcessor {
       }
     }
 
-    // Manual confirmation required
+    // ENHANCED: Send automated customer notification for manual confirmation
+    try {
+      const contact = await context.storage.getContact(request.contactId);
+      const tenantConfig = await context.storage.getTenantConfig(request.tenantId);
+      
+      if (contact && tenantConfig) {
+        const availableSlots = request.availableSlots ? JSON.parse(request.availableSlots) : [];
+        
+        // CRITICAL: Convert string dates to Date objects for notification service
+        const normalizedSlots = availableSlots.map((slot: any) => ({
+          ...slot,
+          startTime: new Date(slot.startTime),
+          endTime: new Date(slot.endTime)
+        }));
+        
+        const notificationRequest: NotificationRequest = {
+          tenantId: request.tenantId,
+          contactId: request.contactId,
+          reschedulingRequestId: request.id,
+          contactMethod: contact.preferredContactMethod as 'email' | 'sms' | 'voice' || 'email',
+          recipientPhone: contact.phone,
+          recipientEmail: contact.email || `${contact.name.toLowerCase().replace(/\s+/g, '.')}@example.com`,
+          recipientName: contact.name,
+          availableSlots: normalizedSlots,
+          originalAppointmentTime: request.originalAppointmentTime,
+          businessName: tenantConfig.businessType || 'VioConcierge',
+          urgencyLevel: request.urgencyLevel as 'urgent' | 'high' | 'normal' | 'low' || 'normal'
+        };
+
+        const notificationResult = await notificationService.sendReschedulingNotification(notificationRequest);
+        
+        if (notificationResult.success) {
+          // Update request with notification tracking
+          await context.storage.updateReschedulingRequest(request.id, request.tenantId, {
+            confirmationSent: true,
+            customerPreference: `${request.customerPreference || ''}\n\nNotification sent via ${notificationResult.method} at ${new Date().toISOString()}`
+          });
+
+          console.log(`✅ Automated ${notificationResult.method} notification sent for rescheduling request ${request.id}`);
+          
+          return {
+            success: true,
+            requestId: request.id,
+            workflowStage: 'confirmation',
+            status: 'pending',
+            message: `Customer notification sent via ${notificationResult.method}. Awaiting response.`,
+            confirmationSent: true
+          };
+        }
+      }
+    } catch (error) {
+      console.error('Error sending automated notification:', error);
+      // Continue with manual process if notification fails
+    }
+
+    // Manual confirmation required (fallback)
     return {
       success: true,
       requestId: request.id,

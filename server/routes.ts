@@ -18,6 +18,7 @@ import { calComService } from "./services/cal-com";
 import { calendlyService } from "./services/calendly";
 import { businessTemplateService } from "./services/business-templates";
 import { reschedulingWorkflowService } from "./services/rescheduling-workflow";
+import { notificationService } from "./services/notification-service";
 
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET;
 
@@ -123,6 +124,91 @@ function escapeCsvValue(value: any): string {
     return `'${str}`;
   }
   return str;
+}
+
+// Helper function for generating customer response form
+function generateResponseForm(responseToken: string, responseData: any): string {
+  const formatDateTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  // Generate slot options dynamically
+  const slotOptions = responseData.availableSlots.map((slot: any, index: number) => {
+    const startTime = formatDateTime(slot.startTime);
+    const duration = slot.duration || 60;
+    return `<option value="${index}">${startTime} (${duration} minutes)</option>`;
+  }).join('');
+
+  const slotDisplays = responseData.availableSlots.map((slot: any, index: number) => {
+    const startTime = formatDateTime(slot.startTime);
+    const duration = slot.duration || 60;
+    const location = slot.location ? ` at ${slot.location}` : '';
+    return `<div class="slot">📅 Option ${index + 1}: ${startTime} (${duration} minutes)${location}</div>`;
+  }).join('');
+
+  return `
+    <html>
+      <head>
+        <title>Reschedule Appointment</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+          .slot { margin: 10px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; background: #f8f9fa; }
+          .slot:hover { background-color: #e9ecef; }
+          button { background-color: #007bff; color: white; padding: 12px 24px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; font-size: 16px; }
+          button.decline { background-color: #dc3545; }
+          button:hover { opacity: 0.9; }
+          textarea { width: 100%; height: 80px; margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+          select { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; font-size: 16px; }
+          .form-group { margin: 15px 0; }
+          .expires { background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px; padding: 10px; margin: 15px 0; }
+        </style>
+      </head>
+      <body>
+        <h2>📅 Reschedule Your Appointment</h2>
+        <p>We found several available time slots for you. Please select your preferred option:</p>
+        
+        <div class="available-slots">
+          <h3>Available Time Slots:</h3>
+          ${slotDisplays}
+        </div>
+        
+        <form method="POST">
+          <div class="form-group">
+            <label for="selectedSlotIndex"><strong>Select your preferred time:</strong></label>
+            <select name="selectedSlotIndex" id="selectedSlotIndex" required>
+              <option value="">-- Choose a time slot --</option>
+              ${slotOptions}
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="customerComments">Additional comments or special requests (optional):</label>
+            <textarea name="customerComments" id="customerComments" placeholder="Any special requests, accessibility needs, or preferences..."></textarea>
+          </div>
+          
+          <div class="form-group">
+            <button type="submit" name="action" value="confirm">✅ Confirm My Selection</button>
+            <button type="submit" name="action" value="decline" class="decline">❌ None of These Work for Me</button>
+          </div>
+        </form>
+        
+        <div class="expires">
+          ⏰ <strong>Important:</strong> This link expires in 24 hours. If you need assistance or have questions, please contact us directly.
+        </div>
+      </body>
+    </html>
+  `;
 }
 
 // Validate and sanitize contact data
@@ -2908,6 +2994,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(500).json({ message: 'Failed to sync Cal.com bookings' });
+    }
+  });
+
+  // Customer response endpoint for rescheduling notifications
+  app.get('/api/rescheduling/respond/:responseToken', async (req, res) => {
+    try {
+      const { responseToken } = req.params;
+      
+      // Validate response token and get context
+      const responseData = notificationService.getResponseData(responseToken);
+      
+      if (!responseData) {
+        return res.status(404).send(`
+          <html><body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+            <h2>🚫 Invalid or Expired Link</h2>
+            <p>This rescheduling link is no longer valid. Please contact us directly.</p>
+          </body></html>
+        `);
+      }
+
+      // Generate response form with actual available slots
+      const html = generateResponseForm(responseToken, responseData);
+      res.send(html);
+      
+    } catch (error) {
+      console.error('Error serving response form:', error);
+      res.status(500).send('<html><body><h2>Error loading form</h2></body></html>');
+    }
+  });
+
+  app.post('/api/rescheduling/respond/:responseToken', async (req, res) => {
+    try {
+      const { responseToken } = req.params;
+      const { selectedSlotIndex, customerComments, action } = req.body;
+      
+      // CRITICAL: Get response data BEFORE processing (which deletes the token)
+      const responseData = notificationService.getResponseData(responseToken);
+      if (!responseData) {
+        return res.status(404).send(`
+          <html><body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+            <h2>🚫 Invalid or Expired Link</h2>
+            <p>This rescheduling link is no longer valid. Please contact us directly.</p>
+          </body></html>
+        `);
+      }
+      
+      // Process customer response
+      const response = await notificationService.processCustomerResponse(responseToken, {
+        responseToken,
+        selectedSlotIndex: action === 'decline' ? null : parseInt(selectedSlotIndex),
+        customerComments
+      });
+
+      if (!response.success) {
+        return res.status(400).json({ message: response.message });
+      }
+
+      // Update rescheduling request based on customer choice
+      if (response.reschedulingRequestId) {
+        try {
+          if (action === 'decline') {
+            // Customer declined - mark for manual handling
+            await storage.updateReschedulingRequest(response.reschedulingRequestId, response.tenantId, {
+              status: 'pending',
+              workflowStage: 'customer_request',
+              customerPreference: `${customerComments || ''}\n\nCustomer declined available slots at ${new Date().toISOString()}`
+            });
+            
+            console.log(`❌ Customer declined rescheduling request ${response.reschedulingRequestId}`);
+          } else {
+            // Customer selected a slot - get the actual selected time (using pre-fetched data)
+            if (responseData && response.selectedSlotIndex !== null) {
+              const selectedSlot = responseData.availableSlots[response.selectedSlotIndex];
+              if (selectedSlot) {
+                const selectedTime = new Date(selectedSlot.startTime);
+                
+                // Confirm the rescheduling with the actual selected time
+                const result = await reschedulingWorkflowService.confirmReschedule(
+                  response.reschedulingRequestId,
+                  response.tenantId,
+                  selectedTime,
+                  storage
+                );
+                
+                console.log(`✅ Customer confirmed rescheduling request ${response.reschedulingRequestId} for ${selectedTime.toISOString()}`);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error updating rescheduling request from customer response:', error);
+        }
+      }
+
+      // Show success page
+      const successHtml = action === 'decline' 
+        ? '<html><body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;"><h2>✅ Response Received</h2><p>We\'ll contact you to find alternative times.</p></body></html>'
+        : '<html><body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;"><h2>✅ Appointment Confirmed</h2><p>Your new appointment time has been confirmed!</p></body></html>';
+      
+      res.send(successHtml);
+      
+    } catch (error) {
+      console.error('Error processing customer response:', error);
+      res.status(500).json({ message: 'Failed to process response' });
     }
   });
 
