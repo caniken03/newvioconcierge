@@ -118,13 +118,37 @@ export default function TenantManagement() {
     setIsViewModalOpen(true);
   };
 
+  // Tenant impersonation mutation
+  const impersonateTenantMutation = useMutation({
+    mutationFn: async (tenantId: string) => {
+      return await apiRequest('POST', `/api/admin/tenants/${tenantId}/impersonate`);
+    },
+    onSuccess: (response: any) => {
+      // Store the impersonation token and redirect to tenant dashboard
+      localStorage.setItem('authToken', response.impersonationToken);
+      
+      toast({
+        title: "Visiting Tenant",
+        description: `Now acting as admin for ${response.tenant.name}. You can make changes on their behalf.`,
+      });
+      
+      // Reload the page to update auth context
+      window.location.href = '/dashboard';
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to visit tenant",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleEditTenant = (tenantId: string) => {
-    // Navigate to tenant edit page or open edit modal
-    // For now, we'll show a toast indicating the feature
-    toast({
-      title: "Edit Tenant",
-      description: "Tenant editing functionality will be implemented here.",
-    });
+    // Show confirmation dialog before impersonating
+    if (confirm('This will switch your session to act as this tenant\'s administrator. You\'ll be able to access their dashboard and make changes on their behalf. Continue?')) {
+      impersonateTenantMutation.mutate(tenantId);
+    }
   };
 
   const handleDeleteTenant = (tenantId: string) => {
@@ -382,10 +406,11 @@ export default function TenantManagement() {
                               <button
                                 onClick={() => handleEditTenant(tenant.id)}
                                 className="text-muted-foreground hover:text-primary transition-colors"
-                                data-testid={`button-edit-tenant-${tenant.id}`}
-                                title="Edit tenant"
+                                data-testid={`button-visit-tenant-${tenant.id}`}
+                                title="Visit tenant (impersonate as admin)"
+                                disabled={impersonateTenantMutation.isPending}
                               >
-                                <i className="fas fa-edit text-sm"></i>
+                                <i className={`fas ${impersonateTenantMutation.isPending ? 'fa-spinner fa-spin' : 'fa-sign-in-alt'} text-sm`}></i>
                               </button>
                               <button
                                 onClick={() => handleDeleteTenant(tenant.id)}

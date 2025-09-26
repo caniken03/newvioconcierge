@@ -514,7 +514,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const token = jwt.sign(
         { userId: user.id, tenantId: user.tenantId, role: user.role },
-        JWT_SECRET,
+        JWT_SECRET || 'fallback-secret',
         { expiresIn: '24h' }  // Extended to 24 hours to prevent call interruptions
       );
 
@@ -701,7 +701,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         calApiKey: calendarConfig?.type === 'calcom' ? calendarConfig.apiKey : undefined,
         calEventTypeId: calendarConfig?.eventTypeId,
         calendlyApiKey: calendarConfig?.type === 'calendly' ? calendarConfig.apiKey : undefined,
-        calendlyOrganizerEmail: calendarConfig?.organizerEmail,
+        calendlyOrganization: calendarConfig?.organizerEmail,
         timezone: tenantData.timezone,
         businessType: tenantData.businessTemplate,
         maxCallsPerDay: tenantData.operationalSettings.maxCallsPerDay,
@@ -828,6 +828,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error deleting tenant:', error);
       res.status(500).json({ message: 'Failed to delete tenant' });
+    }
+  });
+
+  // Tenant impersonation endpoint - allows super admin to "visit" any tenant
+  app.post('/api/admin/tenants/:id/impersonate', authenticateJWT, requireRole(['super_admin']), async (req: any, res) => {
+    try {
+      const tenantId = req.params.id;
+      const superAdminUserId = req.user.id;
+      
+      // Check if tenant exists
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: 'Tenant not found' });
+      }
+      
+      // Get or create a client_admin user for this tenant for impersonation
+      let tenantAdmin = await storage.getUsersByTenant(tenantId);
+      tenantAdmin = tenantAdmin.find(user => user.role === 'client_admin');
+      
+      if (!tenantAdmin) {
+        return res.status(404).json({ message: 'No admin user found for this tenant' });
+      }
+      
+      // Create impersonation token with tenant context but track original super admin
+      const impersonationToken = jwt.sign(
+        { 
+          userId: tenantAdmin.id, 
+          tenantId: tenant.id, 
+          role: 'client_admin',
+          originalUserId: superAdminUserId,
+          originalRole: 'super_admin',
+          isImpersonating: true
+        },
+        JWT_SECRET || 'fallback-secret',
+        { expiresIn: '2h' }  // Shorter expiry for security
+      );
+      
+      res.json({
+        impersonationToken,
+        tenant: {
+          id: tenant.id,
+          name: tenant.name,
+          companyName: tenant.companyName
+        },
+        tenantAdmin: {
+          id: tenantAdmin.id,
+          email: tenantAdmin.email,
+          fullName: tenantAdmin.fullName,
+          role: tenantAdmin.role
+        },
+        originalAdmin: {
+          id: superAdminUserId,
+          role: 'super_admin'
+        },
+        message: `Successfully impersonating tenant: ${tenant.name}`
+      });
+    } catch (error) {
+      console.error('Error creating impersonation token:', error);
+      res.status(500).json({ message: 'Failed to create impersonation session' });
+    }
+  });
+
+  // Exit impersonation - return to super admin context
+  app.post('/api/admin/exit-impersonation', authenticateJWT, async (req: any, res) => {
+    try {
+      if (!req.user.isImpersonating) {
+        return res.status(400).json({ message: 'Not currently impersonating' });
+      }
+      
+      // Get original super admin user
+      const originalUser = await storage.getUser(req.user.originalUserId);
+      if (!originalUser) {
+        return res.status(404).json({ message: 'Original user not found' });
+      }
+      
+      // Create new token as original super admin
+      const originalToken = jwt.sign(
+        { userId: originalUser.id, tenantId: originalUser.tenantId, role: originalUser.role },
+        JWT_SECRET || 'fallback-secret',
+        { expiresIn: '24h' }
+      );
+      
+      res.json({
+        token: originalToken,
+        user: {
+          id: originalUser.id,
+          email: originalUser.email,
+          fullName: originalUser.fullName,
+          role: originalUser.role,
+          tenantId: originalUser.tenantId
+        },
+        message: 'Successfully exited tenant impersonation'
+      });
+    } catch (error) {
+      console.error('Error exiting impersonation:', error);
+      res.status(500).json({ message: 'Failed to exit impersonation' });
     }
   });
 
@@ -3653,7 +3749,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/admin/observability/health', authenticateJWT, requireRole(['super_admin']), async (req: any, res) => {
     try {
       // Get standard system health
-      const health = await storage.checkSystemHealth();
+      const health = await storage.getSystemHealth();
       
       // Add observability metrics
       const { getObservabilityService } = await import('./services/observability-service');
