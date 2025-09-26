@@ -537,8 +537,14 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
                     <FormLabel className="text-sm font-medium text-gray-700">Appointment Date & Time *</FormLabel>
                     <FormControl>
                       <Input 
-                        {...field} 
                         type="datetime-local"
+                        value={field.value || ""}
+                        onChange={(e) => {
+                          field.onChange(e.target.value);
+                        }}
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        ref={field.ref}
                         className="border-gray-300 rounded-md"
                         data-testid="input-appointment-time"
                       />

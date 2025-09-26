@@ -20,6 +20,8 @@ import HealthMonitoring from "@/pages/health-monitoring";
 import AnalyticsCenter from "@/pages/analytics-center";
 import Compliance from "@/pages/compliance";
 import AbuseProtection from "@/pages/abuse-protection";
+import SuperAdminGuide from "@/pages/super-admin-guide";
+import ClientAdminGuide from "@/pages/client-admin-guide";
 
 function Router() {
   const { user, isLoading } = useAuth();
@@ -55,6 +57,8 @@ function Router() {
       <Route path="/abuse-protection" component={AbuseProtection} />
       <Route path="/system" component={SystemSettings} />
       <Route path="/profile" component={Profile} />
+      <Route path="/super-admin-guide" component={SuperAdminGuide} />
+      <Route path="/client-admin-guide" component={ClientAdminGuide} />
       <Route component={NotFound} />
     </Switch>
   );

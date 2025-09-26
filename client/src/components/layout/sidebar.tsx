@@ -195,6 +195,17 @@ export default function Sidebar() {
             <NavLink href="/system" icon="fas fa-cog" testId="nav-system-settings">
               System Settings
             </NavLink>
+            
+            {!collapsed && (
+              <div className="pt-2">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1">
+                  Help & Resources
+                </h3>
+              </div>
+            )}
+            <NavLink href="/super-admin-guide" icon="fas fa-book-open" testId="nav-super-admin-guide">
+              User Guide
+            </NavLink>
           </div>
         )}
 
@@ -235,6 +246,17 @@ export default function Sidebar() {
             </NavLink>
             <NavLink href="/analytics" icon="fas fa-chart-bar" testId="nav-analytics">
               Analytics
+            </NavLink>
+            
+            {!collapsed && (
+              <div className="pt-2">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1">
+                  Help & Resources
+                </h3>
+              </div>
+            )}
+            <NavLink href="/client-admin-guide" icon="fas fa-book-open" testId="nav-client-admin-guide">
+              User Guide
             </NavLink>
           </div>
         )}
