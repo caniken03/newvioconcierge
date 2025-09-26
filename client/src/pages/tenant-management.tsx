@@ -521,45 +521,45 @@ export default function TenantManagement() {
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="text-sm">Retell AI Integration</span>
-                          <Badge variant={tenantDetails.configuration.retellConfigured ? "default" : "secondary"}>
-                            {tenantDetails.configuration.retellConfigured ? "✓ Configured" : "✗ Not Set"}
+                          <Badge variant={tenantDetails.configuration?.retellConfigured ? "default" : "secondary"}>
+                            {tenantDetails.configuration?.retellConfigured ? "✓ Configured" : "✗ Not Set"}
                           </Badge>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-sm">Calendar Integration</span>
-                          <Badge variant={tenantDetails.configuration.calendarConfigured ? "default" : "secondary"}>
-                            {tenantDetails.configuration.calendarConfigured ? "✓ Configured" : "✗ Not Set"}
+                          <Badge variant={tenantDetails.configuration?.calendarConfigured ? "default" : "secondary"}>
+                            {tenantDetails.configuration?.calendarConfigured ? "✓ Configured" : "✗ Not Set"}
                           </Badge>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-sm">Business Hours</span>
-                          <Badge variant={tenantDetails.configuration.businessHoursConfigured ? "default" : "secondary"}>
-                            {tenantDetails.configuration.businessHoursConfigured ? "✓ Set" : "✗ Default"}
+                          <Badge variant={tenantDetails.configuration?.businessHoursConfigured ? "default" : "secondary"}>
+                            {tenantDetails.configuration?.businessHoursConfigured ? "✓ Set" : "✗ Default"}
                           </Badge>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-sm">Webhooks</span>
-                          <Badge variant={tenantDetails.configuration.webhooksConfigured ? "default" : "secondary"}>
-                            {tenantDetails.configuration.webhooksConfigured ? "✓ Active" : "✗ None"}
+                          <Badge variant={tenantDetails.configuration?.webhooksConfigured ? "default" : "secondary"}>
+                            {tenantDetails.configuration?.webhooksConfigured ? "✓ Active" : "✗ None"}
                           </Badge>
                         </div>
                       </div>
                       <div className="space-y-2">
                         <div>
                           <label className="text-sm font-medium text-muted-foreground">Timezone</label>
-                          <p className="text-sm">{tenantDetails.configuration.timezone}</p>
+                          <p className="text-sm">{tenantDetails.configuration?.timezone || 'N/A'}</p>
                         </div>
                         <div>
                           <label className="text-sm font-medium text-muted-foreground">Business Type</label>
-                          <p className="text-sm capitalize">{tenantDetails.configuration.businessType}</p>
+                          <p className="text-sm capitalize">{tenantDetails.configuration?.businessType || 'N/A'}</p>
                         </div>
                         <div>
                           <label className="text-sm font-medium text-muted-foreground">Call Limits</label>
-                          <p className="text-sm">{tenantDetails.configuration.maxCallsPer15Min}/15min, {tenantDetails.configuration.maxCallsPerDay}/day</p>
+                          <p className="text-sm">{tenantDetails.configuration?.maxCallsPer15Min || 'N/A'}/15min, {tenantDetails.configuration?.maxCallsPerDay || 'N/A'}/day</p>
                         </div>
                         <div>
                           <label className="text-sm font-medium text-muted-foreground">Quiet Hours</label>
-                          <p className="text-sm">{tenantDetails.configuration.quietHours}</p>
+                          <p className="text-sm">{tenantDetails.configuration?.quietHours || 'N/A'}</p>
                         </div>
                       </div>
                     </div>
@@ -573,16 +573,16 @@ export default function TenantManagement() {
                         <div>
                           <label className="text-sm font-medium text-muted-foreground">User Statistics</label>
                           <div className="mt-1 space-y-1">
-                            <p className="text-sm">👥 Total Users: <span className="font-medium">{tenantDetails.users.total}</span></p>
-                            <p className="text-sm">👑 Admin Users: <span className="font-medium">{tenantDetails.users.admins}</span></p>
-                            <p className="text-sm">👤 Regular Users: <span className="font-medium">{tenantDetails.users.regular}</span></p>
+                            <p className="text-sm">👥 Total Users: <span className="font-medium">{tenantDetails.users?.total || 0}</span></p>
+                            <p className="text-sm">👑 Admin Users: <span className="font-medium">{tenantDetails.users?.admins || 0}</span></p>
+                            <p className="text-sm">👤 Regular Users: <span className="font-medium">{tenantDetails.users?.regular || 0}</span></p>
                           </div>
                         </div>
-                        {tenantDetails.users.adminEmails.length > 0 && (
+                        {tenantDetails.users?.adminEmails && tenantDetails.users.adminEmails.length > 0 && (
                           <div>
                             <label className="text-sm font-medium text-muted-foreground">Admin Contacts</label>
                             <div className="mt-1 space-y-1">
-                              {tenantDetails.users.adminEmails.map((email: string, idx: number) => (
+                              {tenantDetails.users.adminEmails?.map((email: string, idx: number) => (
                                 <p key={idx} className="text-xs text-blue-600">{email}</p>
                               ))}
                             </div>
@@ -593,9 +593,9 @@ export default function TenantManagement() {
                         <div>
                           <label className="text-sm font-medium text-muted-foreground">Activity Overview</label>
                           <div className="mt-1 space-y-1">
-                            <p className="text-sm">📞 Total Contacts: <span className="font-medium">{tenantDetails.activity.totalContacts}</span></p>
-                            <p className="text-sm">📈 Recent Calls (30d): <span className="font-medium">{tenantDetails.activity.recentCalls}</span></p>
-                            {tenantDetails.activity.lastActivity && (
+                            <p className="text-sm">📞 Total Contacts: <span className="font-medium">{tenantDetails.activity?.totalContacts || 0}</span></p>
+                            <p className="text-sm">📈 Recent Calls (30d): <span className="font-medium">{tenantDetails.activity?.recentCalls || 0}</span></p>
+                            {tenantDetails.activity?.lastActivity && (
                               <p className="text-sm">⏰ Last Activity: <span className="font-medium">{new Date(tenantDetails.activity.lastActivity).toLocaleDateString()}</span></p>
                             )}
                           </div>
@@ -610,10 +610,10 @@ export default function TenantManagement() {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="text-sm font-medium text-muted-foreground">Retell AI Voice</label>
-                        {tenantDetails.integrations.retell.configured ? (
+                        {tenantDetails.integrations?.retell?.configured ? (
                           <div className="mt-1 space-y-1">
-                            <p className="text-xs">🤖 Agent ID: <span className="font-mono">{tenantDetails.integrations.retell.agentId}</span></p>
-                            {tenantDetails.integrations.retell.phoneNumber && (
+                            <p className="text-xs">🤖 Agent ID: <span className="font-mono">{tenantDetails.integrations?.retell?.agentId || 'N/A'}</span></p>
+                            {tenantDetails.integrations?.retell?.phoneNumber && (
                               <p className="text-xs">📞 Phone: <span className="font-mono">{tenantDetails.integrations.retell.phoneNumber}</span></p>
                             )}
                           </div>
@@ -623,9 +623,9 @@ export default function TenantManagement() {
                       </div>
                       <div>
                         <label className="text-sm font-medium text-muted-foreground">Calendar System</label>
-                        {tenantDetails.integrations.calendar.configured ? (
+                        {tenantDetails.integrations?.calendar?.configured ? (
                           <div className="mt-1">
-                            <p className="text-xs">🗓️ Type: <span className="font-medium">{tenantDetails.integrations.calendar.type}</span></p>
+                            <p className="text-xs">🗓️ Type: <span className="font-medium">{tenantDetails.integrations?.calendar?.type || 'N/A'}</span></p>
                           </div>
                         ) : (
                           <p className="text-sm text-muted-foreground mt-1">Not configured</p>
@@ -640,20 +640,20 @@ export default function TenantManagement() {
                     <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                       <div>
                         <p className="text-sm font-medium">Configuration Completeness</p>
-                        <p className="text-xs text-muted-foreground">{tenantDetails.health.configurationScore}/{tenantDetails.health.totalConfigurationItems} items configured</p>
+                        <p className="text-xs text-muted-foreground">{tenantDetails.health?.configurationScore || 0}/{tenantDetails.health?.totalConfigurationItems || 0} items configured</p>
                       </div>
                       <div className="text-right">
                         <Badge 
-                          variant={tenantDetails.health.configurationScore >= 3 ? "default" : tenantDetails.health.configurationScore >= 2 ? "secondary" : "destructive"}
+                          variant={(tenantDetails.health?.configurationScore || 0) >= 3 ? "default" : (tenantDetails.health?.configurationScore || 0) >= 2 ? "secondary" : "destructive"}
                           className={
-                            tenantDetails.health.configurationScore >= 3 
+                            (tenantDetails.health?.configurationScore || 0) >= 3 
                               ? 'bg-green-100 text-green-800'
-                              : tenantDetails.health.configurationScore >= 2
+                              : (tenantDetails.health?.configurationScore || 0) >= 2
                               ? 'bg-yellow-100 text-yellow-800' 
                               : 'bg-red-100 text-red-800'
                           }
                         >
-                          {Math.round((tenantDetails.health.configurationScore / tenantDetails.health.totalConfigurationItems) * 100)}% Complete
+                          {Math.round(((tenantDetails.health?.configurationScore || 0) / (tenantDetails.health?.totalConfigurationItems || 1)) * 100)}% Complete
                         </Badge>
                       </div>
                     </div>
