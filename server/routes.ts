@@ -811,6 +811,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete('/api/admin/tenants/:id', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
+    try {
+      const tenantId = req.params.id;
+      
+      // First check if tenant exists
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: 'Tenant not found' });
+      }
+      
+      // Delete the tenant (storage should handle cascading deletes)
+      await storage.deleteTenant(tenantId);
+      
+      res.json({ message: 'Tenant deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting tenant:', error);
+      res.status(500).json({ message: 'Failed to delete tenant' });
+    }
+  });
+
   // ========================================
   // ABUSE PROTECTION & SECURITY API ROUTES
   // ========================================
