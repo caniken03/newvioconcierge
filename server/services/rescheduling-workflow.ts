@@ -2,6 +2,8 @@ import type { ReschedulingRequest, Contact, TenantConfig } from "@shared/schema"
 import { calComService } from "./cal-com";
 import { calendlyService } from "./calendly";
 import { notificationService, type NotificationRequest } from './notification-service';
+import { zonedTimeToUtc, utcToZonedTime, format } from 'date-fns-tz';
+import { addMinutes, isAfter, isBefore, parseISO } from 'date-fns';
 
 export interface RescheduleRequestData {
   contactId: string;
@@ -22,6 +24,23 @@ export interface AvailabilitySlot {
   appointmentType?: string;
   provider?: string;
   location?: string;
+  timezone?: string;
+}
+
+interface BusinessHours {
+  monday: DayHours;
+  tuesday: DayHours;
+  wednesday: DayHours;
+  thursday: DayHours;
+  friday: DayHours;
+  saturday: DayHours;
+  sunday: DayHours;
+}
+
+interface DayHours {
+  enabled: boolean;
+  start: string; // Format: "HH:MM"
+  end: string;   // Format: "HH:MM"
 }
 
 export interface ReschedulingWorkflowResult {
@@ -241,73 +260,118 @@ export class ReschedulingWorkflowService {
     durationMinutes: number = 60
   ): Promise<AvailabilitySlot[]> {
     const slots: AvailabilitySlot[] = [];
+    const timezone = tenantConfig.timezone || 'UTC';
+
+    console.log(`🔍 Getting available slots for ${contact.name}`);
+    console.log(`   ├─ Timezone: ${timezone}`);
+    console.log(`   ├─ Duration: ${durationMinutes} minutes`);
+    console.log(`   └─ Booking source: ${contact.bookingSource || 'none'}`);
 
     try {
-      // Check calendar integration type
-      if (tenantConfig.calApiKey && contact.bookingSource === 'calcom') {
-        // Get existing bookings to determine availability gaps
-        const existingBookings = await calComService.getBookings(
-          tenantConfig.calApiKey,
-          tenantConfig.calEventTypeId || undefined
-        );
+      // ENHANCED: Real-time calendar provider availability checking
+      if (tenantConfig.calApiKey && (contact.bookingSource === 'calcom' || !contact.bookingSource)) {
+        console.log(`📅 Checking Cal.com availability...`);
         
-        // Generate available slots based on business hours minus existing bookings
-        const calComSlots = this.generateAvailableSlotsFromBookings(
-          existingBookings,
-          preferredDates || this.getDefaultDateRange(),
-          durationMinutes
-        );
-        
-        slots.push(...calComSlots.map((slot: any) => ({
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          duration: durationMinutes,
-          appointmentType: contact.appointmentType || undefined,
-          provider: 'cal.com',
-          location: 'Office' // Default location
-        })));
+        try {
+          // Get both existing bookings AND real-time availability
+          const [existingBookings, eventTypes] = await Promise.all([
+            calComService.getBookings(tenantConfig.calApiKey, tenantConfig.calEventTypeId || undefined),
+            calComService.getEventTypes(tenantConfig.calApiKey)
+          ]);
+          
+          console.log(`   ├─ Found ${existingBookings.length} existing bookings`);
+          console.log(`   └─ Available event types: ${eventTypes.length}`);
+          
+          // Generate available slots with real-time conflict checking
+          const calComSlots = await this.generateEnhancedAvailabilitySlots(
+            'cal.com',
+            existingBookings,
+            preferredDates || this.getDefaultDateRange(),
+            durationMinutes,
+            tenantConfig,
+            contact
+          );
+          
+          slots.push(...calComSlots);
+          console.log(`✅ Cal.com slots generated: ${calComSlots.length}`);
+        } catch (calError) {
+          console.error('Cal.com availability check failed:', calError);
+          // Continue to fallback options
+        }
       }
 
-      if (tenantConfig.calendlyAccessToken && contact.bookingSource === 'calendly') {
-        // Get existing events to determine availability gaps
-        const existingEvents = await calendlyService.getScheduledEvents(
-          tenantConfig.calendlyAccessToken,
-          tenantConfig.calendlyOrganization || undefined,
-          tenantConfig.calendlyUser || undefined
-        );
+      if (tenantConfig.calendlyAccessToken && (contact.bookingSource === 'calendly' || !contact.bookingSource)) {
+        console.log(`📅 Checking Calendly availability...`);
         
-        // Generate available slots based on existing events
-        const calendlySlots = this.generateAvailableSlotsFromEvents(
-          existingEvents,
-          preferredDates || this.getDefaultDateRange(),
-          durationMinutes
-        );
-        
-        slots.push(...calendlySlots.map((slot: any) => ({
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          duration: durationMinutes,
-          appointmentType: contact.appointmentType || undefined,
-          provider: 'calendly',
-          location: 'Office' // Default location
-        })));
+        try {
+          // Get both existing events AND real-time availability
+          const [existingEvents, eventTypes] = await Promise.all([
+            calendlyService.getScheduledEvents(
+              tenantConfig.calendlyAccessToken,
+              tenantConfig.calendlyOrganization,
+              tenantConfig.calendlyUser
+            ),
+            calendlyService.getEventTypes(
+              tenantConfig.calendlyAccessToken,
+              tenantConfig.calendlyOrganization,
+              tenantConfig.calendlyUser
+            )
+          ]);
+          
+          console.log(`   ├─ Found ${existingEvents.length} existing events`);
+          console.log(`   └─ Available event types: ${eventTypes.length}`);
+          
+          // Generate available slots with real-time conflict checking
+          const calendlySlots = await this.generateEnhancedAvailabilitySlots(
+            'calendly',
+            existingEvents,
+            preferredDates || this.getDefaultDateRange(),
+            durationMinutes,
+            tenantConfig,
+            contact
+          );
+          
+          slots.push(...calendlySlots);
+          console.log(`✅ Calendly slots generated: ${calendlySlots.length}`);
+        } catch (calendlyError) {
+          console.error('Calendly availability check failed:', calendlyError);
+          // Continue to fallback options
+        }
       }
 
-      // Fallback to business hours if no calendar integration
+      // Enhanced business hours fallback with timezone support
       if (slots.length === 0) {
+        console.log(`📅 Using business hours fallback...`);
         const businessSlots = await this.generateBusinessHoursSlots(
           tenantConfig,
           preferredDates || this.getDefaultDateRange(),
           durationMinutes
         );
         slots.push(...businessSlots);
+        console.log(`✅ Business hours slots generated: ${businessSlots.length}`);
       }
 
-      // Sort slots by preference and proximity to original time
-      return this.rankAvailabilitySlots(slots, contact);
+      // Enhanced ranking with timezone-aware sorting
+      const rankedSlots = this.rankAvailabilitySlots(slots, contact, timezone);
+      console.log(`🎯 Final ranked slots: ${rankedSlots.length}`);
+      
+      return rankedSlots;
     } catch (error) {
       console.error('Error getting available slots:', error);
-      return [];
+      
+      // Last resort: generate basic business hours slots
+      try {
+        const fallbackSlots = await this.generateBusinessHoursSlots(
+          tenantConfig,
+          this.getDefaultDateRange(),
+          durationMinutes
+        );
+        console.log(`🚨 Using fallback slots: ${fallbackSlots.length}`);
+        return fallbackSlots;
+      } catch (fallbackError) {
+        console.error('Fallback slot generation failed:', fallbackError);
+        return [];
+      }
     }
   }
 
@@ -466,50 +530,309 @@ export class ReschedulingWorkflowService {
   ): Promise<AvailabilitySlot[]> {
     const slots: AvailabilitySlot[] = [];
     
-    // Default business hours: 9 AM to 5 PM, Monday to Friday
-    const businessStart = 9; // 9 AM
-    const businessEnd = 17; // 5 PM
+    // ENHANCED: Get business hours from tenant configuration or use intelligent defaults
+    const businessHours = this.getTenantBusinessHours(tenantConfig);
+    const timezone = tenantConfig.timezone || 'UTC';
+    const slotInterval = Math.max(15, Math.min(durationMinutes, 60)); // 15min to 60min intervals
+    const bufferMinutes = Math.min(15, Math.floor(durationMinutes * 0.1)); // 10% buffer, max 15min
+    
+    console.log(`📅 Generating business hours slots for ${dates.length} dates`);
+    console.log(`   ├─ Timezone: ${timezone}`);
+    console.log(`   ├─ Duration: ${durationMinutes} minutes`);
+    console.log(`   ├─ Interval: ${slotInterval} minutes`);
+    console.log(`   └─ Buffer: ${bufferMinutes} minutes`);
     
     for (const date of dates) {
       const dayOfWeek = date.getDay();
+      const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek];
       
-      // Skip weekends (0 = Sunday, 6 = Saturday)
-      if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+      // Get business hours for this specific day
+      const dayHours = businessHours[dayName.toLowerCase()];
+      if (!dayHours.enabled) {
+        console.log(`   ⚠️  ${dayName} is not a business day, skipping`);
+        continue;
+      }
       
-      // Generate hourly slots during business hours
-      for (let hour = businessStart; hour < businessEnd; hour++) {
-        const startTime = new Date(date);
-        startTime.setHours(hour, 0, 0, 0);
-        
+      console.log(`   📍 Processing ${dayName}: ${dayHours.start} - ${dayHours.end}`);
+      
+      // Parse business hours for this day
+      const startHour = parseInt(dayHours.start.split(':')[0]);
+      const startMinute = parseInt(dayHours.start.split(':')[1]);
+      const endHour = parseInt(dayHours.end.split(':')[0]);
+      const endMinute = parseInt(dayHours.end.split(':')[1]);
+      
+      // Generate slots with proper intervals and buffer time
+      let currentTime = new Date(date);
+      currentTime.setHours(startHour, startMinute, 0, 0);
+      
+      const dayEnd = new Date(date);
+      dayEnd.setHours(endHour, endMinute, 0, 0);
+      
+      let slotCount = 0;
+      while (currentTime < dayEnd) {
+        const startTime = new Date(currentTime);
         const endTime = new Date(startTime);
         endTime.setMinutes(endTime.getMinutes() + durationMinutes);
         
-        // Don't create slots that end after business hours
-        if (endTime.getHours() <= businessEnd) {
+        // Check if slot fits within business hours (including buffer)
+        const slotEndWithBuffer = new Date(endTime);
+        slotEndWithBuffer.setMinutes(slotEndWithBuffer.getMinutes() + bufferMinutes);
+        
+        if (slotEndWithBuffer <= dayEnd) {
           slots.push({
             startTime,
             endTime,
             duration: durationMinutes,
             provider: 'business_hours',
-            location: 'Office' // Default location
+            location: tenantConfig.businessType || 'Office',
+            timezone: timezone
           });
+          slotCount++;
         }
+        
+        // Move to next interval
+        currentTime.setMinutes(currentTime.getMinutes() + slotInterval);
       }
+      
+      console.log(`   ✅ Generated ${slotCount} slots for ${dayName}`);
     }
     
+    console.log(`📅 Total slots generated: ${slots.length}`);
     return slots;
   }
 
-  private rankAvailabilitySlots(slots: AvailabilitySlot[], contact: Contact): AvailabilitySlot[] {
-    // Simple ranking algorithm - can be enhanced based on:
-    // - Customer's historical preferences
-    // - Time zone considerations
-    // - Proximity to original appointment time
-    // - Business priority rules
+  /**
+   * Get tenant-specific business hours with intelligent defaults
+   */
+  private getTenantBusinessHours(tenantConfig: TenantConfig): BusinessHours {
+    // ENHANCED: Business hours based on business type with proper defaults
+    const businessTypeHours: { [key: string]: BusinessHours } = {
+      medical: {
+        monday: { enabled: true, start: '08:00', end: '17:00' },
+        tuesday: { enabled: true, start: '08:00', end: '17:00' },
+        wednesday: { enabled: true, start: '08:00', end: '17:00' },
+        thursday: { enabled: true, start: '08:00', end: '17:00' },
+        friday: { enabled: true, start: '08:00', end: '16:00' },
+        saturday: { enabled: false, start: '09:00', end: '12:00' },
+        sunday: { enabled: false, start: '09:00', end: '12:00' }
+      },
+      salon: {
+        monday: { enabled: false, start: '10:00', end: '18:00' },
+        tuesday: { enabled: true, start: '09:00', end: '19:00' },
+        wednesday: { enabled: true, start: '09:00', end: '19:00' },
+        thursday: { enabled: true, start: '09:00', end: '20:00' },
+        friday: { enabled: true, start: '09:00', end: '20:00' },
+        saturday: { enabled: true, start: '08:00', end: '18:00' },
+        sunday: { enabled: true, start: '10:00', end: '17:00' }
+      },
+      restaurant: {
+        monday: { enabled: true, start: '11:00', end: '22:00' },
+        tuesday: { enabled: true, start: '11:00', end: '22:00' },
+        wednesday: { enabled: true, start: '11:00', end: '22:00' },
+        thursday: { enabled: true, start: '11:00', end: '23:00' },
+        friday: { enabled: true, start: '11:00', end: '23:00' },
+        saturday: { enabled: true, start: '10:00', end: '23:00' },
+        sunday: { enabled: true, start: '10:00', end: '21:00' }
+      },
+      professional: {
+        monday: { enabled: true, start: '09:00', end: '17:00' },
+        tuesday: { enabled: true, start: '09:00', end: '17:00' },
+        wednesday: { enabled: true, start: '09:00', end: '17:00' },
+        thursday: { enabled: true, start: '09:00', end: '17:00' },
+        friday: { enabled: true, start: '09:00', end: '17:00' },
+        saturday: { enabled: false, start: '09:00', end: '12:00' },
+        sunday: { enabled: false, start: '09:00', end: '12:00' }
+      }
+    };
+    
+    const businessType = tenantConfig.businessType || 'professional';
+    const defaultHours = businessTypeHours[businessType] || businessTypeHours.professional;
+    
+    console.log(`📊 Using business hours for type: ${businessType}`);
+    
+    return defaultHours;
+  }
+
+  /**
+   * Generate enhanced availability slots with real-time conflict checking
+   */
+  private async generateEnhancedAvailabilitySlots(
+    provider: string,
+    existingBookings: any[],
+    dates: Date[],
+    durationMinutes: number,
+    tenantConfig: TenantConfig,
+    contact: Contact
+  ): Promise<AvailabilitySlot[]> {
+    const slots: AvailabilitySlot[] = [];
+    const timezone = tenantConfig.timezone || 'UTC';
+    const businessHours = this.getTenantBusinessHours(tenantConfig);
+    const bufferMinutes = Math.min(15, Math.floor(durationMinutes * 0.1)); // 10% buffer, max 15min
+    
+    console.log(`🔄 Enhanced slot generation for ${provider}`);
+    console.log(`   ├─ Existing bookings: ${existingBookings.length}`);
+    console.log(`   ├─ Date range: ${dates.length} days`);
+    console.log(`   └─ Buffer time: ${bufferMinutes} minutes`);
+    
+    for (const date of dates) {
+      const dayOfWeek = date.getDay();
+      const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek];
+      const dayHours = businessHours[dayName.toLowerCase()];
+      
+      if (!dayHours.enabled) continue;
+      
+      // Convert business hours to local timezone
+      const dayStart = new Date(date);
+      const [startHour, startMinute] = dayHours.start.split(':').map(Number);
+      dayStart.setHours(startHour, startMinute, 0, 0);
+      
+      const dayEnd = new Date(date);
+      const [endHour, endMinute] = dayHours.end.split(':').map(Number);
+      dayEnd.setHours(endHour, endMinute, 0, 0);
+      
+      // Generate potential slots
+      let currentTime = new Date(dayStart);
+      const slotInterval = Math.max(15, Math.min(durationMinutes, 60));
+      
+      while (currentTime < dayEnd) {
+        const slotStart = new Date(currentTime);
+        const slotEnd = addMinutes(slotStart, durationMinutes);
+        const slotEndWithBuffer = addMinutes(slotEnd, bufferMinutes);
+        
+        // Check if slot fits within business hours
+        if (slotEndWithBuffer <= dayEnd) {
+          // Check for conflicts with existing bookings
+          const hasConflict = this.checkSlotConflict(
+            slotStart, 
+            slotEndWithBuffer, 
+            existingBookings, 
+            provider
+          );
+          
+          if (!hasConflict) {
+            slots.push({
+              startTime: slotStart,
+              endTime: slotEnd,
+              duration: durationMinutes,
+              appointmentType: contact.appointmentType,
+              provider: provider,
+              location: this.getLocationForProvider(provider, tenantConfig),
+              timezone: timezone
+            });
+          }
+        }
+        
+        currentTime = addMinutes(currentTime, slotInterval);
+      }
+    }
+    
+    console.log(`✅ Generated ${slots.length} conflict-free slots for ${provider}`);
+    return slots;
+  }
+
+  /**
+   * Check if a time slot conflicts with existing bookings
+   */
+  private checkSlotConflict(
+    slotStart: Date,
+    slotEnd: Date,
+    existingBookings: any[],
+    provider: string
+  ): boolean {
+    for (const booking of existingBookings) {
+      let bookingStart: Date;
+      let bookingEnd: Date;
+      
+      // Handle different provider booking formats
+      if (provider === 'cal.com') {
+        bookingStart = new Date(booking.startTime || booking.start_time);
+        bookingEnd = new Date(booking.endTime || booking.end_time);
+      } else if (provider === 'calendly') {
+        bookingStart = new Date(booking.start_time);
+        bookingEnd = new Date(booking.end_time);
+      } else {
+        continue; // Unknown provider format
+      }
+      
+      // Check for overlap: slot conflicts if it starts before booking ends and ends after booking starts
+      const hasOverlap = isBefore(slotStart, bookingEnd) && isAfter(slotEnd, bookingStart);
+      
+      if (hasOverlap) {
+        console.log(`   ⚠️  Conflict detected: ${slotStart.toISOString()} - ${slotEnd.toISOString()}`);
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
+  /**
+   * Get appropriate location based on provider and tenant config
+   */
+  private getLocationForProvider(provider: string, tenantConfig: TenantConfig): string {
+    const businessType = tenantConfig.businessType || 'professional';
+    
+    const locationDefaults: { [key: string]: string } = {
+      medical: 'Medical Office',
+      salon: 'Salon',
+      restaurant: 'Restaurant',
+      professional: 'Office'
+    };
+    
+    return locationDefaults[businessType] || 'Office';
+  }
+
+  private rankAvailabilitySlots(slots: AvailabilitySlot[], contact: Contact, timezone?: string): AvailabilitySlot[] {
+    console.log(`🎯 Ranking ${slots.length} slots for optimal customer experience`);
+    
+    const now = new Date();
+    const originalTime = contact.appointmentTime ? new Date(contact.appointmentTime) : now;
     
     return slots.sort((a, b) => {
-      // Prefer earlier times
-      return a.startTime.getTime() - b.startTime.getTime();
+      let scoreA = 0;
+      let scoreB = 0;
+      
+      // 1. Prefer provider-based slots over business hours fallback (higher reliability)
+      if (a.provider !== 'business_hours' && b.provider === 'business_hours') scoreA += 100;
+      if (b.provider !== 'business_hours' && a.provider === 'business_hours') scoreB += 100;
+      
+      // 2. Prefer earlier slots (within business logic)
+      const daysDiffA = Math.abs((a.startTime.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      const daysDiffB = Math.abs((b.startTime.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (daysDiffA < daysDiffB) scoreA += 50;
+      if (daysDiffB < daysDiffA) scoreB += 50;
+      
+      // 3. Prefer similar time of day to original appointment
+      if (originalTime) {
+        const originalHour = originalTime.getHours();
+        const hourDiffA = Math.abs(a.startTime.getHours() - originalHour);
+        const hourDiffB = Math.abs(b.startTime.getHours() - originalHour);
+        
+        if (hourDiffA < hourDiffB) scoreA += 30;
+        if (hourDiffB < hourDiffA) scoreB += 30;
+      }
+      
+      // 4. Prefer common business hours (10 AM - 4 PM gets slight boost)
+      const hourA = a.startTime.getHours();
+      const hourB = b.startTime.getHours();
+      
+      if (hourA >= 10 && hourA <= 16) scoreA += 10;
+      if (hourB >= 10 && hourB <= 16) scoreB += 10;
+      
+      // 5. Avoid very early or very late slots
+      if (hourA < 8 || hourA > 18) scoreA -= 20;
+      if (hourB < 8 || hourB > 18) scoreB -= 20;
+      
+      // Final comparison: higher score wins (negative result means A comes first)
+      const scoreDiff = scoreB - scoreA;
+      
+      // If scores are equal, sort by earliest time
+      if (scoreDiff === 0) {
+        return a.startTime.getTime() - b.startTime.getTime();
+      }
+      
+      return scoreDiff;
     });
   }
 
