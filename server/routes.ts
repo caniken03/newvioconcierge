@@ -3510,6 +3510,155 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==============================================
+  // OBSERVABILITY ENDPOINTS
+  // ==============================================
+
+  // Get observability metrics
+  app.get('/api/admin/observability/metrics', authenticateJWT, requireRole(['super_admin']), async (req: any, res) => {
+    try {
+      const { metricName, tenantId, limit = '100' } = req.query;
+      
+      const { getObservabilityService } = await import('./services/observability-service');
+      const obs = getObservabilityService();
+      
+      const summary = obs.getMetricsSummary(metricName, tenantId);
+      
+      res.json({
+        metrics: summary,
+        timestamp: new Date(),
+        totalMetrics: Object.keys(summary).length
+      });
+    } catch (error) {
+      console.error('Error fetching observability metrics:', error);
+      res.status(500).json({ message: 'Failed to fetch metrics' });
+    }
+  });
+
+  // Get active alerts
+  app.get('/api/admin/observability/alerts', authenticateJWT, requireRole(['super_admin']), async (req: any, res) => {
+    try {
+      const { getObservabilityService } = await import('./services/observability-service');
+      const obs = getObservabilityService();
+      
+      const alerts = obs.getActiveAlerts();
+      
+      res.json({
+        alerts: alerts.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()),
+        totalCount: alerts.length,
+        criticalCount: alerts.filter(a => a.severity === 'critical').length,
+        highCount: alerts.filter(a => a.severity === 'high').length
+      });
+    } catch (error) {
+      console.error('Error fetching alerts:', error);
+      res.status(500).json({ message: 'Failed to fetch alerts' });
+    }
+  });
+
+  // Acknowledge an alert
+  app.post('/api/admin/observability/alerts/:alertId/acknowledge', authenticateJWT, requireRole(['super_admin']), async (req: any, res) => {
+    try {
+      const { alertId } = req.params;
+      
+      if (!alertId) {
+        return res.status(400).json({ message: 'Alert ID is required' });
+      }
+      
+      const { getObservabilityService } = await import('./services/observability-service');
+      const obs = getObservabilityService();
+      
+      const acknowledged = obs.acknowledgeAlert(alertId);
+      
+      if (acknowledged) {
+        res.json({ message: 'Alert acknowledged successfully', alertId });
+      } else {
+        res.status(404).json({ message: 'Alert not found' });
+      }
+    } catch (error) {
+      console.error('Error acknowledging alert:', error);
+      res.status(500).json({ message: 'Failed to acknowledge alert' });
+    }
+  });
+
+  // Get endpoint performance statistics
+  app.get('/api/admin/observability/performance', authenticateJWT, requireRole(['super_admin']), async (req: any, res) => {
+    try {
+      const { endpoint } = req.query;
+      
+      const { getObservabilityService } = await import('./services/observability-service');
+      const obs = getObservabilityService();
+      
+      if (endpoint) {
+        const [method, path] = endpoint.split(' ');
+        const performance = obs.getEndpointPerformance(method, path);
+        res.json({ endpoint, performance });
+      } else {
+        // Return top performing/problematic endpoints
+        const summary = obs.getMetricsSummary('http_request_duration');
+        res.json({ endpointSummary: summary });
+      }
+    } catch (error) {
+      console.error('Error fetching performance data:', error);
+      res.status(500).json({ message: 'Failed to fetch performance data' });
+    }
+  });
+
+  // Record custom business metric
+  app.post('/api/admin/observability/metrics/business', authenticateJWT, requireRole(['super_admin', 'client_admin']), async (req: any, res) => {
+    try {
+      const { name, value, labels } = req.body;
+      
+      if (!name || typeof value !== 'number') {
+        return res.status(400).json({ message: 'Metric name and numeric value are required' });
+      }
+      
+      const { getObservabilityService } = await import('./services/observability-service');
+      const obs = getObservabilityService();
+      
+      const tenantId = req.user.role === 'super_admin' ? undefined : req.user.tenantId;
+      obs.recordBusinessMetric(name, value, tenantId, labels);
+      
+      res.json({ 
+        message: 'Business metric recorded successfully', 
+        metric: { name, value, tenantId, labels },
+        timestamp: new Date()
+      });
+    } catch (error) {
+      console.error('Error recording business metric:', error);
+      res.status(500).json({ message: 'Failed to record business metric' });
+    }
+  });
+
+  // Get system health with observability metrics
+  app.get('/api/admin/observability/health', authenticateJWT, requireRole(['super_admin']), async (req: any, res) => {
+    try {
+      // Get standard system health
+      const health = await storage.checkSystemHealth();
+      
+      // Add observability metrics
+      const { getObservabilityService } = await import('./services/observability-service');
+      const obs = getObservabilityService();
+      
+      const alerts = obs.getActiveAlerts();
+      const systemMetrics = obs.getMetricsSummary('system_');
+      
+      const enhancedHealth = {
+        ...health,
+        observability: {
+          activeAlerts: alerts.length,
+          criticalAlerts: alerts.filter(a => a.severity === 'critical').length,
+          systemMetrics: systemMetrics,
+          monitoringStatus: 'active'
+        }
+      };
+      
+      res.json(enhancedHealth);
+    } catch (error) {
+      console.error('Error fetching enhanced health:', error);
+      res.status(500).json({ message: 'Failed to fetch system health' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

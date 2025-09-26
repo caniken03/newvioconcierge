@@ -57,7 +57,18 @@ app.use((req, res, next) => {
         logLine = logLine.slice(0, 79) + "…";
       }
 
-      log(logLine);
+      // SECURITY: Remove full JSON response from logs to prevent PII/secret exposure
+      log(logLine.replace(/ :: .*/, ' :: [response logged]'));
+      
+      // Record performance metrics for observability
+      try {
+        const { getObservabilityService } = require("./services/observability-service");
+        const obs = getObservabilityService();
+        const tenantId = (req as any).user?.tenantId;
+        obs.recordRequestPerformance(path, req.method, duration, res.statusCode, tenantId);
+      } catch (error) {
+        // Silently fail if observability service not ready
+      }
     }
   });
 
@@ -100,20 +111,43 @@ app.use((req, res, next) => {
     import("./services/call-scheduler").then(({ callScheduler }) => {
       callScheduler.start();
     });
+    
+    // Initialize and start observability service
+    import("./services/observability-service").then(({ initializeObservability }) => {
+      import("./storage").then(({ storage }) => {
+        const obs = initializeObservability(storage);
+        obs.start();
+        log('🔍 Observability service started');
+      });
+    });
   });
 
   // Graceful shutdown
   process.on('SIGINT', async () => {
     log('Received SIGINT, shutting down gracefully...');
     const { callScheduler } = await import("./services/call-scheduler");
+    const { getObservabilityService } = await import("./services/observability-service");
+    
     callScheduler.stop();
+    try {
+      getObservabilityService().stop();
+    } catch (error) {
+      // Service may not be initialized
+    }
     process.exit(0);
   });
 
   process.on('SIGTERM', async () => {
     log('Received SIGTERM, shutting down gracefully...');
     const { callScheduler } = await import("./services/call-scheduler");
+    const { getObservabilityService } = await import("./services/observability-service");
+    
     callScheduler.stop();
+    try {
+      getObservabilityService().stop();
+    } catch (error) {
+      // Service may not be initialized
+    }
     process.exit(0);
   });
 })();

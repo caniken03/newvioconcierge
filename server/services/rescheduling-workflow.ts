@@ -164,6 +164,22 @@ export class ReschedulingWorkflowService {
     storage: any,
     manualOverride: boolean = false
   ): Promise<ReschedulingWorkflowResult> {
+    // Track operation for stuck detection and performance monitoring
+    let obs;
+    try {
+      const { getObservabilityService } = await import('./observability-service');
+      obs = getObservabilityService();
+      obs.startOperation(
+        `workflow_${requestId}`,
+        'rescheduling_workflow',
+        tenantId,
+        300000, // 5 minute timeout
+        { requestId, context: manualOverride ? 'manual' : 'automated' }
+      );
+    } catch (error) {
+      // Continue without observability if service not available
+    }
+    
     try {
       const request = await storage.getReschedulingRequest(requestId, tenantId);
       if (!request) {
@@ -234,12 +250,44 @@ export class ReschedulingWorkflowService {
 
       await storage.updateReschedulingRequest(requestId, tenantId, updates);
       
+      // Complete operation tracking and record business metrics
+      if (obs) {
+        obs.completeOperation(`workflow_${requestId}`);
+        
+        // Record business metrics based on result
+        if (result.success) {
+          obs.recordBusinessMetric('workflow_completion', 1, tenantId, { 
+            stage: result.workflowStage, 
+            status: result.status 
+          });
+          
+          if (result.selectedTime) {
+            obs.recordBusinessMetric('reschedule_success', 1, tenantId, { 
+              reason: 'customer_request' 
+            });
+          }
+        } else {
+          obs.recordBusinessMetric('workflow_failure', 1, tenantId, { 
+            stage: result.workflowStage, 
+            error: result.message 
+          });
+        }
+      }
+      
       return {
         ...result,
         requestId
       };
     } catch (error) {
       console.error('Error processing workflow:', error);
+      
+      // Track failed operations
+      if (obs) {
+        obs.recordBusinessMetric('workflow_error', 1, tenantId, { 
+          error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+      }
+      
       return {
         success: false,
         requestId,
