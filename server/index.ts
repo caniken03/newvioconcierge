@@ -4,6 +4,9 @@ import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
 
+// Trust proxy for Replit hosting - prevents cookie/session issues
+app.set('trust proxy', 1);
+
 // Disable ETag generation to prevent 304 responses
 app.set('etag', false);
 

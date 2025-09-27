@@ -1,0 +1,84 @@
+Sounds like an **auth redirect loop**. In plain English: you *are* logging in, but your app isn’t “remembering” it on the next request, so your “auth guard” sends you right back to `/login` again.
+
+## What’s usually going wrong
+
+* **Session/cookie isn’t sticking.** After login your server sets a session (or JWT in a cookie/localStorage). If that cookie isn’t saved (wrong domain/flags), every new request looks unauthenticated → redirect → loop. You can confirm in Replit’s **Preview → Resources → Cookies**: if you don’t see your session cookie after logging in, that’s the issue. ([Replit Docs][1])
+* **Secure/SameSite flags vs proxy.** On Replit, apps sit behind HTTPS + a proxy. If you mark cookies `secure: true` but don’t tell Express/Flask you’re behind a proxy, the framework may think it’s HTTP and **refuse to set the secure cookie** → no session → loop. ([Replit Docs][2])
+* **Callback/redirect URL mismatch (OAuth).** If your provider is set to `https://your-app.repl.co/callback` but you’re testing on another URL (preview vs published), the provider redirects back, your app rejects it, and you bounce to login again. (Common with Google OAuth/NextAuth/etc.) ([Replit Docs][3])
+* **Mixing Replit Auth with your own guard.** If you enabled **Private Deployments** or Replit Auth and also added your own `/login` checks, you can ping-pong between the two. ([Replit Docs][4])
+
+## Fast fixes you can try (pick the one that matches your stack)
+
+### 1) Express + `express-session`
+
+**Symptom:** Cookie not set or disappears after redirect.
+
+**Fix:**
+
+```js
+import session from 'express-session';
+import express from 'express';
+const app = express();
+
+app.set('trust proxy', 1); // <— behind Replit’s proxy
+
+app.use(session({
+  name: 'sid',
+  secret: process.env.SESSION_SECRET, // put in Replit Secrets
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',                   // usually right for form logins
+    secure: process.env.NODE_ENV === 'production' // true on published app
+  }
+}));
+```
+
+* Put `SESSION_SECRET` in **Secrets** (not in code). ([Replit Docs][5])
+* The `trust proxy` line lets Express set **secure cookies** correctly behind HTTPS. Without it, cookies may not persist and you’ll loop. (You can verify in Preview → Resources → Cookies.) ([Replit Docs][1])
+
+### 2) Next.js + NextAuth (or similar)
+
+**Symptom:** Works locally, loops on Replit.
+
+**Fix:**
+
+* Set `NEXTAUTH_URL` to the exact domain you’re using (preview or published), and `NEXTAUTH_SECRET` in **Secrets**.
+* If using `cookies.sessionToken` overrides, keep `sameSite: 'lax'` and only `secure: true` in production.
+* Always test on the **same URL** your OAuth provider has whitelisted (don’t switch between preview and published without updating the provider’s redirect URLs). ([Replit Docs][5])
+
+### 3) Flask + OAuth (Google example)
+
+**Symptom:** Login succeeds at Google, then back to login.
+
+**Fix checklist:**
+
+* Ensure your Google “Authorized redirect URI” exactly matches your current app URL + callback path.
+* Keep session secret in **Secrets** and set `SESSION_COOKIE_SAMESITE='Lax'`.
+* If you mark cookies secure, also set `SESSION_COOKIE_SECURE=True` and run behind HTTPS (published app). ([Replit Docs][3])
+
+### 4) Using **Replit Auth**
+
+If you added Replit’s built-in Auth, **don’t also redirect to a custom `/login`** unless you’re reading the Replit Auth session first. Let Replit Auth gate access, then check the user in your app logic. ([Replit Docs][6])
+
+## How to prove it’s fixed (2-minute check)
+
+1. Open your app, log in, then in **Preview → Resources → Cookies** confirm your session/JWT cookie exists and has a non-empty value. ([Replit Docs][1])
+2. Refresh the page. If the cookie persists and your guard sees a user, you should land on the intended page (no redirect).
+
+---
+
+### TL;DR
+
+**Issue:** Your app isn’t persisting the auth state (cookie/session), often because of cookie flags or proxy settings.
+**Fix that can happen quickly:** For Express, add `app.set('trust proxy', 1)` and use sane cookie options (`sameSite: 'lax'`, `secure: production-only`), store secrets in Replit **Secrets**, and make sure OAuth redirect URLs match the exact domain you’re testing. ([Replit Docs][1])
+
+If you tell me your stack (Express/Next.js/Flask/etc.) and how you’re logging in (sessions, JWT, Replit Auth, OAuth provider), I’ll tailor the exact snippet.
+
+[1]: https://docs.replit.com/replit-workspace/workspace-features/preview?utm_source=chatgpt.com "Preview"
+[2]: https://docs.replit.com/?utm_source=chatgpt.com "Replit Docs"
+[3]: https://docs.replit.com/additional-resources/google-auth-in-flask?utm_source=chatgpt.com "Google Authentication in Python and Flask"
+[4]: https://docs.replit.com/cloud-services/deployments/private-deployments?utm_source=chatgpt.com "Private Deployments"
+[5]: https://docs.replit.com/replit-workspace/workspace-features/secrets?utm_source=chatgpt.com "Replit's Secrets Manager"
+[6]: https://docs.replit.com/replit-workspace/replit-auth?utm_source=chatgpt.com "Replit Auth"
