@@ -131,19 +131,20 @@ export default function TenantSetupWizard({ isOpen, onClose, onComplete }: Tenan
       const response = await apiRequest('POST', '/api/admin/tenants/wizard', finalData);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/tenants'] });
       toast({
         title: "Tenant created successfully!",
-        description: "The new tenant has been set up and activated.",
+        description: `${wizardData.businessName} has been activated and admin credentials have been sent.`,
       });
       onComplete();
       onClose();
     },
     onError: (error: Error) => {
+      console.error('Tenant creation error:', error);
       toast({
         title: "Failed to create tenant",
-        description: error.message,
+        description: error.message || "Please check your input and try again.",
         variant: "destructive",
       });
     },
@@ -244,6 +245,7 @@ export default function TenantSetupWizard({ isOpen, onClose, onComplete }: Tenan
             onNext={nextStep}
             onBack={prevStep}
             onComplete={handleComplete}
+            isCreating={createTenantMutation.isPending}
             data-testid="step-review-activate"
           />
         );

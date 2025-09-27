@@ -1,5 +1,3 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,35 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, CheckCircle, User, Building2, Crown, Zap, Calendar, Phone, Settings, Loader2 } from "lucide-react";
 import type { ReviewActivateProps } from "@/types";
 
-export default function ReviewActivateStep({ data, updateData, onNext, onBack, onComplete }: ReviewActivateProps) {
+export default function ReviewActivateStep({ data, updateData, onNext, onBack, onComplete, isCreating }: ReviewActivateProps & { isCreating?: boolean }) {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  
-  // Create tenant mutation
-  const createTenantMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest('POST', '/api/admin/tenants/wizard', data);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/tenants'] });
-      toast({
-        title: "Tenant created successfully",
-        description: `${data.businessName} has been activated and admin credentials have been sent.`,
-      });
-      onComplete();
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Failed to create tenant",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
 
   const handleActivate = () => {
-    createTenantMutation.mutate();
+    // Call the parent component's completion handler
+    // which will trigger the proper mutation in TenantSetupWizard
+    onComplete();
   };
   
   const getBusinessTemplateName = () => {
@@ -252,17 +228,17 @@ export default function ReviewActivateStep({ data, updateData, onNext, onBack, o
       </Card>
 
       <div className="flex justify-between pt-4">
-        <Button variant="outline" onClick={onBack} disabled={createTenantMutation.isPending} data-testid="button-previous-review">
+        <Button variant="outline" onClick={onBack} disabled={isCreating} data-testid="button-previous-review">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Previous
         </Button>
         <Button 
           onClick={handleActivate} 
-          disabled={createTenantMutation.isPending}
+          disabled={isCreating}
           className="bg-green-600 hover:bg-green-700"
           data-testid="button-activate-tenant"
         >
-          {createTenantMutation.isPending ? (
+          {isCreating ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               Creating Tenant...
