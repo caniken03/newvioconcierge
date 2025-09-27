@@ -633,6 +633,135 @@ export const callQualityMetrics = pgTable("call_quality_metrics", {
   callSessionFk: foreignKey({ columns: [table.callSessionId], foreignColumns: [callSessions.id], name: "call_quality_metrics_call_session_fk" }).onDelete("cascade"),
 }));
 
+// UK GDPR Compliance: Audit Trail System for Article 30 & 15 Requirements
+export const auditTrail = pgTable("audit_trail", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  correlationId: uuid("correlation_id").notNull(), // For tracking related events
+  tenantId: uuid("tenant_id"), // Null for super admin activities
+  userId: uuid("user_id"), // User who performed the action
+  sessionId: varchar("session_id", { length: 255 }), // Session identifier
+  
+  // Core audit fields
+  action: varchar("action", { length: 100 }).notNull(), // login, logout, data_access, data_export, etc.
+  resource: varchar("resource", { length: 100 }), // contacts, settings, calls, etc.
+  resourceId: varchar("resource_id", { length: 100 }), // Specific resource ID accessed
+  
+  // Access context
+  ipAddress: varchar("ip_address", { length: 45 }).notNull(), // IPv4/IPv6
+  userAgent: text("user_agent"), // Browser/client info
+  purpose: text("purpose"), // Business justification for access
+  
+  // Temporal data
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  duration: integer("duration_ms"), // How long the access lasted
+  
+  // Data classification
+  dataTypes: text("data_types"), // JSON array of data types accessed ['pii', 'phi', 'contact_info']
+  sensitivity: varchar("sensitivity", { length: 20 }).default("normal"), // normal, sensitive, confidential, restricted
+  
+  // Compliance metadata
+  legalBasis: varchar("legal_basis", { length: 50 }), // legitimate_interest, consent, contract, etc.
+  consentId: uuid("consent_id"), // Reference to consent record if applicable
+  
+  // Outcome and integrity
+  outcome: varchar("outcome", { length: 50 }).notNull(), // success, failure, partial, blocked
+  errorCode: varchar("error_code", { length: 50 }), // If outcome was failure/blocked
+  hashSignature: varchar("hash_signature", { length: 128 }), // Tamper detection
+  
+  // Administrative
+  isAutomated: boolean("is_automated").default(false), // System vs human action
+  reviewedBy: uuid("reviewed_by"), // For sensitive access review
+  reviewedAt: timestamp("reviewed_at"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  // Performance indexes
+  tenantIdIdx: index("audit_trail_tenant_id_idx").on(table.tenantId),
+  userIdIdx: index("audit_trail_user_id_idx").on(table.userId),
+  actionIdx: index("audit_trail_action_idx").on(table.action),
+  timestampIdx: index("audit_trail_timestamp_idx").on(table.timestamp),
+  correlationIdIdx: index("audit_trail_correlation_id_idx").on(table.correlationId),
+  outcomeIdx: index("audit_trail_outcome_idx").on(table.outcome),
+  // Foreign key constraints
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "audit_trail_tenant_fk" }).onDelete("cascade"),
+  userFk: foreignKey({ columns: [table.userId], foreignColumns: [users.id], name: "audit_trail_user_fk" }).onDelete("set null"),
+  reviewedByFk: foreignKey({ columns: [table.reviewedBy], foreignColumns: [users.id], name: "audit_trail_reviewed_by_fk" }).onDelete("set null"),
+}));
+
+// Client consent tracking for GDPR Article 7
+export const clientConsent = pgTable("client_consent", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(),
+  userId: uuid("user_id"), // User who requested consent (admin/support)
+  
+  consentType: varchar("consent_type", { length: 50 }).notNull(), // data_access, data_export, support_access, etc.
+  purpose: text("purpose").notNull(), // Detailed reason for consent request
+  dataTypes: text("data_types"), // JSON array of data types requiring consent
+  
+  // Consent workflow
+  status: varchar("status", { length: 20 }).default("pending"), // pending, granted, denied, expired, revoked
+  requestedAt: timestamp("requested_at").defaultNow(),
+  decidedAt: timestamp("decided_at"),
+  expiresAt: timestamp("expires_at"), // Optional expiry for temporary consent
+  
+  // Client response
+  clientResponse: text("client_response"), // Client's reason/comments
+  consentMethod: varchar("consent_method", { length: 50 }), // email, portal, phone, etc.
+  
+  // Audit trail
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: text("user_agent"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  tenantIdIdx: index("client_consent_tenant_id_idx").on(table.tenantId),
+  statusIdx: index("client_consent_status_idx").on(table.status),
+  userIdIdx: index("client_consent_user_id_idx").on(table.userId),
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "client_consent_tenant_fk" }).onDelete("cascade"),
+  userFk: foreignKey({ columns: [table.userId], foreignColumns: [users.id], name: "client_consent_user_fk" }).onDelete("set null"),
+}));
+
+// Just-in-time access for temporary support/admin access
+export const temporaryAccess = pgTable("temporary_access", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(),
+  grantedTo: uuid("granted_to").notNull(), // User ID receiving temporary access
+  grantedBy: uuid("granted_by").notNull(), // User ID who granted access
+  
+  accessType: varchar("access_type", { length: 50 }).notNull(), // support, emergency, audit, etc.
+  accessLevel: varchar("access_level", { length: 50 }).notNull(), // read_only, full_access, limited
+  purpose: text("purpose").notNull(), // Business justification
+  
+  // Temporal controls
+  startTime: timestamp("start_time").defaultNow(),
+  endTime: timestamp("end_time").notNull(),
+  autoRevoke: boolean("auto_revoke").default(true),
+  
+  // Status tracking
+  status: varchar("status", { length: 20 }).default("active"), // active, expired, revoked, used
+  lastUsed: timestamp("last_used"),
+  usageCount: integer("usage_count").default(0),
+  
+  // Constraints and notifications
+  maxUsages: integer("max_usages"), // Optional usage limit
+  notifyOnUse: boolean("notify_on_use").default(true),
+  consentRequired: boolean("consent_required").default(true),
+  consentId: uuid("consent_id"), // Reference to client consent
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  tenantIdIdx: index("temporary_access_tenant_id_idx").on(table.tenantId),
+  grantedToIdx: index("temporary_access_granted_to_idx").on(table.grantedTo),
+  statusIdx: index("temporary_access_status_idx").on(table.status),
+  endTimeIdx: index("temporary_access_end_time_idx").on(table.endTime),
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "temporary_access_tenant_fk" }).onDelete("cascade"),
+  grantedToFk: foreignKey({ columns: [table.grantedTo], foreignColumns: [users.id], name: "temporary_access_granted_to_fk" }).onDelete("cascade"),
+  grantedByFk: foreignKey({ columns: [table.grantedBy], foreignColumns: [users.id], name: "temporary_access_granted_by_fk" }).onDelete("cascade"),
+  consentFk: foreignKey({ columns: [table.consentId], foreignColumns: [clientConsent.id], name: "temporary_access_consent_fk" }).onDelete("set null"),
+}));
+
 // Relations
 export const usersRelations = relations(users, ({ one }) => ({
   tenant: one(tenants, {
@@ -950,6 +1079,24 @@ export const insertCallQualityMetricsSchema = createInsertSchema(callQualityMetr
   createdAt: true,
 });
 
+// UK GDPR Compliance Insert Schemas
+export const insertAuditTrailSchema = createInsertSchema(auditTrail).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertClientConsentSchema = createInsertSchema(clientConsent).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTemporaryAccessSchema = createInsertSchema(temporaryAccess).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -1009,3 +1156,13 @@ export type InsertCustomerAnalytics = z.infer<typeof insertCustomerAnalyticsSche
 
 export type CallQualityMetrics = typeof callQualityMetrics.$inferSelect;
 export type InsertCallQualityMetrics = z.infer<typeof insertCallQualityMetricsSchema>;
+
+// UK GDPR Compliance Types
+export type AuditTrail = typeof auditTrail.$inferSelect;
+export type InsertAuditTrail = z.infer<typeof insertAuditTrailSchema>;
+
+export type ClientConsent = typeof clientConsent.$inferSelect;
+export type InsertClientConsent = z.infer<typeof insertClientConsentSchema>;
+
+export type TemporaryAccess = typeof temporaryAccess.$inferSelect;
+export type InsertTemporaryAccess = z.infer<typeof insertTemporaryAccessSchema>;

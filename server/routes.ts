@@ -4114,6 +4114,304 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // UK GDPR Compliance: Client Audit Trail Access (Article 15 - Right of Access)
+  app.get('/api/compliance/audit-trail', authenticateJWT, async (req: any, res) => {
+    try {
+      const { page = 1, limit = 50, startDate, endDate, action } = req.query;
+      const offset = (parseInt(page) - 1) * parseInt(limit);
+
+      // Client admins can see their tenant's audit trail, users can see only their own
+      let auditTrail: any[];
+      
+      if (req.user.role === 'client_admin') {
+        // Admin can see all tenant activity
+        if (startDate && endDate) {
+          auditTrail = await storage.getAuditTrailByDateRange(
+            req.user.tenantId, 
+            new Date(startDate), 
+            new Date(endDate)
+          );
+        } else if (action) {
+          auditTrail = await storage.getAuditTrailByAction(action, req.user.tenantId, parseInt(limit));
+        } else {
+          auditTrail = await storage.getAuditTrailByTenant(req.user.tenantId, parseInt(limit), offset);
+        }
+      } else {
+        // Regular users can only see their own activity
+        auditTrail = await storage.getAuditTrailByUser(req.user.id, req.user.tenantId, parseInt(limit), offset);
+      }
+
+      // Format response to be client-friendly (remove technical details)
+      const clientFriendlyAuditTrail = auditTrail.map(entry => ({
+        id: entry.id,
+        timestamp: entry.timestamp,
+        action: entry.action,
+        resource: entry.resource,
+        outcome: entry.outcome,
+        ipAddress: entry.ipAddress.replace(/\d+$/, 'xxx'), // Partially mask IP
+        userAgent: entry.userAgent?.substring(0, 50) + '...',
+        purpose: entry.purpose,
+        duration: entry.duration,
+        sensitivity: entry.sensitivity,
+      }));
+
+      res.json({
+        success: true,
+        data: clientFriendlyAuditTrail,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: auditTrail.length,
+        },
+        compliance: {
+          legalBasis: 'Article 15 - Right of Access',
+          dataController: 'VioConcierge Platform',
+          retentionPeriod: '7 years as per UK GDPR requirements',
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching audit trail:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to retrieve audit trail',
+        error: 'AUDIT_FETCH_ERROR'
+      });
+    }
+  });
+
+  // GDPR Data Export (Article 20 - Right to Data Portability)
+  app.get('/api/compliance/data-export', authenticateJWT, async (req: any, res) => {
+    try {
+      // Create audit log for this data export request
+      await storage.createAuditTrail({
+        correlationId: require('crypto').randomUUID(),
+        tenantId: req.user.tenantId,
+        userId: req.user.id,
+        action: 'data_export',
+        resource: 'personal_data',
+        ipAddress: req.ip || 'unknown',
+        userAgent: req.headers['user-agent'],
+        purpose: 'GDPR Article 20 - Right to Data Portability',
+        timestamp: new Date(),
+        dataTypes: JSON.stringify(['pii', 'contact_info', 'call_data', 'account_data']),
+        sensitivity: 'confidential',
+        legalBasis: 'data_subject_request',
+        outcome: 'success',
+        isAutomated: false,
+      });
+
+      // Gather all user's data across the platform
+      let exportData: any = {
+        exportInfo: {
+          requestDate: new Date().toISOString(),
+          dataController: 'VioConcierge Platform',
+          legalBasis: 'GDPR Article 20 - Right to Data Portability',
+          dataSubject: req.user.email,
+          retentionNotice: 'Data will be retained as per UK GDPR requirements'
+        },
+        userData: {
+          id: req.user.id,
+          email: req.user.email,
+          fullName: req.user.fullName,
+          role: req.user.role,
+          createdAt: req.user.createdAt,
+          updatedAt: req.user.updatedAt,
+        }
+      };
+
+      // For client admins, include tenant data
+      if (req.user.role === 'client_admin') {
+        const tenant = await storage.getTenant(req.user.tenantId);
+        const tenantConfig = await storage.getTenantConfig(req.user.tenantId);
+        const contacts = await storage.getContactsByTenant(req.user.tenantId);
+        const callSessions = await storage.getCallSessionsByTenant(req.user.tenantId);
+
+        exportData.tenantData = {
+          tenant: {
+            id: tenant?.id,
+            name: tenant?.name,
+            companyName: tenant?.companyName,
+            contactEmail: tenant?.contactEmail,
+            createdAt: tenant?.createdAt,
+          },
+          configuration: {
+            timezone: tenantConfig?.timezone,
+            businessHours: tenantConfig?.businessHoursStart + ' - ' + tenantConfig?.businessHoursEnd,
+            maxCallsPerDay: tenantConfig?.maxCallsPerDay,
+          },
+          contacts: contacts.map(contact => ({
+            id: contact.id,
+            name: contact.name,
+            phone: contact.phone,
+            email: contact.email,
+            appointmentTime: contact.appointmentTime,
+            appointmentType: contact.appointmentType,
+            lastContactTime: contact.lastContactTime,
+            createdAt: contact.createdAt,
+          })),
+          callHistory: callSessions.slice(0, 100).map(call => ({ // Limit to recent 100 calls
+            id: call.id,
+            contactId: call.contactId,
+            status: call.status,
+            callOutcome: call.callOutcome,
+            startTime: call.startTime,
+            endTime: call.endTime,
+            durationSeconds: call.durationSeconds,
+          }))
+        };
+      }
+
+      // Include recent audit trail for transparency
+      const recentAuditTrail = await storage.getAuditTrailByUser(req.user.id, req.user.tenantId, 50);
+      exportData.auditTrail = recentAuditTrail.map(entry => ({
+        timestamp: entry.timestamp,
+        action: entry.action,
+        resource: entry.resource,
+        outcome: entry.outcome,
+        purpose: entry.purpose,
+      }));
+
+      // Set appropriate headers for file download
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="gdpr-data-export-${Date.now()}.json"`);
+      
+      res.json(exportData);
+    } catch (error) {
+      console.error('Error generating data export:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to generate data export',
+        error: 'DATA_EXPORT_ERROR'
+      });
+    }
+  });
+
+  // GDPR Data Deletion Request (Article 17 - Right to Erasure)
+  app.post('/api/compliance/data-deletion-request', authenticateJWT, async (req: any, res) => {
+    try {
+      const { reason, dataTypes } = req.body;
+
+      if (!reason) {
+        return res.status(400).json({
+          success: false,
+          message: 'Deletion reason is required',
+          error: 'MISSING_REASON'
+        });
+      }
+
+      // Create audit log for this deletion request
+      await storage.createAuditTrail({
+        correlationId: require('crypto').randomUUID(),
+        tenantId: req.user.tenantId,
+        userId: req.user.id,
+        action: 'data_deletion_request',
+        resource: 'personal_data',
+        ipAddress: req.ip || 'unknown',
+        userAgent: req.headers['user-agent'],
+        purpose: `GDPR Article 17 - Right to Erasure: ${reason}`,
+        timestamp: new Date(),
+        dataTypes: JSON.stringify(dataTypes || ['all']),
+        sensitivity: 'confidential',
+        legalBasis: 'data_subject_request',
+        outcome: 'pending_review',
+        isAutomated: false,
+      });
+
+      // In production, this would trigger a workflow for legal review
+      // For now, we'll create a support ticket placeholder
+      res.json({
+        success: true,
+        message: 'Data deletion request submitted successfully',
+        requestId: require('crypto').randomUUID(),
+        nextSteps: [
+          'Your request has been logged and will be reviewed within 30 days',
+          'Our data protection team will contact you to verify your identity',
+          'Legal review will be conducted to ensure compliance with retention requirements',
+          'You will be notified of the outcome via email'
+        ],
+        compliance: {
+          legalBasis: 'GDPR Article 17 - Right to Erasure',
+          timeframe: 'Maximum 30 days as per UK GDPR requirements',
+          contact: 'dpo@vioconcierge.com for queries about this request'
+        }
+      });
+    } catch (error) {
+      console.error('Error processing deletion request:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to process deletion request',
+        error: 'DELETION_REQUEST_ERROR'
+      });
+    }
+  });
+
+  // Just-in-Time Access Management
+  app.get('/api/compliance/temporary-access', authenticateJWT, requireRole(['super_admin', 'client_admin']), async (req: any, res) => {
+    try {
+      let accessRecords: any[];
+      
+      if (req.user.role === 'super_admin') {
+        // Super admins can see all temporary access across all tenants
+        const allAccess = await storage.getActiveTemporaryAccess(req.user.tenantId);
+        accessRecords = allAccess;
+      } else {
+        // Client admins can only see temporary access to their tenant
+        accessRecords = await storage.getActiveTemporaryAccess(req.user.tenantId);
+      }
+
+      res.json({
+        success: true,
+        data: accessRecords.map(access => ({
+          id: access.id,
+          grantedTo: access.grantedTo,
+          grantedBy: access.grantedBy,
+          accessType: access.accessType,
+          accessLevel: access.accessLevel,
+          purpose: access.purpose,
+          startTime: access.startTime,
+          endTime: access.endTime,
+          status: access.status,
+          usageCount: access.usageCount,
+          lastUsed: access.lastUsed,
+        }))
+      });
+    } catch (error) {
+      console.error('Error fetching temporary access:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to fetch temporary access records' 
+      });
+    }
+  });
+
+  // Client Consent Management
+  app.get('/api/compliance/consent', authenticateJWT, requireRole(['client_admin']), async (req: any, res) => {
+    try {
+      const consents = await storage.getClientConsentsByTenant(req.user.tenantId);
+      
+      res.json({
+        success: true,
+        data: consents.map(consent => ({
+          id: consent.id,
+          consentType: consent.consentType,
+          purpose: consent.purpose,
+          status: consent.status,
+          requestedAt: consent.requestedAt,
+          decidedAt: consent.decidedAt,
+          expiresAt: consent.expiresAt,
+          clientResponse: consent.clientResponse,
+          consentMethod: consent.consentMethod,
+        }))
+      });
+    } catch (error) {
+      console.error('Error fetching consent records:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to fetch consent records' 
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

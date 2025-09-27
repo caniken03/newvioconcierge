@@ -19,6 +19,9 @@ import {
   reschedulingRequests,
   customerAnalytics,
   callQualityMetrics,
+  auditTrail,
+  clientConsent,
+  temporaryAccess,
   type User,
   type InsertUser,
   type Tenant,
@@ -57,6 +60,12 @@ import {
   type InsertCustomerAnalytics,
   type CallQualityMetrics,
   type InsertCallQualityMetrics,
+  type AuditTrail,
+  type InsertAuditTrail,
+  type ClientConsent,
+  type InsertClientConsent,
+  type TemporaryAccess,
+  type InsertTemporaryAccess,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, count, sql, gt, lt, like, inArray } from "drizzle-orm";
@@ -346,6 +355,38 @@ export interface IStorage {
     recentEvents: AbuseDetectionEvent[];
     protectionMetrics: any;
   }>;
+
+  // UK GDPR Compliance: Audit Trail Operations
+  createAuditTrail(entry: InsertAuditTrail): Promise<AuditTrail>;
+  getAuditTrailByTenant(tenantId: string, limit?: number, offset?: number): Promise<AuditTrail[]>;
+  getAuditTrailByUser(userId: string, tenantId: string, limit?: number, offset?: number): Promise<AuditTrail[]>;
+  getAuditTrailByAction(action: string, tenantId?: string, limit?: number): Promise<AuditTrail[]>;
+  getAuditTrailByDateRange(tenantId: string, startDate: Date, endDate: Date): Promise<AuditTrail[]>;
+  searchAuditTrail(tenantId: string, filters: {
+    userId?: string;
+    action?: string;
+    resource?: string;
+    startDate?: Date;
+    endDate?: Date;
+    outcome?: string;
+    sensitivity?: string;
+  }): Promise<AuditTrail[]>;
+
+  // Client Consent Operations
+  createClientConsent(consent: InsertClientConsent): Promise<ClientConsent>;
+  getClientConsent(id: string, tenantId: string): Promise<ClientConsent | undefined>;
+  getClientConsentsByTenant(tenantId: string): Promise<ClientConsent[]>;
+  updateClientConsent(id: string, tenantId: string, updates: Partial<InsertClientConsent>): Promise<ClientConsent>;
+  getConsentByType(tenantId: string, consentType: string, status?: string): Promise<ClientConsent[]>;
+
+  // Temporary Access Operations
+  createTemporaryAccess(access: InsertTemporaryAccess): Promise<TemporaryAccess>;
+  getTemporaryAccess(id: string, tenantId: string): Promise<TemporaryAccess | undefined>;
+  getTemporaryAccessByUser(userId: string, tenantId: string): Promise<TemporaryAccess[]>;
+  updateTemporaryAccess(id: string, tenantId: string, updates: Partial<InsertTemporaryAccess>): Promise<TemporaryAccess>;
+  revokeTemporaryAccess(id: string, tenantId: string): Promise<void>;
+  cleanupExpiredAccess(): Promise<{ cleaned: number; errors: string[] }>;
+  getActiveTemporaryAccess(tenantId: string): Promise<TemporaryAccess[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3658,6 +3699,273 @@ export class DatabaseStorage implements IStorage {
       console.error('Error updating responsiveness data:', error);
       throw error;
     }
+  }
+
+  // UK GDPR Compliance: Audit Trail Operations
+  async createAuditTrail(entry: InsertAuditTrail): Promise<AuditTrail> {
+    // Generate hash signature for tamper detection
+    const hashInput = `${entry.userId}-${entry.action}-${entry.resource}-${entry.timestamp}-${entry.outcome}`;
+    const hashSignature = require('crypto').createHash('sha256').update(hashInput).digest('hex');
+    
+    const [newEntry] = await db
+      .insert(auditTrail)
+      .values({
+        ...entry,
+        hashSignature,
+      })
+      .returning();
+    return newEntry;
+  }
+
+  async getAuditTrailByTenant(tenantId: string, limit: number = 100, offset: number = 0): Promise<AuditTrail[]> {
+    return await db
+      .select()
+      .from(auditTrail)
+      .where(eq(auditTrail.tenantId, tenantId))
+      .orderBy(desc(auditTrail.timestamp))
+      .limit(limit)
+      .offset(offset);
+  }
+
+  async getAuditTrailByUser(userId: string, tenantId: string, limit: number = 100, offset: number = 0): Promise<AuditTrail[]> {
+    return await db
+      .select()
+      .from(auditTrail)
+      .where(
+        and(
+          eq(auditTrail.userId, userId),
+          eq(auditTrail.tenantId, tenantId)
+        )
+      )
+      .orderBy(desc(auditTrail.timestamp))
+      .limit(limit)
+      .offset(offset);
+  }
+
+  async getAuditTrailByAction(action: string, tenantId?: string, limit: number = 100): Promise<AuditTrail[]> {
+    const conditions = [eq(auditTrail.action, action)];
+    if (tenantId) {
+      conditions.push(eq(auditTrail.tenantId, tenantId));
+    }
+
+    return await db
+      .select()
+      .from(auditTrail)
+      .where(and(...conditions))
+      .orderBy(desc(auditTrail.timestamp))
+      .limit(limit);
+  }
+
+  async getAuditTrailByDateRange(tenantId: string, startDate: Date, endDate: Date): Promise<AuditTrail[]> {
+    return await db
+      .select()
+      .from(auditTrail)
+      .where(
+        and(
+          eq(auditTrail.tenantId, tenantId),
+          sql`${auditTrail.timestamp} >= ${startDate}`,
+          sql`${auditTrail.timestamp} <= ${endDate}`
+        )
+      )
+      .orderBy(desc(auditTrail.timestamp));
+  }
+
+  async searchAuditTrail(tenantId: string, filters: {
+    userId?: string;
+    action?: string;
+    resource?: string;
+    startDate?: Date;
+    endDate?: Date;
+    outcome?: string;
+    sensitivity?: string;
+  }): Promise<AuditTrail[]> {
+    const conditions = [eq(auditTrail.tenantId, tenantId)];
+
+    if (filters.userId) conditions.push(eq(auditTrail.userId, filters.userId));
+    if (filters.action) conditions.push(like(auditTrail.action, `%${filters.action}%`));
+    if (filters.resource) conditions.push(like(auditTrail.resource, `%${filters.resource}%`));
+    if (filters.outcome) conditions.push(eq(auditTrail.outcome, filters.outcome));
+    if (filters.sensitivity) conditions.push(eq(auditTrail.sensitivity, filters.sensitivity));
+    if (filters.startDate) conditions.push(sql`${auditTrail.timestamp} >= ${filters.startDate}`);
+    if (filters.endDate) conditions.push(sql`${auditTrail.timestamp} <= ${filters.endDate}`);
+
+    return await db
+      .select()
+      .from(auditTrail)
+      .where(and(...conditions))
+      .orderBy(desc(auditTrail.timestamp))
+      .limit(500); // Reasonable limit for search results
+  }
+
+  // Client Consent Operations
+  async createClientConsent(consent: InsertClientConsent): Promise<ClientConsent> {
+    const [newConsent] = await db
+      .insert(clientConsent)
+      .values(consent)
+      .returning();
+    return newConsent;
+  }
+
+  async getClientConsent(id: string, tenantId: string): Promise<ClientConsent | undefined> {
+    const [consent] = await db
+      .select()
+      .from(clientConsent)
+      .where(
+        and(
+          eq(clientConsent.id, id),
+          eq(clientConsent.tenantId, tenantId)
+        )
+      );
+    return consent;
+  }
+
+  async getClientConsentsByTenant(tenantId: string): Promise<ClientConsent[]> {
+    return await db
+      .select()
+      .from(clientConsent)
+      .where(eq(clientConsent.tenantId, tenantId))
+      .orderBy(desc(clientConsent.requestedAt));
+  }
+
+  async updateClientConsent(id: string, tenantId: string, updates: Partial<InsertClientConsent>): Promise<ClientConsent> {
+    const [updatedConsent] = await db
+      .update(clientConsent)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(
+        and(
+          eq(clientConsent.id, id),
+          eq(clientConsent.tenantId, tenantId)
+        )
+      )
+      .returning();
+    return updatedConsent;
+  }
+
+  async getConsentByType(tenantId: string, consentType: string, status?: string): Promise<ClientConsent[]> {
+    const conditions = [
+      eq(clientConsent.tenantId, tenantId),
+      eq(clientConsent.consentType, consentType)
+    ];
+    
+    if (status) {
+      conditions.push(eq(clientConsent.status, status));
+    }
+
+    return await db
+      .select()
+      .from(clientConsent)
+      .where(and(...conditions))
+      .orderBy(desc(clientConsent.requestedAt));
+  }
+
+  // Temporary Access Operations
+  async createTemporaryAccess(access: InsertTemporaryAccess): Promise<TemporaryAccess> {
+    const [newAccess] = await db
+      .insert(temporaryAccess)
+      .values(access)
+      .returning();
+    return newAccess;
+  }
+
+  async getTemporaryAccess(id: string, tenantId: string): Promise<TemporaryAccess | undefined> {
+    const [access] = await db
+      .select()
+      .from(temporaryAccess)
+      .where(
+        and(
+          eq(temporaryAccess.id, id),
+          eq(temporaryAccess.tenantId, tenantId)
+        )
+      );
+    return access;
+  }
+
+  async getTemporaryAccessByUser(userId: string, tenantId: string): Promise<TemporaryAccess[]> {
+    return await db
+      .select()
+      .from(temporaryAccess)
+      .where(
+        and(
+          eq(temporaryAccess.grantedTo, userId),
+          eq(temporaryAccess.tenantId, tenantId)
+        )
+      )
+      .orderBy(desc(temporaryAccess.createdAt));
+  }
+
+  async updateTemporaryAccess(id: string, tenantId: string, updates: Partial<InsertTemporaryAccess>): Promise<TemporaryAccess> {
+    const [updatedAccess] = await db
+      .update(temporaryAccess)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(
+        and(
+          eq(temporaryAccess.id, id),
+          eq(temporaryAccess.tenantId, tenantId)
+        )
+      )
+      .returning();
+    return updatedAccess;
+  }
+
+  async revokeTemporaryAccess(id: string, tenantId: string): Promise<void> {
+    await db
+      .update(temporaryAccess)
+      .set({ 
+        status: 'revoked',
+        updatedAt: new Date()
+      })
+      .where(
+        and(
+          eq(temporaryAccess.id, id),
+          eq(temporaryAccess.tenantId, tenantId)
+        )
+      );
+  }
+
+  async cleanupExpiredAccess(): Promise<{ cleaned: number; errors: string[] }> {
+    const errors: string[] = [];
+    let cleaned = 0;
+
+    try {
+      const now = new Date();
+      const expiredAccess = await db
+        .select()
+        .from(temporaryAccess)
+        .where(
+          and(
+            eq(temporaryAccess.status, 'active'),
+            lt(temporaryAccess.endTime, now)
+          )
+        );
+
+      for (const access of expiredAccess) {
+        try {
+          await this.updateTemporaryAccess(access.id, access.tenantId, { status: 'expired' });
+          cleaned++;
+        } catch (error) {
+          errors.push(`Failed to expire access ${access.id}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+    } catch (error) {
+      errors.push(`Failed to query expired access: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
+    return { cleaned, errors };
+  }
+
+  async getActiveTemporaryAccess(tenantId: string): Promise<TemporaryAccess[]> {
+    const now = new Date();
+    return await db
+      .select()
+      .from(temporaryAccess)
+      .where(
+        and(
+          eq(temporaryAccess.tenantId, tenantId),
+          eq(temporaryAccess.status, 'active'),
+          gt(temporaryAccess.endTime, now)
+        )
+      )
+      .orderBy(desc(temporaryAccess.createdAt));
   }
 }
 
