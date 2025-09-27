@@ -69,56 +69,10 @@ interface AccountLockout {
   lastAttemptIp: string;
 }
 
-// In-memory stores for rate limiting (In production, use Redis for distributed systems)
-const loginAttempts = new Map<string, LoginAttempt[]>(); // email -> attempts
-const ipAttempts = new Map<string, LoginAttempt[]>(); // ip -> attempts  
-const accountLockouts = new Map<string, AccountLockout>(); // email -> lockout info
+// PRODUCTION: Redis-based distributed rate limiting for scalability  
+import { redisRateLimiter, type RateLimitResult } from './services/redis-rate-limiter';
 
-// Security configuration
-const RATE_LIMIT_CONFIG = {
-  MAX_ATTEMPTS_PER_EMAIL: 5, // Max attempts per email in time window
-  MAX_ATTEMPTS_PER_IP: 10, // Max attempts per IP in time window
-  TIME_WINDOW_MS: 15 * 60 * 1000, // 15 minutes
-  LOCKOUT_DURATION_MS: 30 * 60 * 1000, // 30 minutes lockout
-  MAX_LOCKOUT_DURATION_MS: 24 * 60 * 60 * 1000, // 24 hours max lockout
-  CLEANUP_INTERVAL_MS: 5 * 60 * 1000, // Cleanup every 5 minutes
-};
-
-// Cleanup expired attempts and lockouts
-const cleanupExpiredAttempts = () => {
-  const now = Date.now();
-  const cutoff = now - RATE_LIMIT_CONFIG.TIME_WINDOW_MS;
-  
-  // Clean up login attempts
-  for (const [key, attempts] of Array.from(loginAttempts.entries())) {
-    const validAttempts = attempts.filter((attempt: LoginAttempt) => attempt.timestamp > cutoff);
-    if (validAttempts.length === 0) {
-      loginAttempts.delete(key);
-    } else {
-      loginAttempts.set(key, validAttempts);
-    }
-  }
-  
-  // Clean up IP attempts
-  for (const [key, attempts] of Array.from(ipAttempts.entries())) {
-    const validAttempts = attempts.filter((attempt: LoginAttempt) => attempt.timestamp > cutoff);
-    if (validAttempts.length === 0) {
-      ipAttempts.delete(key);
-    } else {
-      ipAttempts.set(key, validAttempts);
-    }
-  }
-  
-  // Clean up expired lockouts
-  for (const [email, lockout] of Array.from(accountLockouts.entries())) {
-    if (lockout.lockedUntil < now) {
-      accountLockouts.delete(email);
-    }
-  }
-};
-
-// Start cleanup service
-setInterval(cleanupExpiredAttempts, RATE_LIMIT_CONFIG.CLEANUP_INTERVAL_MS);
+// Redis-based cleanup is handled automatically with TTL
 
 // Check if account is locked
 const isAccountLocked = (email: string): { locked: boolean; remainingTime?: number } => {
