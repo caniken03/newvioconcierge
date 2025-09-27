@@ -4,6 +4,13 @@ VioConcierge is an intelligent voice appointment management platform that automa
 
 # Recent Changes
 
+## September 2024 - Critical Data Isolation and UI Fixes
+- **CRITICAL FIX**: Resolved tenant data isolation race condition where cache was cleared after setting auth data, causing cross-tenant data contamination
+- **Hardcoded Values Eliminated**: Replaced all hardcoded KPI values in sidebar and Call Management page with dynamic tenant-scoped API calls
+- **Cache Management Enhanced**: Implemented proper async/await sequencing with 50ms delay in authentication flow to ensure complete cache isolation
+- **Real Data Integration**: Call Management page now uses `/api/call-sessions` and `/api/call-sessions/stats` instead of mock data
+- **End-to-End Verified**: Smart AI Solutions tenant correctly shows 0 values across all components confirming proper tenant isolation
+
 ## September 2024 - Comprehensive Security Enhancement
 - **CRITICAL SECURITY FIX**: Removed dangerous client-side role selector vulnerability
 - **Server-Side Authentication**: All user roles now determined server-side only with enhanced JWT claims  
