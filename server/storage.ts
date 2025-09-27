@@ -3705,54 +3705,79 @@ export class DatabaseStorage implements IStorage {
   async createAuditTrail(entry: InsertAuditTrail): Promise<AuditTrail> {
     const crypto = require('crypto');
     
-    // Get the last audit entry for this tenant to create hash chain
-    const lastEntry = await db
-      .select()
-      .from(auditTrail)
-      .where(entry.tenantId ? eq(auditTrail.tenantId, entry.tenantId) : sql`tenant_id IS NULL`)
-      .orderBy(desc(auditTrail.sequenceNumber))
-      .limit(1);
+    // Use transaction with per-tenant advisory lock for concurrency safety
+    return await db.transaction(async (tx) => {
+      // Acquire per-tenant advisory lock to prevent race conditions (includes null tenant handling)
+      const lockKey = entry.tenantId ?? '__GLOBAL__';
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(42, ('x'||substr(md5(${lockKey}),1,8))::bit(32)::int)`);
+      
+      // Retry logic for unique constraint conflicts
+      let attempts = 0;
+      const maxAttempts = 5;
+      
+      while (attempts < maxAttempts) {
+        try {
+          // Get the last audit entry for this tenant to create hash chain
+          const lastEntry = await tx
+            .select()
+            .from(auditTrail)
+            .where(entry.tenantId ? eq(auditTrail.tenantId, entry.tenantId) : sql`tenant_id IS NULL`)
+            .orderBy(desc(auditTrail.sequenceNumber))
+            .limit(1);
 
-    const sequenceNumber = lastEntry.length > 0 ? (lastEntry[0].sequenceNumber || 0) + 1 : 1;
-    const previousHash = lastEntry.length > 0 ? lastEntry[0].hashSignature : 'GENESIS';
+          const sequenceNumber = lastEntry.length > 0 ? (lastEntry[0].sequenceNumber || 0) + 1 : 1;
+          const previousHash = lastEntry.length > 0 ? lastEntry[0].hashSignature : 'GENESIS';
 
-    // SECURITY: Use dedicated AUDIT_HMAC_SECRET for tamper-resistant protection
-    if (!process.env.AUDIT_HMAC_SECRET) {
-      throw new Error('AUDIT_HMAC_SECRET is required for audit trail integrity');
-    }
-    
-    const keyVersion = 1; // Current HMAC key version for rotation support
-    
-    // Create verifiable hash chain with HMAC (UK GDPR Article 30 compliance)
-    const timestamp = entry.timestamp || new Date();
-    const hashInput = JSON.stringify({
-      sequenceNumber,
-      tenantId: entry.tenantId,
-      userId: entry.userId,
-      action: entry.action,
-      resource: entry.resource,
-      timestamp: timestamp.toISOString(),
-      outcome: entry.outcome,
-      previousHash,
-      correlationId: entry.correlationId,
-      keyVersion
+          // SECURITY: Use dedicated AUDIT_HMAC_SECRET for tamper-resistant protection
+          if (!process.env.AUDIT_HMAC_SECRET) {
+            throw new Error('AUDIT_HMAC_SECRET is required for audit trail integrity');
+          }
+          
+          const keyVersion = 1; // Current HMAC key version for rotation support
+          
+          // Create verifiable hash chain with HMAC (UK GDPR Article 30 compliance)
+          const timestamp = entry.timestamp || new Date();
+          const hashInput = JSON.stringify({
+            sequenceNumber,
+            tenantId: entry.tenantId,
+            userId: entry.userId,
+            action: entry.action,
+            resource: entry.resource,
+            timestamp: timestamp.toISOString(),
+            outcome: entry.outcome,
+            previousHash,
+            correlationId: entry.correlationId,
+            keyVersion
+          });
+          
+          // Use dedicated AUDIT_HMAC_SECRET for tamper-resistant signatures
+          const hashSignature = crypto.createHmac('sha256', process.env.AUDIT_HMAC_SECRET).update(hashInput).digest('hex');
+          
+          const [newEntry] = await tx
+            .insert(auditTrail)
+            .values({
+              ...entry,
+              timestamp,
+              sequenceNumber,
+              previousHash,
+              hashSignature,
+              keyVersion,
+            })
+            .returning();
+          return newEntry;
+          
+        } catch (error: any) {
+          attempts++;
+          // Handle unique constraint violations by retrying
+          if (error.code === '23505' && error.constraint === 'audit_trail_tenant_sequence_idx' && attempts < maxAttempts) {
+            continue; // Retry with new sequence number
+          }
+          throw error; // Re-throw other errors or if max attempts reached
+        }
+      }
+      
+      throw new Error(`Failed to insert audit trail after ${maxAttempts} attempts due to sequence conflicts`);
     });
-    
-    // Use dedicated AUDIT_HMAC_SECRET for tamper-resistant signatures
-    const hashSignature = crypto.createHmac('sha256', process.env.AUDIT_HMAC_SECRET).update(hashInput).digest('hex');
-    
-    const [newEntry] = await db
-      .insert(auditTrail)
-      .values({
-        ...entry,
-        timestamp,
-        sequenceNumber,
-        previousHash,
-        hashSignature,
-        keyVersion,
-      } as any) // Type assertion for new tamper-resistant fields
-      .returning();
-    return newEntry;
   }
 
   async getAuditTrailByTenant(tenantId: string, limit: number = 100, offset: number = 0): Promise<AuditTrail[]> {

@@ -1088,10 +1088,14 @@ export const insertCallQualityMetricsSchema = createInsertSchema(callQualityMetr
 export const insertAuditTrailSchema = createInsertSchema(auditTrail).omit({
   id: true,
   createdAt: true,
-  sequenceNumber: true, // Auto-generated for integrity
-  previousHash: true, // Auto-generated for hash chaining  
-  hashSignature: true, // Auto-generated HMAC signature
-  keyVersion: true, // Auto-managed for key rotation
+}).extend({
+  // Make timestamp optional since it defaults to now
+  timestamp: z.date().optional(),
+  // Auto-generated fields for tamper-resistant protection (optional for type compatibility)
+  sequenceNumber: z.number().optional(),
+  previousHash: z.string().optional(), 
+  hashSignature: z.string().optional(),
+  keyVersion: z.number().optional(),
 });
 
 export const insertClientConsentSchema = createInsertSchema(clientConsent).omit({
