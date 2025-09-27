@@ -185,10 +185,10 @@ export default function TenantManagement() {
         description: `Now acting as admin for ${tenant.name}. You can make changes on their behalf.`,
       });
       
-      // Redirect to main dashboard which will automatically show correct view based on user role
+      // Redirect to client admin dashboard after successful impersonation
       setTimeout(() => {
-        window.location.href = '/';
-      }, 500); // Increased timeout to allow debugging
+        window.location.href = '/client-admin';
+      }, 1000); // Allow time for token to be processed
     },
     onError: (error: Error) => {
       toast({

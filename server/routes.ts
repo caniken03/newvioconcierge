@@ -956,8 +956,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           tenantId: tenant.id,
           userId: (req as any).user.id,
           action: 'TENANT_CREATED',
-          affectedEntityType: 'tenant',
-          affectedEntityId: tenant.id,
           outcome: 'SUCCESS',
           details: {
             tenantName: tenant.name,
@@ -1105,8 +1103,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           tenantId: tenant.id,
           userId: superAdminUserId,
           action: 'TENANT_IMPERSONATION_STARTED',
-          affectedEntityType: 'tenant',
-          affectedEntityId: tenant.id,
           outcome: 'SUCCESS',
           details: {
             impersonatedTenantName: tenant.name,
