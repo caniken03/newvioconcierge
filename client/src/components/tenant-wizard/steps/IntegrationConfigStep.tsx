@@ -97,7 +97,7 @@ export default function IntegrationConfigStep({ data, onUpdate, onNext, onPrevio
         type: calendarConfig.type,
         apiKey: calendarConfig.apiKey,
         eventTypeId: parseInt(calendarConfig.eventTypeId) || undefined,
-        organizerEmail: calendarConfig.organizerEmail,
+        organizerEmail: calendarConfig.organizerEmail.trim() || undefined,
       } : undefined,
     });
     onNext();
