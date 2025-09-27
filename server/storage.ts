@@ -3709,39 +3709,48 @@ export class DatabaseStorage implements IStorage {
     const lastEntry = await db
       .select()
       .from(auditTrail)
-      .where(eq(auditTrail.tenantId, entry.tenantId))
+      .where(entry.tenantId ? eq(auditTrail.tenantId, entry.tenantId) : sql`tenant_id IS NULL`)
       .orderBy(desc(auditTrail.sequenceNumber))
       .limit(1);
 
     const sequenceNumber = lastEntry.length > 0 ? (lastEntry[0].sequenceNumber || 0) + 1 : 1;
     const previousHash = lastEntry.length > 0 ? lastEntry[0].hashSignature : 'GENESIS';
 
-    // Generate tenant-specific HMAC key (in production, store securely)
-    const tenantSecret = crypto.createHash('sha256').update(`${entry.tenantId}-audit-key-${process.env.SESSION_SECRET}`).digest();
+    // SECURITY: Use dedicated AUDIT_HMAC_SECRET for tamper-resistant protection
+    if (!process.env.AUDIT_HMAC_SECRET) {
+      throw new Error('AUDIT_HMAC_SECRET is required for audit trail integrity');
+    }
     
-    // Create verifiable hash chain with HMAC
+    const keyVersion = 1; // Current HMAC key version for rotation support
+    
+    // Create verifiable hash chain with HMAC (UK GDPR Article 30 compliance)
+    const timestamp = entry.timestamp || new Date();
     const hashInput = JSON.stringify({
       sequenceNumber,
       tenantId: entry.tenantId,
       userId: entry.userId,
       action: entry.action,
       resource: entry.resource,
-      timestamp: entry.timestamp.toISOString(),
+      timestamp: timestamp.toISOString(),
       outcome: entry.outcome,
       previousHash,
-      correlationId: entry.correlationId
+      correlationId: entry.correlationId,
+      keyVersion
     });
     
-    const hashSignature = crypto.createHmac('sha256', tenantSecret).update(hashInput).digest('hex');
+    // Use dedicated AUDIT_HMAC_SECRET for tamper-resistant signatures
+    const hashSignature = crypto.createHmac('sha256', process.env.AUDIT_HMAC_SECRET).update(hashInput).digest('hex');
     
     const [newEntry] = await db
       .insert(auditTrail)
       .values({
         ...entry,
+        timestamp,
         sequenceNumber,
         previousHash,
         hashSignature,
-      })
+        keyVersion,
+      } as any) // Type assertion for new tamper-resistant fields
       .returning();
     return newEntry;
   }
