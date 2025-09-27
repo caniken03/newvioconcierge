@@ -44,10 +44,15 @@ export function useAuth() {
       // Navigate to home page AFTER token is saved and state is set
       navigate('/', { replace: true });
       
-      // Refresh dependent queries after navigation (not auth query)
+      // Clear ALL cached data to prevent cross-tenant contamination
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/call-sessions'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/appointments'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/follow-up-tasks'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/contact-groups'] });
         queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/admin'] });
       }, 100);
       
       toast({
