@@ -598,6 +598,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'Expires': '0'
       });
 
+      // Get tenant information for consistent login/auth response
+      let tenantInfo = null;
+      if (user.tenantId) {
+        const tenant = await storage.getTenant(user.tenantId);
+        if (tenant) {
+          tenantInfo = {
+            id: tenant.id,
+            name: tenant.name,
+            companyName: tenant.companyName
+          };
+        }
+      }
+
       res.json({
         token,
         user: {
@@ -606,6 +619,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           fullName: user.fullName,
           role: userRole, // Server-determined role only
           tenantId: user.tenantId,
+          tenant: tenantInfo,
         },
       });
     } catch (error) {
@@ -617,12 +631,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/auth/me', authenticateJWT, async (req: any, res) => {
     const user = req.user;
+    
+    // Get tenant information for business name display
+    let tenantInfo = null;
+    if (user.tenantId) {
+      const tenant = await storage.getTenant(user.tenantId);
+      if (tenant) {
+        tenantInfo = {
+          id: tenant.id,
+          name: tenant.name,
+          companyName: tenant.companyName
+        };
+      }
+    }
+    
     res.json({
       id: user.id,
       email: user.email,
       fullName: user.fullName,
       role: user.role,
       tenantId: user.tenantId,
+      tenant: tenantInfo,
     });
   });
 

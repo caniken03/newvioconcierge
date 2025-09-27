@@ -131,6 +131,11 @@ export default function Sidebar() {
                      : user.role === 'client_admin' ? 'Client Administrator'
                      : 'Client User'}
                   </p>
+                  {user.tenant && user.role !== 'super_admin' && (
+                    <p className="text-xs text-blue-600 dark:text-blue-400 font-medium" data-testid="tenant-business-name-tooltip">
+                      {user.tenant.companyName || user.tenant.name}
+                    </p>
+                  )}
                 </div>
               </TooltipContent>
             </Tooltip>
@@ -149,6 +154,11 @@ export default function Sidebar() {
                  : user.role === 'client_admin' ? 'Client Administrator'
                  : 'Client User'}
               </p>
+              {user.tenant && user.role !== 'super_admin' && (
+                <p className="text-xs text-blue-600 dark:text-blue-400 truncate font-medium" data-testid="tenant-business-name">
+                  {user.tenant.companyName || user.tenant.name}
+                </p>
+              )}
             </div>
           </div>
         )}

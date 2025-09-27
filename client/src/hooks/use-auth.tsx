@@ -9,6 +9,11 @@ interface User {
   fullName: string;
   role: 'super_admin' | 'client_admin' | 'client_user';
   tenantId: string;
+  tenant?: {
+    id: string;
+    name: string;
+    companyName: string;
+  };
 }
 
 interface LoginCredentials {
@@ -38,22 +43,14 @@ export function useAuth() {
       // Store token FIRST (atomic operation)
       localStorage.setItem('auth_token', data.token);
       
-      // Update auth state directly instead of invalidating to prevent race condition
+      // Clear ALL cached data FIRST to prevent cross-tenant contamination
+      queryClient.clear();
+      
+      // Then set fresh auth state after cache is clean
       queryClient.setQueryData(['/api/auth/me'], data.user);
       
-      // Navigate to home page AFTER token is saved and state is set
+      // Navigate to home page AFTER clean state is established
       navigate('/', { replace: true });
-      
-      // Clear ALL cached data to prevent cross-tenant contamination
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/call-sessions'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/appointments'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/follow-up-tasks'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/contact-groups'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/admin'] });
-      }, 100);
       
       toast({
         title: "Welcome back!",
