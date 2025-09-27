@@ -1094,6 +1094,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         JWT_SECRET || 'fallback-secret',
         { expiresIn: '2h' }  // Shorter expiry for security
       );
+
+      // GDPR COMPLIANCE: Create audit trail entry for tenant impersonation
+      try {
+        const crypto = await import('crypto');
+        const correlationId = crypto.randomUUID();
+        
+        await storage.createAuditTrail({
+          correlationId,
+          tenantId: tenant.id,
+          userId: superAdminUserId,
+          action: 'TENANT_IMPERSONATION_STARTED',
+          affectedEntityType: 'tenant',
+          affectedEntityId: tenant.id,
+          outcome: 'SUCCESS',
+          details: {
+            impersonatedTenantName: tenant.name,
+            impersonatedTenantId: tenant.id,
+            impersonatedAdminId: tenantAdmin.id,
+            impersonatedAdminEmail: tenantAdmin.email,
+            sessionDuration: '2h'
+          },
+          ipAddress: req.ip || req.connection?.remoteAddress || 'unknown',
+          userAgent: req.headers['user-agent'] || 'unknown'
+        });
+      } catch (auditError) {
+        console.error('Failed to create audit trail entry for tenant impersonation:', auditError);
+        // Note: We don't fail the impersonation if audit fails, but we log it
+      }
       
       res.json({
         impersonationToken,
