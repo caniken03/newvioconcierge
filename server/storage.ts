@@ -3703,7 +3703,7 @@ export class DatabaseStorage implements IStorage {
 
   // UK GDPR Compliance: Audit Trail Operations with Tamper-Resistant Protection
   async createAuditTrail(entry: InsertAuditTrail): Promise<AuditTrail> {
-    const crypto = require('crypto');
+    const crypto = await import('crypto');
     
     // Use transaction with per-tenant advisory lock for concurrency safety
     return await db.transaction(async (tx) => {
@@ -4039,7 +4039,7 @@ export class DatabaseStorage implements IStorage {
     errors: string[];
     lastVerifiedSequence: number;
   }> {
-    const crypto = require('crypto');
+    const crypto = await import('crypto');
     const errors: string[] = [];
     let verifiedEntries = 0;
 

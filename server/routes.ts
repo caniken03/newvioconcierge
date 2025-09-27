@@ -74,113 +74,9 @@ import { redisRateLimiter, type RateLimitResult } from './services/redis-rate-li
 
 // Redis-based cleanup is handled automatically with TTL
 
-// Check if account is locked
-const isAccountLocked = (email: string): { locked: boolean; remainingTime?: number } => {
-  const lockout = accountLockouts.get(email);
-  if (!lockout) return { locked: false };
-  
-  const now = Date.now();
-  if (lockout.lockedUntil > now) {
-    return { 
-      locked: true, 
-      remainingTime: Math.ceil((lockout.lockedUntil - now) / 1000 / 60) // minutes
-    };
-  }
-  
-  // Lockout expired, remove it
-  accountLockouts.delete(email);
-  return { locked: false };
-};
+// Legacy rate limiting functions removed - now using Redis-based distributed rate limiting
 
-// Check rate limits
-const checkRateLimit = (email: string, ip: string): { allowed: boolean; reason?: string } => {
-  const now = Date.now();
-  const cutoff = now - RATE_LIMIT_CONFIG.TIME_WINDOW_MS;
-  
-  // Check account lockout first
-  const lockStatus = isAccountLocked(email);
-  if (lockStatus.locked) {
-    return { 
-      allowed: false, 
-      reason: `Account locked for ${lockStatus.remainingTime} more minutes due to repeated failed attempts`
-    };
-  }
-  
-  // Check email-based rate limit
-  const emailAttempts = loginAttempts.get(email) || [];
-  const recentEmailAttempts = emailAttempts.filter(attempt => 
-    attempt.timestamp > cutoff && !attempt.success
-  );
-  
-  if (recentEmailAttempts.length >= RATE_LIMIT_CONFIG.MAX_ATTEMPTS_PER_EMAIL) {
-    return { 
-      allowed: false, 
-      reason: 'Too many failed login attempts for this account. Please try again later.'
-    };
-  }
-  
-  // Check IP-based rate limit
-  const ipAttemptsArray = ipAttempts.get(ip) || [];
-  const recentIpAttempts = ipAttemptsArray.filter(attempt => 
-    attempt.timestamp > cutoff && !attempt.success
-  );
-  
-  if (recentIpAttempts.length >= RATE_LIMIT_CONFIG.MAX_ATTEMPTS_PER_IP) {
-    return { 
-      allowed: false, 
-      reason: 'Too many failed login attempts from this location. Please try again later.'
-    };
-  }
-  
-  return { allowed: true };
-};
-
-// Record login attempt
-const recordLoginAttempt = (email: string, ip: string, success: boolean) => {
-  const attempt: LoginAttempt = {
-    timestamp: Date.now(),
-    ip,
-    success
-  };
-  
-  // Record email attempt
-  const emailAttempts = loginAttempts.get(email) || [];
-  emailAttempts.push(attempt);
-  loginAttempts.set(email, emailAttempts);
-  
-  // Record IP attempt
-  const ipAttemptsArray = ipAttempts.get(ip) || [];
-  ipAttemptsArray.push(attempt);
-  ipAttempts.set(ip, ipAttemptsArray);
-  
-  // Handle account lockout for failed attempts
-  if (!success) {
-    const cutoff = Date.now() - RATE_LIMIT_CONFIG.TIME_WINDOW_MS;
-    const recentFailedAttempts = emailAttempts.filter(a => 
-      !a.success && a.timestamp > cutoff
-    );
-    
-    if (recentFailedAttempts.length >= RATE_LIMIT_CONFIG.MAX_ATTEMPTS_PER_EMAIL) {
-      const existingLockout = accountLockouts.get(email);
-      const lockoutDuration = existingLockout 
-        ? Math.min(RATE_LIMIT_CONFIG.LOCKOUT_DURATION_MS * 2, RATE_LIMIT_CONFIG.MAX_LOCKOUT_DURATION_MS)
-        : RATE_LIMIT_CONFIG.LOCKOUT_DURATION_MS;
-      
-      accountLockouts.set(email, {
-        lockedUntil: Date.now() + lockoutDuration,
-        attemptCount: recentFailedAttempts.length,
-        lastAttemptIp: ip
-      });
-      
-      console.warn(`🔒 Account locked: ${email} from ${ip} for ${lockoutDuration / 1000 / 60} minutes`);
-    }
-  } else {
-    // Successful login - clear failed attempts and lockouts
-    const emailAttempts = loginAttempts.get(email) || [];
-    loginAttempts.set(email, emailAttempts.filter(a => a.success));
-    accountLockouts.delete(email);
-  }
-};
+// Login attempt recording is now handled by Redis rate limiter service
 
 // Webhook signature verification
 function verifyWebhookSignature(payload: string, signature: string, secret: string, algorithm: 'sha256' | 'sha1' = 'sha256'): boolean {
@@ -640,20 +536,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`🔐 Auth attempt: ${email} from ${clientIp} at ${timestamp}`);
       
       // SECURITY: Check rate limiting and account lockouts BEFORE authentication
-      const rateLimitCheck = checkRateLimit(email, clientIp);
-      if (!rateLimitCheck.allowed) {
-        console.warn(`🚫 Rate limit exceeded: ${email} from ${clientIp} - ${rateLimitCheck.reason}`);
-        recordLoginAttempt(email, clientIp, false);
+      const rateLimitResult = await redisRateLimiter.checkAndRecordAttempt(email, clientIp, userAgent);
+      if (!rateLimitResult.allowed) {
+        const retryAfter = rateLimitResult.lockoutUntil 
+          ? Math.ceil((rateLimitResult.lockoutUntil - Date.now()) / 1000)
+          : 900; // 15 minutes default
+        
+        console.warn(`🚫 Rate limit exceeded: ${email} from ${clientIp} - lockout until ${rateLimitResult.lockoutUntil || 'time window reset'}`);
         return res.status(429).json({ 
-          message: rateLimitCheck.reason,
-          retryAfter: RATE_LIMIT_CONFIG.TIME_WINDOW_MS / 1000 
+          message: rateLimitResult.lockoutUntil 
+            ? `Account locked for ${Math.ceil(retryAfter / 60)} more minutes due to repeated failed attempts`
+            : 'Too many failed login attempts. Please try again later.',
+          retryAfter
         });
       }
       
       const user = await storage.authenticateUser(email, password);
       if (!user) {
-        // SECURITY: Record failed attempt and log
-        recordLoginAttempt(email, clientIp, false);
+        // SECURITY: Record failed attempt and log - Redis handles this in checkAndRecordAttempt
         console.warn(`❌ Failed auth: ${email} from ${clientIp} - Invalid credentials`);
         return res.status(401).json({ message: 'Invalid credentials' });
       }
@@ -681,8 +581,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { expiresIn: '24h' }
       );
 
-      // SECURITY: Record successful login attempt
-      recordLoginAttempt(email, clientIp, true);
+      // SECURITY: Clear login attempts on successful authentication
+      await redisRateLimiter.clearAttempts(email, clientIp);
       
       // SECURITY: Log successful authentication
       console.log(`✅ Successful auth: ${email} (${userRole}) from ${clientIp}`);
@@ -1044,6 +944,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.createTenantConfig({
         tenantId: tenant.id,
       });
+
+      // GDPR COMPLIANCE: Create audit trail entry for tenant creation
+      try {
+        // Generate correlation ID to track related events for this tenant creation
+        const crypto = await import('crypto');
+        const correlationId = crypto.randomUUID();
+        
+        await storage.createAuditTrail({
+          correlationId,
+          tenantId: tenant.id,
+          userId: (req as any).user.id,
+          action: 'TENANT_CREATED',
+          affectedEntityType: 'tenant',
+          affectedEntityId: tenant.id,
+          outcome: 'SUCCESS',
+          details: {
+            tenantName: tenant.name,
+            companyName: tenant.companyName,
+            contactEmail: tenant.contactEmail,
+            tenantNumber: tenant.tenantNumber,
+            adminUserEmail: adminUser.email,
+            adminUserName: adminUser.fullName
+          },
+          ipAddress: req.ip || req.connection?.remoteAddress || 'unknown',
+          userAgent: req.headers['user-agent'] || 'unknown'
+        });
+      } catch (auditError) {
+        console.error('Failed to create audit trail entry for tenant creation:', auditError);
+        // Note: We don't fail the tenant creation if audit fails, but we log it
+      }
 
       res.status(201).json({ tenant, adminUser: { id: user.id, email: user.email } });
     } catch (error) {
