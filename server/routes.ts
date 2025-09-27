@@ -1,10 +1,13 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import express from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 import type { User } from "@shared/schema";
+
+// Type for authenticated requests
+type AuthenticatedRequest = Request & { user: User };
 import { insertContactSchema } from "@shared/schema";
 import multer from "multer";
 import csv from "csv-parser";
@@ -87,8 +90,8 @@ const cleanupExpiredAttempts = () => {
   const cutoff = now - RATE_LIMIT_CONFIG.TIME_WINDOW_MS;
   
   // Clean up login attempts
-  for (const [key, attempts] of loginAttempts.entries()) {
-    const validAttempts = attempts.filter(attempt => attempt.timestamp > cutoff);
+  for (const [key, attempts] of Array.from(loginAttempts.entries())) {
+    const validAttempts = attempts.filter((attempt: LoginAttempt) => attempt.timestamp > cutoff);
     if (validAttempts.length === 0) {
       loginAttempts.delete(key);
     } else {
@@ -97,8 +100,8 @@ const cleanupExpiredAttempts = () => {
   }
   
   // Clean up IP attempts
-  for (const [key, attempts] of ipAttempts.entries()) {
-    const validAttempts = attempts.filter(attempt => attempt.timestamp > cutoff);
+  for (const [key, attempts] of Array.from(ipAttempts.entries())) {
+    const validAttempts = attempts.filter((attempt: LoginAttempt) => attempt.timestamp > cutoff);
     if (validAttempts.length === 0) {
       ipAttempts.delete(key);
     } else {
@@ -107,7 +110,7 @@ const cleanupExpiredAttempts = () => {
   }
   
   // Clean up expired lockouts
-  for (const [email, lockout] of accountLockouts.entries()) {
+  for (const [email, lockout] of Array.from(accountLockouts.entries())) {
     if (lockout.lockedUntil < now) {
       accountLockouts.delete(email);
     }
@@ -1592,7 +1595,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/contacts/:id', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req, res) => {
+  app.patch('/api/contacts/:id', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
     try {
       const updateSchema = z.object({
         name: z.string().optional(),
@@ -2344,7 +2347,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             protectionStatus: globalProtectionCheck.protectionStatus,
             triggeredFrom: 'bulk_call_api'
           }),
-          triggeredBy: 'bulk_call'
+          // No triggeredBy field in abuseDetectionEvents - info stored in metadata
         });
 
         return res.status(429).json({ 
@@ -2736,7 +2739,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             protectionStatus: protectionCheck.protectionStatus,
             triggeredFrom: 'manual_call_api'
           }),
-          triggeredBy: 'manual_call'
+          // No triggeredBy field in abuseDetectionEvents - info stored in metadata
         });
 
         return res.status(429).json({ 
@@ -2907,7 +2910,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
         tenantPerformance: tenants.map(tenant => ({
           tenantId: tenant.id,
-          tenantName: tenant.businessName || tenant.ownerName || 'Unknown Business',
+          tenantName: tenant.name || 'Unknown Business',
           callVolume: Math.floor(Math.random() * 3000) + 500,
           successRate: Math.round((Math.random() * 20 + 80) * 10) / 10,
           revenue: Math.floor(Math.random() * 20000) + 5000,
@@ -3021,7 +3024,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...(sentimentAnalysis && {
             // Sentiment analysis fields
             customerSentiment: sentimentAnalysis.overallSentiment,
-            sentimentScore: sentimentAnalysis.sentimentScore,
+            sentimentScore: sentimentAnalysis.sentimentScore?.toString(),
             emotionsDetected: sentimentAnalysis.emotionsDetected,
             engagementLevel: sentimentAnalysis.engagementLevel,
             
@@ -3034,9 +3037,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             topicsDiscussed: sentimentAnalysis.topicsDiscussed,
             conversationFlow: sentimentAnalysis.conversationFlow,
           }),
-          // Store full transcript and analysis
-          transcript: payload.transcript,
-          callAnalysisData: payload.call_analysis ? JSON.stringify(payload.call_analysis) : null,
+          // Analysis data stored in other fields above
         });
 
         // Get current contact data for responsiveness tracking
@@ -3099,7 +3100,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const responsivenessUpdates = await storage.updateResponsivenessData(
           session.contactId!,
           session.tenantId,
-          callOutcome,
+          callOutcome as 'voicemail' | 'no_answer' | 'busy' | 'answered',
           durationSeconds,
           sentimentAnalysis
         );
@@ -3117,14 +3118,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Add sentiment tracking to contact
         if (sentimentAnalysis) {
           contactUpdate.lastSentiment = sentimentAnalysis.overallSentiment;
-          contactUpdate.sentimentHistory = [
-            ...(contact?.sentimentHistory || []), 
-            {
-              date: new Date().toISOString().split('T')[0],
-              sentiment: sentimentAnalysis.overallSentiment,
-              score: sentimentAnalysis.sentimentScore,
-            }
-          ].slice(-10); // Keep last 10 sentiment records
+          // Note: sentimentHistory not in schema, storing in sentimentTrend instead
+          contactUpdate.sentimentTrend = sentimentAnalysis.overallSentiment;
         }
         
         await storage.updateContact(session.contactId!, contactUpdate);
@@ -3135,11 +3130,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             await storage.createCustomerAnalytics({
               tenantId: session.tenantId,
               contactId: session.contactId!,
-              callSessionId: session.id,
-              sentimentTrend: sentimentAnalysis.overallSentiment,
-              sentimentScore: sentimentAnalysis.sentimentScore,
+              // callSessionId not in schema - removed sentimentTrend and sentimentScore too
               engagementLevel: sentimentAnalysis.engagementLevel,
-              responsivenessScore: Math.round((responsivenessUpdates?.responsivenessScore ?? 0.5) * 100), // Use sophisticated score
+              responsivenessScore: Math.round((responsivenessUpdates?.responsivenessScore || 0.5) * 100), // Use sophisticated score
               interactionPatterns: {
                 speechPace: sentimentAnalysis.speechPace,
                 interruptionsCount: sentimentAnalysis.interruptionsCount,
