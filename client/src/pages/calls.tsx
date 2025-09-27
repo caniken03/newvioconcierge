@@ -50,48 +50,22 @@ export default function CallManagement() {
     }
   }, [location]);
 
-  // Fetch contacts for call management
-  const { data: contacts = [], isLoading: contactsLoading } = useQuery({
-    queryKey: ['/api/contacts'],
+  // Fetch call sessions from API
+  const { data: callSessions = [], isLoading: callSessionsLoading } = useQuery<any[]>({
+    queryKey: ['/api/call-sessions'],
+    enabled: !!user,
   });
 
-  const { data: callStats = {}, isLoading: statsLoading } = useQuery({
-    queryKey: ['/api/contacts/stats'],
+  // Fetch call session stats from API  
+  const { data: callStats = { active: 0, scheduled: 0, completed: 0, successRate: 0 }, isLoading: statsLoading } = useQuery<{
+    active: number;
+    scheduled: number; 
+    completed: number;
+    successRate: number;
+  }>({
+    queryKey: ['/api/call-sessions/stats'],
+    enabled: !!user,
   });
-
-  // Mock call sessions data - in real implementation this would come from API
-  const mockCallSessions = [
-    {
-      id: "call-001",
-      contactName: "Ken Barnes",
-      contactPhone: "+447375100366",
-      appointmentDate: "2025-10-25 15:20",
-      status: "scheduled",
-      lastAttempt: null,
-      attempts: 0,
-      scheduledFor: "2025-10-25 14:00"
-    },
-    {
-      id: "call-002", 
-      contactName: "Sarah Johnson",
-      contactPhone: "+1234567890",
-      appointmentDate: "2025-10-26 10:00",
-      status: "in_progress",
-      lastAttempt: "2025-10-25 09:30",
-      attempts: 1,
-      scheduledFor: "2025-10-25 09:30"
-    },
-    {
-      id: "call-003",
-      contactName: "Mike Wilson", 
-      contactPhone: "+1987654321",
-      appointmentDate: "2025-10-24 14:15",
-      status: "completed",
-      lastAttempt: "2025-10-24 13:00",
-      attempts: 1,
-      scheduledFor: "2025-10-24 13:00"
-    }
-  ];
 
   const initiateCallMutation = useMutation({
     mutationFn: async (contactId: string) => {
@@ -137,15 +111,17 @@ export default function CallManagement() {
     );
   };
 
-  const filteredCalls = mockCallSessions.filter(call => {
+  const filteredCalls = callSessions.filter(call => {
     if (statusFilter !== "all" && call.status !== statusFilter) return false;
-    if (searchTerm && !call.contactName.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+    if (searchTerm && !call.contactName?.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     return true;
   });
 
-  const activeCallsCount = mockCallSessions.filter(call => call.status === "in_progress").length;
-  const scheduledCallsCount = mockCallSessions.filter(call => call.status === "scheduled").length;
-  const completedCallsCount = mockCallSessions.filter(call => call.status === "completed").length;
+  // Use real data from API stats instead of filtering mock data
+  const activeCallsCount = callStats.active || 0;
+  const scheduledCallsCount = callStats.scheduled || 0;
+  const completedCallsCount = callStats.completed || 0;
+  const successRate = callStats.successRate || 0;
 
   if (!user) return null;
 
@@ -210,7 +186,7 @@ export default function CallManagement() {
                   <Phone className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-600">85%</div>
+                  <div className="text-2xl font-bold text-green-600">{Math.round(successRate)}%</div>
                   <p className="text-xs text-muted-foreground">Last 30 days</p>
                 </CardContent>
               </Card>

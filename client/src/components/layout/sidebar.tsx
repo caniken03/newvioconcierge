@@ -19,6 +19,18 @@ export default function Sidebar() {
     enabled: !!user && user.role === 'super_admin',
   });
 
+  // Fetch contact stats for client navigation badges
+  const { data: contactStats = { total: 0 } } = useQuery<{ total: number }>({
+    queryKey: ['/api/contacts/stats'],
+    enabled: !!user && (user.role === 'client_admin' || user.role === 'client_user'),
+  });
+
+  // Fetch call sessions stats for client navigation badges
+  const { data: callStats = { active: 0 } } = useQuery<{ active: number }>({
+    queryKey: ['/api/call-sessions/stats'],
+    enabled: !!user && (user.role === 'client_admin' || user.role === 'client_user'),
+  });
+
   if (!user) return null;
 
   const getInitials = (name: string) => {
@@ -87,16 +99,18 @@ export default function Sidebar() {
     <div className={cn(
       "bg-card border-r border-border flex flex-col transition-all duration-300",
       collapsed ? "w-16" : "w-64"
-    )} data-testid="sidebar">
-      {/* Logo */}
-      <div className="p-6 border-b border-border">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-primary text-primary-foreground rounded-lg flex items-center justify-center">
-              <i className="fas fa-phone-volume text-sm"></i>
+    )}>
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-border">
+        {!collapsed && (
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+              <i className="fas fa-phone text-primary-foreground text-sm"></i>
             </div>
-            {!collapsed && <h1 className="font-bold text-lg">VioConcierge</h1>}
+            <span className="font-semibold text-lg">VioConcierge</span>
           </div>
+        )}
+        <div className="flex items-center space-x-2">
           <Button
             variant="ghost"
             size="sm"
@@ -186,7 +200,7 @@ export default function Sidebar() {
               Tenant Management
             </NavLink>
             <NavLink 
-              href="/analytics-center" 
+              href="/analytics" 
               icon="fas fa-chart-bar" 
               testId="nav-analytics-center"
             >
@@ -200,8 +214,12 @@ export default function Sidebar() {
             >
               Health Monitoring
             </NavLink>
-            <NavLink href="/compliance" icon="fas fa-shield-alt" testId="nav-compliance">
-              Compliance & Security
+            <NavLink 
+              href="/compliance" 
+              icon="fas fa-shield-alt" 
+              testId="nav-compliance"
+            >
+              Compliance
             </NavLink>
             <NavLink 
               href="/abuse-protection" 
@@ -242,7 +260,7 @@ export default function Sidebar() {
               href="/contacts" 
               icon="fas fa-address-book" 
               testId="nav-contacts"
-              badge={{ count: 247, variant: 'secondary' }}
+              badge={{ count: contactStats?.total || 0, variant: 'secondary' }}
             >
               Contacts
             </NavLink>
@@ -250,7 +268,7 @@ export default function Sidebar() {
               href="/calls" 
               icon="fas fa-phone" 
               testId="nav-call-management"
-              badge={{ count: 5, variant: 'default' }}
+              badge={{ count: callStats?.active || 0, variant: 'default' }}
             >
               Call Management
             </NavLink>
@@ -258,7 +276,7 @@ export default function Sidebar() {
               href="/appointments" 
               icon="fas fa-calendar-alt" 
               testId="nav-appointments"
-              badge={{ count: 23, variant: 'default' }}
+              badge={{ count: 0, variant: 'default' }}
             >
               Appointments
             </NavLink>
@@ -292,10 +310,10 @@ export default function Sidebar() {
               <TooltipTrigger asChild>
                 <button 
                   onClick={logout}
-                  className="w-full flex items-center justify-center px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-accent"
+                  className="w-full flex items-center justify-center px-3 py-2 rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors"
                   data-testid="button-logout"
                 >
-                  <i className="fas fa-sign-out-alt"></i>
+                  <i className="fas fa-sign-out-alt w-5 text-center"></i>
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right" className="ml-2">
@@ -306,10 +324,10 @@ export default function Sidebar() {
         ) : (
           <button 
             onClick={logout}
-            className="w-full flex items-center justify-center space-x-2 px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors"
             data-testid="button-logout"
           >
-            <i className="fas fa-sign-out-alt"></i>
+            <i className="fas fa-sign-out-alt w-5 text-center"></i>
             <span>Sign Out</span>
           </button>
         )}

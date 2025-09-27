@@ -43,11 +43,17 @@ export function useAuth() {
       // Store token FIRST (atomic operation)
       localStorage.setItem('auth_token', data.token);
       
-      // Clear ALL cached data FIRST to prevent cross-tenant contamination
-      queryClient.clear();
+      // Clear ALL cached data completely and wait for it to finish
+      await queryClient.clear();
       
-      // Then set fresh auth state after cache is clean
+      // Force remove any potential stale query data
+      queryClient.removeQueries();
+      
+      // Set fresh auth state after cache is completely clean
       queryClient.setQueryData(['/api/auth/me'], data.user);
+      
+      // Small delay to ensure cache operations complete before navigation
+      await new Promise(resolve => setTimeout(resolve, 50));
       
       // Navigate to home page AFTER clean state is established
       navigate('/', { replace: true });
