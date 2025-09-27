@@ -666,7 +666,12 @@ export const auditTrail = pgTable("audit_trail", {
   // Outcome and integrity
   outcome: varchar("outcome", { length: 50 }).notNull(), // success, failure, partial, blocked
   errorCode: varchar("error_code", { length: 50 }), // If outcome was failure/blocked
-  hashSignature: varchar("hash_signature", { length: 128 }), // Tamper detection
+  hashSignature: varchar("hash_signature", { length: 255 }), // HMAC integrity signature
+  
+  // Tamper-resistant protection (UK GDPR Article 30 compliance)
+  sequenceNumber: integer("sequence_number").notNull(), // For ordering and integrity verification
+  previousHash: varchar("previous_hash", { length: 255 }).notNull(), // Hash chaining for tamper resistance
+  keyVersion: integer("key_version").default(1), // For HMAC key rotation support
   
   // Administrative
   isAutomated: boolean("is_automated").default(false), // System vs human action
@@ -1083,6 +1088,10 @@ export const insertCallQualityMetricsSchema = createInsertSchema(callQualityMetr
 export const insertAuditTrailSchema = createInsertSchema(auditTrail).omit({
   id: true,
   createdAt: true,
+  sequenceNumber: true, // Auto-generated for integrity
+  previousHash: true, // Auto-generated for hash chaining  
+  hashSignature: true, // Auto-generated HMAC signature
+  keyVersion: true, // Auto-managed for key rotation
 });
 
 export const insertClientConsentSchema = createInsertSchema(clientConsent).omit({
