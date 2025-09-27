@@ -842,12 +842,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         businessHours: z.object({
           start: z.string(),
           end: z.string(),
+        }).default({
+          start: "09:00",
+          end: "17:00"
         }),
         operationalSettings: z.object({
           maxCallsPerDay: z.number().min(50).max(1000),
           maxCallsPer15Min: z.number().min(5).max(100),
           quietStart: z.string(),
           quietEnd: z.string(),
+        }).default({
+          maxCallsPerDay: 200,
+          maxCallsPer15Min: 25,
+          quietStart: "20:00",
+          quietEnd: "08:00"
         }),
       });
 
@@ -957,14 +965,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId: (req as any).user.id,
           action: 'TENANT_CREATED',
           outcome: 'SUCCESS',
-          details: {
-            tenantName: tenant.name,
-            companyName: tenant.companyName,
-            contactEmail: tenant.contactEmail,
-            tenantNumber: tenant.tenantNumber,
-            adminUserEmail: adminUser.email,
-            adminUserName: adminUser.fullName
-          },
           ipAddress: req.ip || req.connection?.remoteAddress || 'unknown',
           userAgent: req.headers['user-agent'] || 'unknown'
         });
@@ -1104,13 +1104,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId: superAdminUserId,
           action: 'TENANT_IMPERSONATION_STARTED',
           outcome: 'SUCCESS',
-          details: {
-            impersonatedTenantName: tenant.name,
-            impersonatedTenantId: tenant.id,
-            impersonatedAdminId: tenantAdmin.id,
-            impersonatedAdminEmail: tenantAdmin.email,
-            sessionDuration: '2h'
-          },
           ipAddress: req.ip || req.connection?.remoteAddress || 'unknown',
           userAgent: req.headers['user-agent'] || 'unknown'
         });
