@@ -152,7 +152,7 @@ export default function Header() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuItem asChild>
-                <Link href="/contacts" className="w-full">
+                <Link href="/contacts?new=true" className="w-full">
                   <i className="fas fa-user-plus mr-2"></i>
                   Add New Contact
                 </Link>

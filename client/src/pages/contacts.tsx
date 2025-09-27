@@ -289,6 +289,8 @@ export default function Contacts() {
   useEffect(() => {
     const params = new URLSearchParams(location.split('?')[1] || '');
     const filterParam = params.get('filter');
+    const newParam = params.get('new');
+    
     if (filterParam === 'missing-phone') {
       setUrlFilter('missing-phone');
       // Reset other filters to show the specific missing phone filter
@@ -296,7 +298,13 @@ export default function Contacts() {
     } else {
       setUrlFilter(null);
     }
-  }, [location]);
+    
+    // Auto-open contact modal for creating new contact
+    if (newParam === 'true' && !isContactModalOpen) {
+      setEditingContact(null);
+      setIsContactModalOpen(true);
+    }
+  }, [location, isContactModalOpen]);
 
   // Legacy compatibility
   const searchQuery = filters.search;
@@ -635,7 +643,7 @@ export default function Contacts() {
       const searchLower = filters.search.toLowerCase();
       const matchesSearch = contact.name?.toLowerCase().includes(searchLower) || 
                            contact.phone?.toLowerCase().includes(searchLower) ||
-                           contact.email?.toLowerCase().includes(searchLower);
+                           (contact as any).email?.toLowerCase().includes(searchLower);
       if (!matchesSearch) return false;
     }
 
@@ -699,8 +707,8 @@ export default function Contacts() {
     // Additional Advanced Filters
     
     // Has Email filter
-    if (filters.hasEmail === "yes" && !contact.email) return false;
-    if (filters.hasEmail === "no" && contact.email) return false;
+    if (filters.hasEmail === "yes" && !(contact as any).email) return false;
+    if (filters.hasEmail === "no" && (contact as any).email) return false;
     
     // Has Notes filter
     if (filters.hasNotes === "yes" && !contact.notes) return false;
