@@ -165,9 +165,9 @@ export default function TenantManagement() {
         description: `Now acting as admin for ${tenant.name}. You can make changes on their behalf.`,
       });
       
-      // Brief delay then redirect to allow auth context to update
+      // Brief delay then redirect to client admin dashboard (since user is now client_admin after impersonation)
       setTimeout(() => {
-        window.location.href = '/dashboard';
+        window.location.href = '/client-admin';
       }, 100);
     },
     onError: (error: Error) => {
