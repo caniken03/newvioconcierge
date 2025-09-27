@@ -3701,16 +3701,45 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // UK GDPR Compliance: Audit Trail Operations
+  // UK GDPR Compliance: Audit Trail Operations with Tamper-Resistant Protection
   async createAuditTrail(entry: InsertAuditTrail): Promise<AuditTrail> {
-    // Generate hash signature for tamper detection
-    const hashInput = `${entry.userId}-${entry.action}-${entry.resource}-${entry.timestamp}-${entry.outcome}`;
-    const hashSignature = require('crypto').createHash('sha256').update(hashInput).digest('hex');
+    const crypto = require('crypto');
+    
+    // Get the last audit entry for this tenant to create hash chain
+    const lastEntry = await db
+      .select()
+      .from(auditTrail)
+      .where(eq(auditTrail.tenantId, entry.tenantId))
+      .orderBy(desc(auditTrail.sequenceNumber))
+      .limit(1);
+
+    const sequenceNumber = lastEntry.length > 0 ? (lastEntry[0].sequenceNumber || 0) + 1 : 1;
+    const previousHash = lastEntry.length > 0 ? lastEntry[0].hashSignature : 'GENESIS';
+
+    // Generate tenant-specific HMAC key (in production, store securely)
+    const tenantSecret = crypto.createHash('sha256').update(`${entry.tenantId}-audit-key-${process.env.SESSION_SECRET}`).digest();
+    
+    // Create verifiable hash chain with HMAC
+    const hashInput = JSON.stringify({
+      sequenceNumber,
+      tenantId: entry.tenantId,
+      userId: entry.userId,
+      action: entry.action,
+      resource: entry.resource,
+      timestamp: entry.timestamp.toISOString(),
+      outcome: entry.outcome,
+      previousHash,
+      correlationId: entry.correlationId
+    });
+    
+    const hashSignature = crypto.createHmac('sha256', tenantSecret).update(hashInput).digest('hex');
     
     const [newEntry] = await db
       .insert(auditTrail)
       .values({
         ...entry,
+        sequenceNumber,
+        previousHash,
         hashSignature,
       })
       .returning();
@@ -3966,6 +3995,131 @@ export class DatabaseStorage implements IStorage {
         )
       )
       .orderBy(desc(temporaryAccess.createdAt));
+  }
+
+  // Audit Trail Integrity Verification (Critical for UK GDPR Article 30)
+  async verifyAuditTrailIntegrity(tenantId: string): Promise<{
+    isValid: boolean;
+    totalEntries: number;
+    verifiedEntries: number;
+    errors: string[];
+    lastVerifiedSequence: number;
+  }> {
+    const crypto = require('crypto');
+    const errors: string[] = [];
+    let verifiedEntries = 0;
+
+    try {
+      // Get all audit trail entries for tenant in sequence order
+      const auditEntries = await db
+        .select()
+        .from(auditTrail)
+        .where(eq(auditTrail.tenantId, tenantId))
+        .orderBy(asc(auditTrail.sequenceNumber));
+
+      const totalEntries = auditEntries.length;
+
+      if (totalEntries === 0) {
+        return {
+          isValid: true,
+          totalEntries: 0,
+          verifiedEntries: 0,
+          errors: [],
+          lastVerifiedSequence: 0,
+        };
+      }
+
+      // Generate tenant-specific HMAC key (same as creation)
+      const tenantSecret = crypto.createHash('sha256').update(`${tenantId}-audit-key-${process.env.SESSION_SECRET}`).digest();
+
+      let previousHash = 'GENESIS';
+      
+      for (let i = 0; i < auditEntries.length; i++) {
+        const entry = auditEntries[i];
+        
+        // Verify sequence number continuity
+        if (entry.sequenceNumber !== i + 1) {
+          errors.push(`Sequence number gap at entry ${i + 1}: expected ${i + 1}, got ${entry.sequenceNumber}`);
+          continue;
+        }
+
+        // Verify previous hash chain
+        if (entry.previousHash !== previousHash) {
+          errors.push(`Hash chain broken at sequence ${entry.sequenceNumber}: expected previous hash ${previousHash}, got ${entry.previousHash}`);
+          continue;
+        }
+
+        // Recreate hash and verify HMAC
+        const hashInput = JSON.stringify({
+          sequenceNumber: entry.sequenceNumber,
+          tenantId: entry.tenantId,
+          userId: entry.userId,
+          action: entry.action,
+          resource: entry.resource,
+          timestamp: entry.timestamp.toISOString(),
+          outcome: entry.outcome,
+          previousHash: entry.previousHash,
+          correlationId: entry.correlationId
+        });
+
+        const expectedHash = crypto.createHmac('sha256', tenantSecret).update(hashInput).digest('hex');
+        
+        if (entry.hashSignature !== expectedHash) {
+          errors.push(`HMAC verification failed at sequence ${entry.sequenceNumber}: hash tampering detected`);
+          continue;
+        }
+
+        // Entry verified successfully
+        verifiedEntries++;
+        previousHash = entry.hashSignature;
+      }
+
+      return {
+        isValid: errors.length === 0,
+        totalEntries,
+        verifiedEntries,
+        errors,
+        lastVerifiedSequence: verifiedEntries > 0 ? auditEntries[verifiedEntries - 1].sequenceNumber : 0,
+      };
+
+    } catch (error) {
+      return {
+        isValid: false,
+        totalEntries: 0,
+        verifiedEntries: 0,
+        errors: [`Verification failed: ${error instanceof Error ? error.message : 'Unknown error'}`],
+        lastVerifiedSequence: 0,
+      };
+    }
+  }
+
+  // Secure IP Anonymization for GDPR Compliance
+  anonymizeIpAddress(ipAddress: string): string {
+    if (!ipAddress || ipAddress === 'unknown') return 'unknown';
+    
+    try {
+      // IPv4 anonymization: zero out last octet
+      const ipv4Regex = /^(\d{1,3}\.\d{1,3}\.\d{1,3}\.)\d{1,3}$/;
+      const ipv4Match = ipAddress.match(ipv4Regex);
+      if (ipv4Match) {
+        return `${ipv4Match[1]}0`;
+      }
+
+      // IPv6 anonymization: zero out last 64 bits (last 4 groups)
+      const ipv6Regex = /^([0-9a-fA-F:]{1,})::[0-9a-fA-F:]*$|^([0-9a-fA-F:]+):([0-9a-fA-F:]+)$/;
+      if (ipv6Regex.test(ipAddress)) {
+        const parts = ipAddress.split(':');
+        if (parts.length >= 4) {
+          // Keep first 4 groups, zero out the rest
+          return parts.slice(0, 4).join(':') + '::0000';
+        }
+      }
+
+      // If we can't parse it, return partially masked version
+      return ipAddress.substring(0, Math.max(1, ipAddress.length - 4)) + 'xxx';
+    } catch (error) {
+      return 'masked';
+    }
   }
 }
 

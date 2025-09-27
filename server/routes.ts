@@ -4114,8 +4114,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Rate limiting for GDPR endpoints (prevent abuse)
+  const gdprRateLimit = new Map<string, { count: number; resetTime: number }>();
+  
+  const rateLimitGDPR = (maxRequests: number = 10, windowMs: number = 60000) => {
+    return (req: any, res: any, next: any) => {
+      const key = `${req.user.id}-${req.ip}`;
+      const now = Date.now();
+      
+      const userLimit = gdprRateLimit.get(key);
+      if (!userLimit || now > userLimit.resetTime) {
+        gdprRateLimit.set(key, { count: 1, resetTime: now + windowMs });
+        return next();
+      }
+      
+      if (userLimit.count >= maxRequests) {
+        return res.status(429).json({
+          success: false,
+          message: 'Rate limit exceeded for GDPR requests',
+          error: 'RATE_LIMIT_EXCEEDED',
+          retryAfter: Math.ceil((userLimit.resetTime - now) / 1000)
+        });
+      }
+      
+      userLimit.count++;
+      next();
+    };
+  };
+
+  // Audit Trail Integrity Verification Endpoint
+  app.get('/api/compliance/audit-verification', authenticateJWT, requireRole(['super_admin', 'client_admin']), async (req: any, res) => {
+    try {
+      const verification = await storage.verifyAuditTrailIntegrity(req.user.tenantId);
+      
+      res.json({
+        success: true,
+        verification,
+        compliance: {
+          standard: 'UK GDPR Article 30 - Records of Processing Activities',
+          verificationDate: new Date().toISOString(),
+          tamperResistance: verification.isValid ? 'Verified' : 'Integrity Compromised'
+        }
+      });
+    } catch (error) {
+      console.error('Error verifying audit trail:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to verify audit trail integrity' 
+      });
+    }
+  });
+
   // UK GDPR Compliance: Client Audit Trail Access (Article 15 - Right of Access)
-  app.get('/api/compliance/audit-trail', authenticateJWT, async (req: any, res) => {
+  app.get('/api/compliance/audit-trail', authenticateJWT, rateLimitGDPR(20, 300000), async (req: any, res) => {
     try {
       const { page = 1, limit = 50, startDate, endDate, action } = req.query;
       const offset = (parseInt(page) - 1) * parseInt(limit);
@@ -4148,8 +4199,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         action: entry.action,
         resource: entry.resource,
         outcome: entry.outcome,
-        ipAddress: entry.ipAddress.replace(/\d+$/, 'xxx'), // Partially mask IP
-        userAgent: entry.userAgent?.substring(0, 50) + '...',
+        ipAddress: storage.anonymizeIpAddress(entry.ipAddress), // Proper GDPR-compliant IP anonymization
+        userAgent: entry.userAgent ? entry.userAgent.substring(0, 50) + (entry.userAgent.length > 50 ? '...' : '') : 'Unknown',
         purpose: entry.purpose,
         duration: entry.duration,
         sensitivity: entry.sensitivity,
@@ -4180,7 +4231,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // GDPR Data Export (Article 20 - Right to Data Portability)
-  app.get('/api/compliance/data-export', authenticateJWT, async (req: any, res) => {
+  app.get('/api/compliance/data-export', authenticateJWT, rateLimitGDPR(5, 3600000), async (req: any, res) => {
     try {
       // Create audit log for this data export request
       await storage.createAuditTrail({
@@ -4287,7 +4338,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // GDPR Data Deletion Request (Article 17 - Right to Erasure)
-  app.post('/api/compliance/data-deletion-request', authenticateJWT, async (req: any, res) => {
+  app.post('/api/compliance/data-deletion-request', authenticateJWT, rateLimitGDPR(3, 86400000), async (req: any, res) => {
     try {
       const { reason, dataTypes } = req.body;
 
