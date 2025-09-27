@@ -137,11 +137,14 @@ export default function TenantManagement() {
       return response.json();
     },
     onSuccess: async (response: any) => {
-      console.log('Impersonation response:', response); // Debug log
+      console.log('Full impersonation response:', response); // Debug log
       
       // Handle the response format from backend: { impersonationToken, tenant, ... }
       const token = response?.impersonationToken;
       const tenant = response?.tenant;
+      
+      console.log('Extracted token:', token ? 'Present' : 'Missing');
+      console.log('Extracted tenant:', tenant);
       
       if (!token || !tenant) {
         console.error('Invalid impersonation response:', response);
@@ -154,7 +157,24 @@ export default function TenantManagement() {
       }
 
       // Store the impersonation token
+      console.log('Storing token in localStorage...');
       localStorage.setItem('auth_token', token);
+      console.log('Token stored. Current localStorage token:', localStorage.getItem('auth_token') ? 'Present' : 'Missing');
+      
+      // Test the token immediately
+      console.log('Testing token with auth endpoint...');
+      try {
+        const testResponse = await fetch('/api/auth/me', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        console.log('Auth test response status:', testResponse.status);
+        const authData = await testResponse.json();
+        console.log('Auth test response data:', authData);
+      } catch (error) {
+        console.error('Auth test failed:', error);
+      }
       
       // Invalidate auth queries to refresh context
       queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
@@ -168,7 +188,7 @@ export default function TenantManagement() {
       // Redirect to main dashboard which will automatically show correct view based on user role
       setTimeout(() => {
         window.location.href = '/';
-      }, 100);
+      }, 500); // Increased timeout to allow debugging
     },
     onError: (error: Error) => {
       toast({
