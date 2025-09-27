@@ -133,14 +133,18 @@ export default function TenantManagement() {
   // Tenant impersonation mutation
   const impersonateTenantMutation = useMutation({
     mutationFn: async (tenantId: string) => {
-      return await apiRequest('POST', `/api/admin/tenants/${tenantId}/impersonate`);
+      const response = await apiRequest('POST', `/api/admin/tenants/${tenantId}/impersonate`);
+      return response.json();
     },
     onSuccess: async (response: any) => {
-      // Handle both possible response formats: { impersonationToken, tenant } or { token, tenant }
-      const token = response?.impersonationToken || response?.token;
+      console.log('Impersonation response:', response); // Debug log
+      
+      // Handle the response format from backend: { impersonationToken, tenant, ... }
+      const token = response?.impersonationToken;
       const tenant = response?.tenant;
       
-      if (!response || !token) {
+      if (!token || !tenant) {
+        console.error('Invalid impersonation response:', response);
         toast({
           title: "Failed to visit tenant",
           description: "Invalid response from server. Please try again or contact support.",
@@ -149,7 +153,7 @@ export default function TenantManagement() {
         return;
       }
 
-      // Store the impersonation token (use correct key)
+      // Store the impersonation token
       localStorage.setItem('auth_token', token);
       
       // Invalidate auth queries to refresh context
@@ -158,7 +162,7 @@ export default function TenantManagement() {
       
       toast({
         title: "Visiting Tenant",
-        description: `Now acting as admin for ${tenant?.name || 'the selected tenant'}. You can make changes on their behalf.`,
+        description: `Now acting as admin for ${tenant.name}. You can make changes on their behalf.`,
       });
       
       // Brief delay then redirect to allow auth context to update
@@ -528,8 +532,8 @@ export default function TenantManagement() {
                         <p className="text-sm">{new Date(tenantDetails.createdAt).toLocaleDateString()}</p>
                       </div>
                       <div>
-                        <label className="text-sm font-medium text-muted-foreground">Tenant Number</label>
-                        <p className="text-sm">{tenantDetails.tenantNumber || 'N/A'}</p>
+                        <label className="text-sm font-medium text-muted-foreground">Tenant ID</label>
+                        <p className="text-sm font-mono text-blue-600">{tenantDetails.id}</p>
                       </div>
                     </div>
                   </div>
