@@ -165,9 +165,9 @@ export default function TenantManagement() {
         description: `Now acting as admin for ${tenant.name}. You can make changes on their behalf.`,
       });
       
-      // Brief delay then redirect to client admin dashboard (since user is now client_admin after impersonation)
+      // Redirect to main dashboard which will automatically show correct view based on user role
       setTimeout(() => {
-        window.location.href = '/client-admin';
+        window.location.href = '/';
       }, 100);
     },
     onError: (error: Error) => {
