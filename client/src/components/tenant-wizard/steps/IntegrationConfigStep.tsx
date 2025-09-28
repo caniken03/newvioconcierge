@@ -18,6 +18,7 @@ interface IntegrationConfigStepProps {
 export default function IntegrationConfigStep({ data, onUpdate, onNext, onPrevious }: IntegrationConfigStepProps) {
   const [retellConfig, setRetellConfig] = useState({
     enabled: false,
+    apiKey: data.retellConfig?.apiKey || "",
     agentId: data.retellConfig?.agentId || "",
     phoneNumber: data.retellConfig?.phoneNumber || "",
     tested: false,
@@ -40,10 +41,10 @@ export default function IntegrationConfigStep({ data, onUpdate, onNext, onPrevio
   const { toast } = useToast();
 
   const testRetellConnection = async () => {
-    if (!retellConfig.agentId) {
+    if (!retellConfig.apiKey || !retellConfig.agentId) {
       toast({
-        title: "Agent ID Required",
-        description: "Please enter a Retell Agent ID to test the connection",
+        title: "Required Fields Missing",
+        description: "Please enter both Retell API Key and Agent ID to test the connection",
         variant: "destructive",
       });
       return;
@@ -90,6 +91,7 @@ export default function IntegrationConfigStep({ data, onUpdate, onNext, onPrevio
   const handleNext = () => {
     onUpdate({
       retellConfig: retellConfig.enabled ? {
+        apiKey: retellConfig.apiKey,
         agentId: retellConfig.agentId,
         phoneNumber: retellConfig.phoneNumber,
       } : undefined,
@@ -130,6 +132,20 @@ export default function IntegrationConfigStep({ data, onUpdate, onNext, onPrevio
         </CardHeader>
         {retellConfig.enabled && (
           <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <Label htmlFor="retell-api-key">Retell API Key *</Label>
+                <Input
+                  id="retell-api-key"
+                  type="password"
+                  value={retellConfig.apiKey}
+                  onChange={(e) => setRetellConfig(prev => ({ ...prev, apiKey: e.target.value, tested: false }))}
+                  placeholder="key_xxxxxxxxxxxxxxxx"
+                  data-testid="input-retell-api-key"
+                />
+              </div>
+            </div>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="retell-agent-id">Retell Agent ID *</Label>
@@ -157,7 +173,7 @@ export default function IntegrationConfigStep({ data, onUpdate, onNext, onPrevio
               <Button
                 variant="outline"
                 onClick={testRetellConnection}
-                disabled={testing.retell || !retellConfig.agentId}
+                disabled={testing.retell || !retellConfig.apiKey || !retellConfig.agentId}
                 data-testid="button-test-retell"
               >
                 {testing.retell ? (

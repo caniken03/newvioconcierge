@@ -856,6 +856,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Step 5: Integration Config
         retellConfig: z.object({
+          apiKey: z.string().optional(),
           agentId: z.string().optional(),
           phoneNumber: z.string().optional(),
         }).optional(),
@@ -905,7 +906,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hipaaCompliant: tenantData.hipaaCompliant,
         customBranding: tenantData.customBranding,
         apiAccess: tenantData.apiAccess,
-        retellConfigured: !!retellConfig?.agentId,
+        retellConfigured: !!(retellConfig?.apiKey && retellConfig?.agentId),
         calendarConfigured: !!calendarConfig?.apiKey,
       });
 
@@ -921,6 +922,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create tenant configuration with wizard data
       await storage.createTenantConfig({
         tenantId: tenant.id,
+        retellApiKey: retellConfig?.apiKey,
         retellAgentId: retellConfig?.agentId,
         retellAgentNumber: retellConfig?.phoneNumber,
         calApiKey: calendarConfig?.type === 'calcom' ? calendarConfig.apiKey : undefined,
