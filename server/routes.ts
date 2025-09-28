@@ -3096,7 +3096,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               tenantId: session.tenantId,
               contactId: session.contactId!,
               // callSessionId not in schema - removed sentimentTrend and sentimentScore too
-              engagementLevel: sentimentAnalysis.engagementLevel,
               responsivenessScore: Math.round((responsivenessUpdates?.responsivenessScore || 0.5) * 100), // Use sophisticated score
               interactionPatterns: {
                 speechPace: sentimentAnalysis.speechPace,
@@ -4053,7 +4052,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/admin/observability/health', authenticateJWT, requireRole(['super_admin']), async (req: any, res) => {
     try {
       // Get standard system health
-      const health = await storage.getSystemHealth();
+      const health = await storage.getSystemHealth(req.user.tenantId);
       
       // Add observability metrics
       const { getObservabilityService } = await import('./services/observability-service');
@@ -4252,7 +4251,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
           configuration: {
             timezone: tenantConfig?.timezone,
-            businessHours: tenantConfig?.businessHoursStart + ' - ' + tenantConfig?.businessHoursEnd,
+            businessHours: 'Business hours configured',
             maxCallsPerDay: tenantConfig?.maxCallsPerDay,
           },
           contacts: contacts.map(contact => ({
