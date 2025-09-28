@@ -3095,16 +3095,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             await storage.createCustomerAnalytics({
               tenantId: session.tenantId,
               contactId: session.contactId!,
-              // callSessionId not in schema - removed sentimentTrend and sentimentScore too
-              responsivenessScore: Math.round((responsivenessUpdates?.responsivenessScore || 0.5) * 100), // Use sophisticated score
-              interactionPatterns: {
-                speechPace: sentimentAnalysis.speechPace,
-                interruptionsCount: sentimentAnalysis.interruptionsCount,
-                conversationFlow: sentimentAnalysis.conversationFlow,
-                topicsDiscussed: sentimentAnalysis.topicsDiscussed,
-              },
-              appointmentBehavior: appointmentAction,
-              analysisDate: new Date(),
+              // Use proper schema fields that actually exist
+              overallEngagementScore: (responsivenessUpdates?.responsivenessScore || 0.5), // 0.0 to 1.0 scale
+              totalCallsMade: 1,
+              totalCallsAnswered: callOutcome === 'answered' ? 1 : 0,
+              answerRate: callOutcome === 'answered' ? 1.0 : 0.0,
+              currentSentimentTrend: sentimentAnalysis.overallSentiment || 'stable',
+              averageSentimentScore: sentimentAnalysis.sentimentScore || 0.5,
+              appointmentConfirmationRate: appointmentAction === 'confirmed' ? 1.0 : 0.0,
+              lastAnalysisUpdate: new Date(),
             });
           } catch (error) {
             console.warn('Failed to create customer analytics:', error);
