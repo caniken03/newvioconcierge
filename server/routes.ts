@@ -876,6 +876,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           start: "09:00",
           end: "17:00"
         }),
+        weekendCalling: z.object({
+          enabled: z.boolean(),
+          saturdayHours: z.object({
+            start: z.string(),
+            end: z.string(),
+          }),
+          sundayHours: z.object({
+            start: z.string(),
+            end: z.string(),
+          }),
+        }).optional(),
         operationalSettings: z.object({
           maxCallsPerDay: z.number().min(50).max(1000),
           maxCallsPer15Min: z.number().min(5).max(100),
@@ -890,7 +901,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const wizardData = wizardSchema.parse(req.body);
-      const { adminUser, retellConfig, calendarConfig, ...tenantData } = wizardData;
+      const { adminUser, retellConfig, calendarConfig, weekendCalling, ...tenantData } = wizardData;
       
       // Create tenant with enhanced data
       const tenant = await storage.createTenant({
@@ -936,6 +947,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         quietStart: tenantData.operationalSettings.quietStart,
         quietEnd: tenantData.operationalSettings.quietEnd,
       });
+
+      // Create business hours configuration with weekend calling settings
+      if (weekendCalling || tenantData.businessHours) {
+        await storage.createBusinessHoursConfig({
+          tenantId: tenant.id,
+          timezone: tenantData.timezone,
+          mondayHours: JSON.stringify({ enabled: true, start: tenantData.businessHours.start, end: tenantData.businessHours.end }),
+          tuesdayHours: JSON.stringify({ enabled: true, start: tenantData.businessHours.start, end: tenantData.businessHours.end }),
+          wednesdayHours: JSON.stringify({ enabled: true, start: tenantData.businessHours.start, end: tenantData.businessHours.end }),
+          thursdayHours: JSON.stringify({ enabled: true, start: tenantData.businessHours.start, end: tenantData.businessHours.end }),
+          fridayHours: JSON.stringify({ enabled: true, start: tenantData.businessHours.start, end: tenantData.businessHours.end }),
+          saturdayHours: JSON.stringify(weekendCalling?.enabled ? 
+            { enabled: true, start: weekendCalling.saturdayHours.start, end: weekendCalling.saturdayHours.end } :
+            { enabled: false, start: "09:00", end: "17:00" }
+          ),
+          sundayHours: JSON.stringify(weekendCalling?.enabled ? 
+            { enabled: true, start: weekendCalling.sundayHours.start, end: weekendCalling.sundayHours.end } :
+            { enabled: false, start: "10:00", end: "16:00" }
+          ),
+          emergencyOverride: false,
+        });
+      }
 
       res.status(201).json({ 
         tenant, 
