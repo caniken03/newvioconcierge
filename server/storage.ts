@@ -3170,28 +3170,68 @@ export class DatabaseStorage implements IStorage {
 
     // Check each time window atomically
     for (const [timeWindow, limit] of Object.entries(limits)) {
-      // Use PostgreSQL's atomic increment and check
-      const result = await tx.execute(sql`
-        INSERT INTO ${rateLimitTracking} (tenant_id, time_window, call_count, window_start)
-        VALUES (${tenantId}, ${timeWindow}, 1, NOW())
-        ON CONFLICT (tenant_id, time_window) 
-        DO UPDATE SET 
-          call_count = CASE 
-            WHEN ${rateLimitTracking.windowStart} < NOW() - INTERVAL '${timeWindow === '15_minutes' ? '15 minutes' : timeWindow === '1_hour' ? '1 hour' : '24 hours'}' 
-            THEN 1
-            ELSE ${rateLimitTracking.callCount} + 1
-          END,
-          window_start = CASE
-            WHEN ${rateLimitTracking.windowStart} < NOW() - INTERVAL '${timeWindow === '15_minutes' ? '15 minutes' : timeWindow === '1_hour' ? '1 hour' : '24 hours'}'
-            THEN NOW()
-            ELSE ${rateLimitTracking.windowStart}
-          END,
-          updated_at = NOW()
-        RETURNING call_count
-      `);
+      // Use Drizzle ORM methods instead of raw SQL for proper parameter binding
+      const intervalMinutes = timeWindow === '15_minutes' ? 15 : 
+                            timeWindow === '1_hour' ? 60 : 1440; // 24 hours = 1440 minutes
       
-      const callCount = result.rows[0]?.call_count || 0;
+      // First, try to insert or get existing record
+      const existing = await tx
+        .select()
+        .from(rateLimitTracking)
+        .where(and(
+          eq(rateLimitTracking.tenantId, tenantId),
+          eq(rateLimitTracking.timeWindow, timeWindow)
+        ));
       
+      let callCount = 1;
+      
+      if (existing.length > 0) {
+        const record = existing[0];
+        const windowExpired = record.windowStart && 
+          record.windowStart < new Date(Date.now() - intervalMinutes * 60 * 1000);
+        
+        if (windowExpired) {
+          // Reset the window
+          await tx
+            .update(rateLimitTracking)
+            .set({
+              callCount: 1,
+              windowStart: new Date(),
+              updatedAt: new Date()
+            })
+            .where(and(
+              eq(rateLimitTracking.tenantId, tenantId),
+              eq(rateLimitTracking.timeWindow, timeWindow)
+            ));
+          callCount = 1;
+        } else {
+          // Increment existing count
+          callCount = (record.callCount || 0) + 1;
+          await tx
+            .update(rateLimitTracking)
+            .set({
+              callCount: callCount,
+              updatedAt: new Date()
+            })
+            .where(and(
+              eq(rateLimitTracking.tenantId, tenantId),
+              eq(rateLimitTracking.timeWindow, timeWindow)
+            ));
+        }
+      } else {
+        // Insert new record
+        await tx
+          .insert(rateLimitTracking)
+          .values({
+            tenantId: tenantId,
+            timeWindow: timeWindow,
+            callCount: 1,
+            windowStart: new Date()
+          });
+        callCount = 1;
+      }
+      
+      // Store usage information
       usage[timeWindow] = {
         current: callCount,
         limit: limit,
@@ -3212,30 +3252,72 @@ export class DatabaseStorage implements IStorage {
 
   // Atomic contact limit check and update
   private async atomicContactLimitCheck(tx: any, phoneNumber: string, tenantId: string): Promise<{ allowed: boolean; reason?: string }> {
-    // Use PostgreSQL's atomic increment and check
-    const result = await tx.execute(sql`
-      INSERT INTO ${contactCallHistory} (phone_number, tenant_id, call_count_24h, last_call_time, updated_at)
-      VALUES (${phoneNumber}, ${tenantId}, 1, NOW(), NOW())
-      ON CONFLICT (phone_number) 
-      DO UPDATE SET 
-        call_count_24h = CASE 
-          WHEN ${contactCallHistory.lastCallTime} < NOW() - INTERVAL '24 hours' 
-          THEN 1
-          ELSE ${contactCallHistory.callCount24h} + 1
-        END,
-        last_call_time = NOW(),
-        updated_at = NOW()
-      RETURNING call_count_24h, last_call_time, is_blocked, blocked_until
-    `);
+    // Check if contact call history exists
+    const existing = await tx
+      .select()
+      .from(contactCallHistory)
+      .where(eq(contactCallHistory.phoneNumber, phoneNumber));
     
-    const history = result.rows[0];
+    let callCount24h = 1;
+    let history: any;
+    
+    if (existing.length > 0) {
+      const record = existing[0];
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      
+      // Check if last call was more than 24 hours ago
+      if (record.lastCallTime && record.lastCallTime < twentyFourHoursAgo) {
+        // Reset the count
+        const updated = await tx
+          .update(contactCallHistory)
+          .set({
+            callCount24h: 1,
+            lastCallTime: new Date(),
+            updatedAt: new Date()
+          })
+          .where(eq(contactCallHistory.phoneNumber, phoneNumber))
+          .returning();
+        
+        history = updated[0];
+        callCount24h = 1;
+      } else {
+        // Increment existing count
+        callCount24h = (record.callCount24h || 0) + 1;
+        const updated = await tx
+          .update(contactCallHistory)
+          .set({
+            callCount24h: callCount24h,
+            lastCallTime: new Date(),
+            updatedAt: new Date()
+          })
+          .where(eq(contactCallHistory.phoneNumber, phoneNumber))
+          .returning();
+        
+        history = updated[0];
+      }
+    } else {
+      // Insert new record
+      const inserted = await tx
+        .insert(contactCallHistory)
+        .values({
+          phoneNumber: phoneNumber,
+          tenantId: tenantId,
+          callCount24h: 1,
+          lastCallTime: new Date(),
+          updatedAt: new Date()
+        })
+        .returning();
+      
+      history = inserted[0];
+      callCount24h = 1;
+    }
     
     if (!history) {
       return { allowed: true };
     }
 
     // Check if temporarily blocked
-    if (history.is_blocked && history.blocked_until && new Date(history.blocked_until) > new Date()) {
+    if (history.isBlocked && history.blockedUntil && new Date(history.blockedUntil) > new Date()) {
       return {
         allowed: false,
         reason: 'Contact temporarily blocked for harassment prevention'
@@ -3243,7 +3325,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Check 24-hour call limit (max 2 calls per phone number per day)
-    if (history.call_count_24h > 2) {
+    if (callCount24h > 2) {
       return {
         allowed: false,
         reason: 'Daily call limit exceeded for this phone number (max 2 calls/day)'
