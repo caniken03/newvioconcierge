@@ -67,6 +67,7 @@ import {
   type TemporaryAccess,
   type InsertTemporaryAccess,
 } from "@shared/schema";
+import { BusinessHoursEvaluator } from "./utils/business-hours-evaluator";
 import { db } from "./db";
 import { eq, and, desc, asc, count, sql, gt, lt, like, inArray } from "drizzle-orm";
 import { getTableColumns } from "drizzle-orm";
@@ -2865,51 +2866,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   async validateBusinessHours(tenantId: string, callTime: Date): Promise<{ allowed: boolean; reason?: string; nextAllowedTime?: Date }> {
-    const config = await this.getBusinessHoursConfig(tenantId);
+    // CRITICAL FIX: Use TenantConfig instead of businessHoursConfig
+    // This fixes the weekend calling toggle issue by using single source of truth
+    const tenantConfig = await this.getTenantConfig(tenantId);
     
-    if (!config) {
-      // Default business hours if no config found
-      return this.validateDefaultBusinessHours(callTime);
+    console.log(`🔍 Business hours validation for tenant ${tenantId} at ${callTime.toISOString()}`);
+    
+    // Use the new BusinessHoursEvaluator with proper timezone handling
+    const evaluation = BusinessHoursEvaluator.evaluate(callTime, tenantConfig || null);
+    
+    // Log the evaluation result for debugging
+    if (evaluation.allowed) {
+      console.log(`✅ Call ALLOWED: ${evaluation.evaluatedTime} on ${evaluation.evaluatedDay}`);
+    } else {
+      console.log(`❌ Call BLOCKED: ${evaluation.reason}`);
     }
-
-    // Check if emergency override is enabled
-    if (config.emergencyOverride) {
-      return { allowed: true };
-    }
-
-    const dayOfWeek = callTime.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    const timeString = callTime.toTimeString().slice(0, 5); // HH:MM format
-
-    // Get the appropriate day configuration
-    const dayConfigs = [
-      JSON.parse(config.sundayHours || '{"enabled": true, "start": "10:00", "end": "16:00"}'),
-      JSON.parse(config.mondayHours || '{"enabled": true, "start": "08:00", "end": "20:00"}'),
-      JSON.parse(config.tuesdayHours || '{"enabled": true, "start": "08:00", "end": "20:00"}'),
-      JSON.parse(config.wednesdayHours || '{"enabled": true, "start": "08:00", "end": "20:00"}'),
-      JSON.parse(config.thursdayHours || '{"enabled": true, "start": "08:00", "end": "20:00"}'),
-      JSON.parse(config.fridayHours || '{"enabled": true, "start": "08:00", "end": "20:00"}'),
-      JSON.parse(config.saturdayHours || '{"enabled": true, "start": "09:00", "end": "17:00"}')
-    ];
-
-    const dayConfig = dayConfigs[dayOfWeek];
-
-    if (!dayConfig.enabled) {
-      return {
-        allowed: false,
-        reason: 'Calling not allowed on this day of the week',
-        nextAllowedTime: this.getNextBusinessDay(callTime, dayConfigs)
-      };
-    }
-
-    if (timeString < dayConfig.start || timeString > dayConfig.end) {
-      return {
-        allowed: false,
-        reason: `Outside business hours (${dayConfig.start} - ${dayConfig.end})`,
-        nextAllowedTime: this.getNextBusinessHour(callTime, dayConfig, dayConfigs)
-      };
-    }
-
-    return { allowed: true };
+    
+    return {
+      allowed: evaluation.allowed,
+      reason: evaluation.reason,
+      nextAllowedTime: evaluation.nextAllowedTime
+    };
   }
 
   // Contact Call History (Harassment Prevention)
