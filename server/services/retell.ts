@@ -1,3 +1,5 @@
+import { normalizePhoneNumber, isNormalizedPhoneNumber } from '../utils/phone-normalization';
+
 interface RetellCallRequest {
   from_number: string;
   to_number: string;
@@ -107,9 +109,23 @@ export class RetellService {
       metadata.contactName = contact.name;
     }
 
+    // Use normalized phone number for API call, fallback to original if not available
+    let phoneToUse = contact.normalizedPhone || contact.phone;
+    
+    // Pre-dial validation to prevent contaminated numbers reaching API
+    if (!isNormalizedPhoneNumber(phoneToUse)) {
+      const normalizationResult = normalizePhoneNumber(phoneToUse);
+      if (!normalizationResult.success) {
+        throw new Error(`Invalid phone number format for ${contact.name}: ${normalizationResult.error}`);
+      }
+      // Use the freshly normalized number if the stored one was invalid
+      phoneToUse = normalizationResult.normalizedPhone!;
+      console.warn(`⚠️ Using fresh normalization for contact ${contact.id}: ${contact.phone} → ${phoneToUse}`);
+    }
+
     const callRequest: RetellCallRequest = {
       from_number: tenantConfig.retellAgentNumber,
-      to_number: contact.phone,
+      to_number: phoneToUse,
       agent_id: tenantConfig.retellAgentId,
       retell_llm_dynamic_variables: dynamicVariables,
       metadata

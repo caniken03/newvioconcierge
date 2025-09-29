@@ -2891,10 +2891,15 @@ export class DatabaseStorage implements IStorage {
 
   // Contact Call History (Harassment Prevention)
   async getContactCallHistory(phoneNumber: string): Promise<ContactCallHistory | undefined> {
+    // Always use normalized phone number for accurate abuse protection
+    const { normalizePhoneNumber } = await import('./utils/phone-normalization');
+    const normalizationResult = normalizePhoneNumber(phoneNumber);
+    const searchPhone = normalizationResult.success ? normalizationResult.normalizedPhone! : phoneNumber;
+
     const [history] = await db
       .select()
       .from(contactCallHistory)
-      .where(eq(contactCallHistory.phoneNumber, phoneNumber))
+      .where(eq(contactCallHistory.normalizedPhoneNumber, searchPhone))
       .limit(1);
 
     return history;
@@ -2903,6 +2908,11 @@ export class DatabaseStorage implements IStorage {
   async updateContactCallHistory(phoneNumber: string, tenantId: string, contactId?: string): Promise<ContactCallHistory> {
     const now = new Date();
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    // Normalize phone number for consistent abuse protection
+    const { normalizePhoneNumber } = await import('./utils/phone-normalization');
+    const normalizationResult = normalizePhoneNumber(phoneNumber);
+    const normalizedPhone = normalizationResult.success ? normalizationResult.normalizedPhone! : phoneNumber;
 
     const existing = await this.getContactCallHistory(phoneNumber);
 
@@ -2918,6 +2928,7 @@ export class DatabaseStorage implements IStorage {
           lastCallTime: now,
           callCount24h: newCount24h,
           callCountTotal: (existing.callCountTotal || 0) + 1,
+          normalizedPhoneNumber: normalizedPhone, // Ensure normalized phone is updated
           updatedAt: now,
           ...(contactId && { contactId })
         })
@@ -2930,7 +2941,8 @@ export class DatabaseStorage implements IStorage {
       const [newHistory] = await db
         .insert(contactCallHistory)
         .values({
-          phoneNumber,
+          phoneNumber, // Keep original for reference
+          normalizedPhoneNumber: normalizedPhone, // Store normalized for abuse protection
           tenantId,
           contactId,
           lastCallTime: now,
