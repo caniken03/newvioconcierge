@@ -57,7 +57,8 @@ export const contacts = pgTable("contacts", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull(),
   name: varchar("name", { length: 255 }).notNull(),
-  phone: varchar("phone", { length: 50 }).notNull(), // E.164 format
+  phone: varchar("phone", { length: 50 }).notNull(), // E.164 format (original input)
+  normalizedPhone: varchar("normalized_phone", { length: 50 }), // Sanitized E.164 format for API calls and deduplication
   email: varchar("email", { length: 255 }),
   appointmentTime: timestamp("appointment_time"),
   appointmentType: varchar("appointment_type", { length: 100 }), // HIPAA: Optional for medical practices
@@ -103,6 +104,7 @@ export const contacts = pgTable("contacts", {
   tenantIdIdx: index("contacts_tenant_id_idx").on(table.tenantId),
   appointmentTimeIdx: index("contacts_appointment_time_idx").on(table.appointmentTime),
   appointmentStatusIdx: index("contacts_appointment_status_idx").on(table.appointmentStatus),
+  normalizedPhoneIdx: index("contacts_normalized_phone_idx").on(table.normalizedPhone),
   // Database-level foreign key constraint for tenant data integrity
   tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "contacts_tenant_fk" }).onDelete("cascade"),
 }));
@@ -415,7 +417,8 @@ export const businessHoursConfig = pgTable("business_hours_config", {
 // Contact call history for harassment prevention
 export const contactCallHistory = pgTable("contact_call_history", {
   id: uuid("id").primaryKey().defaultRandom(),
-  phoneNumber: varchar("phone_number", { length: 50 }).notNull(), // E.164 format
+  phoneNumber: varchar("phone_number", { length: 50 }).notNull(), // E.164 format (original)
+  normalizedPhoneNumber: varchar("normalized_phone_number", { length: 50 }), // Sanitized E.164 for abuse protection
   tenantId: uuid("tenant_id").notNull(),
   contactId: uuid("contact_id"),
   lastCallTime: timestamp("last_call_time"),
@@ -430,6 +433,7 @@ export const contactCallHistory = pgTable("contact_call_history", {
   // Performance indexes
   tenantIdIdx: index("contact_call_history_tenant_id_idx").on(table.tenantId),
   phoneNumberIdx: index("contact_call_history_phone_number_idx").on(table.phoneNumber),
+  normalizedPhoneIdx: index("contact_call_history_normalized_phone_idx").on(table.normalizedPhoneNumber),
   lastCallTimeIdx: index("contact_call_history_last_call_time_idx").on(table.lastCallTime),
   // Database-level foreign key constraints
   tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "contact_call_history_tenant_fk" }).onDelete("cascade"),
@@ -441,7 +445,8 @@ export const callReservations = pgTable("call_reservations", {
   id: uuid("id").primaryKey().defaultRandom(),
   reservationId: varchar("reservation_id", { length: 100 }).notNull().unique(), // External reservation ID
   tenantId: uuid("tenant_id").notNull(),
-  phoneNumber: varchar("phone_number", { length: 50 }), // Optional - for contact-specific reservations
+  phoneNumber: varchar("phone_number", { length: 50 }), // Optional - for contact-specific reservations (original)
+  normalizedPhoneNumber: varchar("normalized_phone_number", { length: 50 }), // Sanitized for deduplication and abuse protection
   idempotencyKey: varchar("idempotency_key", { length: 100 }), // Prevent duplicate reservations
   state: varchar("state", { length: 20 }).notNull().default("active"), // active, confirmed, released, expired
   reservationType: varchar("reservation_type", { length: 30 }).notNull(), // tenant_rate_limit, contact_limit, bulk_operation
@@ -451,8 +456,8 @@ export const callReservations = pgTable("call_reservations", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
-  // Unique constraint for active reservations per tenant/phone to prevent duplicates (FIXED: now partial for active state only)
-  uniqueActiveReservation: uniqueIndex("unique_active_reservation").on(table.tenantId, table.phoneNumber, table.state).where(sql`${table.state} = 'active'`),
+  // Unique constraint for active reservations per tenant/phone to prevent duplicates (using normalized phone for security)
+  uniqueActiveReservation: uniqueIndex("unique_active_reservation").on(table.tenantId, table.normalizedPhoneNumber, table.state).where(sql`${table.state} = 'active'`),
   // Index for efficient TTL cleanup
   expiresAtIdx: index("call_reservations_expires_at_idx").on(table.expiresAt),
   // Index for idempotency checks
