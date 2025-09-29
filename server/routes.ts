@@ -2926,11 +2926,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Extract tenant ID from webhook metadata for early validation
       const payload = retellService.parseWebhookPayload(parsedBody);
-      const tenantId = extractTenantIdFromWebhook(payload.metadata, payload);
+      let tenantId = extractTenantIdFromWebhook(payload.metadata, payload);
+      
+      // FALLBACK: If no tenant ID in metadata, look up by call_id (Retell doesn't always preserve metadata)
+      if (!tenantId && payload.call_id) {
+        console.log(`No tenant ID in metadata, looking up call session by Retell call ID: ${payload.call_id}`);
+        const session = await storage.getCallSessionByRetellId(payload.call_id);
+        if (session) {
+          tenantId = session.tenantId;
+          console.log(`Found tenant ID from call session: ${tenantId}`);
+        }
+      }
       
       if (!tenantId) {
-        console.warn('Retell webhook received without tenant ID in metadata');
-        return res.status(400).json({ message: 'Missing tenant ID in webhook metadata' });
+        console.warn(`Retell webhook received without tenant ID in metadata and no matching call session found for call_id: ${payload.call_id}`);
+        return res.status(400).json({ message: 'Missing tenant ID and no matching call session found' });
       }
 
       // Get tenant configuration for Retell webhook secret (SECURITY FIX)
