@@ -2928,19 +2928,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const payload = retellService.parseWebhookPayload(parsedBody);
       let tenantId = extractTenantIdFromWebhook(payload.metadata, payload);
       
-      // FALLBACK: If no tenant ID in metadata, look up by call_id (Retell doesn't always preserve metadata)
+      // SECURE FALLBACK: If no tenant ID in metadata, do read-only lookup by call_id
+      // This happens BEFORE verification but is safe because:
+      // 1. Read-only database lookup (no side effects)
+      // 2. Only retrieves tenant ID for security context
+      // 3. All processing happens AFTER signature verification
       if (!tenantId && payload.call_id) {
-        console.log(`No tenant ID in metadata, looking up call session by Retell call ID: ${payload.call_id}`);
-        const session = await storage.getCallSessionByRetellId(payload.call_id);
-        if (session) {
-          tenantId = session.tenantId;
-          console.log(`Found tenant ID from call session: ${tenantId}`);
+        try {
+          console.log(`Webhook metadata missing tenant ID, performing secure lookup by call_id: ${payload.call_id}`);
+          const session = await storage.getCallSessionByRetellId(payload.call_id);
+          if (session) {
+            tenantId = session.tenantId;
+            console.log(`Recovered tenant ID from call session for security verification: ${tenantId}`);
+          }
+        } catch (error) {
+          console.error('Error during secure tenant ID lookup:', error);
         }
       }
       
       if (!tenantId) {
-        console.warn(`Retell webhook received without tenant ID in metadata and no matching call session found for call_id: ${payload.call_id}`);
-        return res.status(400).json({ message: 'Missing tenant ID and no matching call session found' });
+        console.warn(`Retell webhook security validation failed - no tenant context available (metadata missing, call_id: ${payload.call_id || 'none'})`);
+        return res.status(400).json({ message: 'Cannot verify webhook without tenant context' });
       }
 
       // Get tenant configuration for Retell webhook secret (SECURITY FIX)
