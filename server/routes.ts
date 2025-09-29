@@ -22,6 +22,7 @@ import { calendlyService } from "./services/calendly";
 import { businessTemplateService } from "./services/business-templates";
 import { reschedulingWorkflowService } from "./services/rescheduling-workflow";
 import { notificationService } from "./services/notification-service";
+import { normalizePhoneNumber } from "./utils/phone-normalization";
 
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET;
 
@@ -1437,8 +1438,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const contactData = contactSchema.parse(req.body);
+      
+      // Normalize phone number for security and API compatibility
+      const phoneNormalization = normalizePhoneNumber(contactData.phone);
+      if (!phoneNormalization.success) {
+        return res.status(400).json({ 
+          message: 'Invalid phone number format', 
+          error: phoneNormalization.error,
+          warnings: phoneNormalization.warnings
+        });
+      }
+
       const contact = await storage.createContact({
         ...contactData,
+        phone: contactData.phone, // Keep original for display
+        normalizedPhone: phoneNormalization.normalizedPhone, // Store normalized for API calls
         tenantId: req.user.tenantId,
         appointmentTime: contactData.appointmentTime ? new Date(contactData.appointmentTime) : undefined,
       });
@@ -1581,6 +1595,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const processedUpdates: any = { ...updates };
       if (updates.appointmentTime) {
         processedUpdates.appointmentTime = new Date(updates.appointmentTime);
+      }
+      
+      // Normalize phone number if it's being updated
+      if (updates.phone) {
+        const phoneNormalization = normalizePhoneNumber(updates.phone);
+        if (!phoneNormalization.success) {
+          return res.status(400).json({ 
+            message: 'Invalid phone number format', 
+            error: phoneNormalization.error,
+            warnings: phoneNormalization.warnings
+          });
+        }
+        processedUpdates.normalizedPhone = phoneNormalization.normalizedPhone;
       }
       
       const contact = await storage.updateContact(req.params.id, processedUpdates);

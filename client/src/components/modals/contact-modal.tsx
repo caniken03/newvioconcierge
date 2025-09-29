@@ -24,7 +24,14 @@ import type { Contact } from "@/types";
 const contactSchema = z.object({
   // Basic Contact Information
   name: z.string().min(1, "Client Name is required"),
-  phone: z.string().min(1, "Phone Number is required"),
+  phone: z.string().min(1, "Phone Number is required").refine(
+    (phone) => {
+      // Basic validation - more comprehensive validation happens server-side
+      const cleaned = phone.replace(/[\u200E\u200F\u202A\u202B\u202C\u202D\u202E]/g, '').trim();
+      return cleaned.length > 0;
+    },
+    "Phone number contains invalid characters"
+  ),
   
   // Group Assignment
   groupId: z.string().optional(),
