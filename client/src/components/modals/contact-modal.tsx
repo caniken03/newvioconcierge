@@ -145,7 +145,7 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
     }
   }, [appointmentTime, callBeforeHours]);
 
-  // Reset form when contact changes
+  // Reset form when contact changes (but not when currentMembership changes to avoid overriding user edits)
   React.useEffect(() => {
     if (contact) {
       form.reset({
@@ -162,7 +162,7 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
         callBeforeHours: contact.callBeforeHours || 24,
         notes: contact.notes || "",
       });
-    } else {
+    } else if (isOpen) {
       form.reset({
         name: "",
         phone: "",
@@ -177,9 +177,16 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
         notes: "",
       });
     }
-  }, [contact, form, currentMembership]);
+  }, [contact, form]); // Removed currentMembership from dependencies
 
-  // Reset form when modal opens/closes
+  // Update groupId separately when currentMembership is ready (without resetting the entire form)
+  React.useEffect(() => {
+    if (contact && currentMembership !== undefined) {
+      form.setValue('groupId', currentMembership || "none");
+    }
+  }, [currentMembership, contact, form]);
+
+  // Ensure new contact form resets when modal opens
   React.useEffect(() => {
     if (isOpen && !contact) {
       form.reset({
