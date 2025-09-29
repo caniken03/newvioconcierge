@@ -88,12 +88,22 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
     }
   });
 
+  // Helper function to convert UTC time to local datetime-local format
+  const toLocalDateTimeString = (utcTimeString: string): string => {
+    const date = new Date(utcTimeString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
   const form = useForm<ContactForm>({
     resolver: zodResolver(contactSchema),
     defaultValues: {
       name: contact?.name || "",
       phone: contact?.phone || "",
-      email: contact?.email || "",
       groupId: "none",
       eventType: contact?.appointmentType || "",
       contactPerson: contact?.ownerName || "",
@@ -101,7 +111,7 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
       appointmentDuration: contact?.appointmentDuration || undefined,
       specialInstructions: contact?.specialInstructions || "",
       appointmentTime: contact?.appointmentTime ? 
-        new Date(contact.appointmentTime).toISOString().slice(0, 16) : "",
+        toLocalDateTimeString(contact.appointmentTime) : "",
       callBeforeHours: contact?.callBeforeHours || 24,
       notes: contact?.notes || "",
     },
@@ -148,7 +158,7 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
         appointmentDuration: contact.appointmentDuration || undefined,
         specialInstructions: contact.specialInstructions || "",
         appointmentTime: contact.appointmentTime ? 
-          new Date(contact.appointmentTime).toISOString().slice(0, 16) : "",
+          toLocalDateTimeString(contact.appointmentTime) : "",
         callBeforeHours: contact.callBeforeHours || 24,
         notes: contact.notes || "",
       });
