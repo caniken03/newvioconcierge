@@ -3114,13 +3114,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
               tenantId: session.tenantId,
               contactId: session.contactId!,
               // Use proper schema fields that actually exist
-              overallEngagementScore: (responsivenessUpdates?.responsivenessScore || 0.5), // 0.0 to 1.0 scale
+              overallEngagementScore: ((responsivenessUpdates?.responsivenessScore || 0.5) * 100).toString(), // Convert to percentage string
               totalCallsMade: 1,
               totalCallsAnswered: callOutcome === 'answered' ? 1 : 0,
-              answerRate: callOutcome === 'answered' ? 1.0 : 0.0,
+              answerRate: (callOutcome === 'answered' ? 100 : 0).toString(), // Convert to percentage string
               currentSentimentTrend: sentimentAnalysis.overallSentiment || 'stable',
-              averageSentimentScore: sentimentAnalysis.sentimentScore || 0.5,
-              appointmentConfirmationRate: appointmentAction === 'confirmed' ? 1.0 : 0.0,
+              averageSentimentScore: ((sentimentAnalysis.sentimentScore || 0.5) * 100).toString(), // Convert to percentage string
+              appointmentConfirmationRate: (appointmentAction === 'confirmed' ? 100 : 0).toString(), // Convert to percentage string
               lastAnalysisUpdate: new Date(),
             });
           } catch (error) {
@@ -3501,8 +3501,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log(`❌ Customer declined rescheduling request ${response.reschedulingRequestId}`);
           } else {
             // Customer selected a slot - get the actual selected time (using pre-fetched data)
-            if (responseData && response.selectedSlotIndex !== null) {
-              const selectedSlot = responseData.availableSlots[response.selectedSlotIndex];
+            const selectedSlotIndex = parseInt(selectedSlotIndex);
+            if (responseData && !isNaN(selectedSlotIndex)) {
+              const selectedSlot = responseData.availableSlots[selectedSlotIndex];
               if (selectedSlot) {
                 const selectedTime = new Date(selectedSlot.startTime);
                 
@@ -4451,5 +4452,5 @@ export async function registerRoutes(app: Express): Promise<Server> {
 // Import the call scheduler at the end to avoid circular dependency issues
 import("./services/call-scheduler").then(({ callScheduler }) => {
   // Export callScheduler for route usage
-  global.callScheduler = callScheduler;
+  (global as any).callScheduler = callScheduler;
 });
