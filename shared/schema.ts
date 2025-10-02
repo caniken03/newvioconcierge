@@ -23,6 +23,22 @@ export const users = pgTable("users", {
   tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "users_tenant_fk" }).onDelete("cascade"),
 }));
 
+// Password reset tokens for secure password recovery
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull(),
+  token: varchar("token", { length: 255 }).notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  // Performance indexes
+  tokenIdx: uniqueIndex("password_reset_tokens_token_idx").on(table.token),
+  userIdIdx: index("password_reset_tokens_user_id_idx").on(table.userId),
+  // Database-level foreign key constraint
+  userFk: foreignKey({ columns: [table.userId], foreignColumns: [users.id], name: "password_reset_tokens_user_fk" }).onDelete("cascade"),
+}));
+
 // Tenants table for multi-tenancy
 export const tenants = pgTable("tenants", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -984,6 +1000,12 @@ export const insertUserSchema = createInsertSchema(users).omit({
   updatedAt: true,
 });
 
+export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTokens).omit({
+  id: true,
+  createdAt: true,
+  used: true,
+});
+
 export const insertTenantSchema = createInsertSchema(tenants).omit({
   id: true,
   createdAt: true,
@@ -1118,6 +1140,9 @@ export const insertTemporaryAccessSchema = createInsertSchema(temporaryAccess).o
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+export type InsertPasswordResetToken = z.infer<typeof insertPasswordResetTokenSchema>;
 
 export type Tenant = typeof tenants.$inferSelect;
 export type InsertTenant = z.infer<typeof insertTenantSchema>;
