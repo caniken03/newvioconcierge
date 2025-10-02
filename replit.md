@@ -4,6 +4,18 @@ VioConcierge is an intelligent voice appointment management platform that automa
 
 # Recent Changes
 
+## October 2024 - Enterprise-Grade Password Reset Feature
+- **COMPLETE FEATURE**: Implemented secure password reset flow with forgot password modal, reset confirmation page, and email token delivery system
+- **CRITICAL SECURITY FIX**: Resolved plain-text token storage vulnerability - all reset tokens now hashed with bcrypt (cost 10) before database storage
+- **Constant-Time Validation**: Uses bcrypt.compare() for token validation, preventing timing attacks and ensuring tokens remain confidential even if database is compromised
+- **Single-Use Tokens**: Tokens marked as used after successful reset, preventing replay attacks
+- **Time-Limited**: 1-hour token expiration with automatic cleanup
+- **Email Enumeration Prevention**: Returns consistent success messages regardless of account existence
+- **Complete UI/UX**: ForgotPasswordModal component integrated into login page, dedicated /reset-password route with validation and error handling
+- **End-to-End Tested**: Full password reset flow verified including token hashing, validation, password update, login confirmation, and token reuse prevention
+- **Database Schema**: Added password_reset_tokens table with proper indexing and foreign key constraints
+- **Architect Assessment**: "PASS" - Security vulnerability eliminated, implementation meets enterprise security standards
+
 ## September 2024 - End-to-End Call Scheduler Validation & Phone Normalization
 - **COMPREHENSIVE STRESS TEST COMPLETED**: Conducted real-world end-to-end call scheduler testing with 6 system restarts proving production resilience
 - **Perfect Scheduler Performance**: Successfully detected and processed overdue follow-up task at precise timing (11:40:19 AM UTC)
