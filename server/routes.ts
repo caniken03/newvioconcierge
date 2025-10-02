@@ -978,6 +978,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error('Wizard tenant creation error:', error);
+      
+      // Check for duplicate email constraint violation
+      if (error instanceof Error && 'code' in error && error.code === '23505') {
+        const pgError = error as any;
+        if (pgError.constraint === 'users_email_unique') {
+          return res.status(400).json({ 
+            message: 'This email address is already registered in the system. Please use a different email for the admin user.' 
+          });
+        }
+      }
+      
+      // Check for Zod validation errors
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: 'Invalid wizard data provided',
+          errors: error.errors 
+        });
+      }
+      
       res.status(400).json({ message: 'Failed to create tenant via wizard' });
     }
   });
