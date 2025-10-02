@@ -979,14 +979,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Wizard tenant creation error:', error);
       
-      // Check for duplicate email constraint violation
+      // Check for duplicate constraint violations
       if (error instanceof Error && 'code' in error && error.code === '23505') {
         const pgError = error as any;
+        
         if (pgError.constraint === 'users_email_unique') {
           return res.status(400).json({ 
             message: 'This email address is already registered in the system. Please use a different email for the admin user.' 
           });
         }
+        
+        if (pgError.constraint === 'tenants_name_unique') {
+          return res.status(400).json({ 
+            message: 'A tenant with this name already exists. Please choose a different business name.' 
+          });
+        }
+        
+        // Generic duplicate key error
+        return res.status(400).json({ 
+          message: 'A record with this information already exists. Please check your input and try again.' 
+        });
       }
       
       // Check for Zod validation errors
