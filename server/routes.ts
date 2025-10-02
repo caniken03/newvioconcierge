@@ -24,6 +24,7 @@ import { businessTemplateService } from "./services/business-templates";
 import { reschedulingWorkflowService } from "./services/rescheduling-workflow";
 import { notificationService } from "./services/notification-service";
 import { normalizePhoneNumber } from "./utils/phone-normalization";
+import { emailService } from "./services/email";
 
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET;
 
@@ -689,17 +690,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         expiresAt,
       });
 
-      // In production, send email here. For now, return the token in response
-      // TODO: Integrate email service (e.g., SendGrid, AWS SES)
+      // Send password reset email
       const resetUrl = `${req.protocol}://${req.get('host')}/reset-password?token=${resetToken}`;
       
-      console.log(`🔑 Password reset requested for ${email}. Reset URL: ${resetUrl}`);
+      const emailSent = await emailService.sendPasswordResetEmail({
+        to: email,
+        resetUrl,
+        recipientName: user.fullName,
+      });
 
+      if (emailSent) {
+        console.log(`📧 Password reset email sent to ${email}`);
+      } else {
+        console.warn(`⚠️ Failed to send password reset email to ${email}, but token was created`);
+      }
+
+      // Always return success to prevent email enumeration
       res.json({ 
         success: true, 
         message: 'If an account exists with this email, a password reset link has been sent.',
-        // DEVELOPMENT ONLY: Remove in production
-        resetUrl
+        // DEVELOPMENT ONLY: Include reset URL for testing
+        ...(process.env.NODE_ENV === 'development' && { resetUrl })
       });
     } catch (error) {
       console.error('Password reset request error:', error);
