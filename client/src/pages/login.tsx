@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Eye, EyeOff, Shield } from "lucide-react";
+import ForgotPasswordModal from "@/components/modals/forgot-password-modal";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -12,6 +13,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
   
   const { login, loginLoading } = useAuth();
 
@@ -171,12 +173,21 @@ export default function Login() {
           </form>
 
           <div className="mt-6 text-center">
-            <a href="#" className="text-sm text-primary hover:underline">
+            <button
+              onClick={() => setIsForgotPasswordOpen(true)}
+              className="text-sm text-primary hover:underline"
+              data-testid="link-forgot-password"
+            >
               Forgot your password?
-            </a>
+            </button>
           </div>
         </CardContent>
       </Card>
+
+      <ForgotPasswordModal
+        isOpen={isForgotPasswordOpen}
+        onClose={() => setIsForgotPasswordOpen(false)}
+      />
     </div>
   );
 }

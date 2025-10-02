@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
+import ResetPassword from "@/pages/reset-password";
 import Dashboard from "@/pages/dashboard";
 import SuperAdminDashboard from "@/pages/super-admin-dashboard";
 import ClientAdminDashboard from "@/pages/client-admin-dashboard";
@@ -41,6 +42,14 @@ function ProtectedRoute({
 
 function Router() {
   const { user, isLoading } = useAuth();
+  
+  // Check if this is the reset password page
+  const isResetPasswordPage = window.location.pathname === '/reset-password';
+  
+  // Allow access to reset password page without authentication
+  if (isResetPasswordPage) {
+    return <ResetPassword />;
+  }
 
   if (isLoading) {
     return (
