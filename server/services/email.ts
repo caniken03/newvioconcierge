@@ -76,6 +76,11 @@ export const emailService = {
 
       if (error) {
         console.error('❌ Failed to send password reset email:', error);
+        // Check if it's a Resend testing restriction
+        if (error.message && error.message.includes('testing emails')) {
+          console.warn('⚠️ Resend testing restriction: Emails can only be sent to verified domain or account owner email');
+          console.warn('ℹ️ To send to any email, verify a domain at https://resend.com/domains');
+        }
         return false;
       }
 
