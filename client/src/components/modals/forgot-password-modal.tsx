@@ -141,21 +141,11 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
               <div className="text-sm text-green-800">
                 <p className="font-medium">Reset link sent!</p>
                 <p className="mt-1">Check your email for instructions to reset your password.</p>
+                <p className="mt-2 text-xs">
+                  <strong>Note:</strong> If you don't see the email, please check your spam or junk folder.
+                </p>
               </div>
             </div>
-
-            {resetUrl && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <p className="text-xs font-medium text-amber-800 mb-2">Development Only - Reset Link:</p>
-                <a
-                  href={resetUrl}
-                  className="text-xs text-primary hover:underline break-all"
-                  data-testid="link-reset-url"
-                >
-                  {resetUrl}
-                </a>
-              </div>
-            )}
 
             <Button
               onClick={handleClose}
