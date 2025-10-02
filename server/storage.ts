@@ -66,6 +66,9 @@ import {
   type InsertClientConsent,
   type TemporaryAccess,
   type InsertTemporaryAccess,
+  type PasswordResetToken,
+  type InsertPasswordResetToken,
+  passwordResetTokens,
 } from "@shared/schema";
 import { BusinessHoursEvaluator } from "./utils/business-hours-evaluator";
 import { db } from "./db";
@@ -286,6 +289,12 @@ export interface IStorage {
 
   // Authentication
   authenticateUser(email: string, password: string): Promise<User | null>;
+  
+  // Password Reset
+  createPasswordResetToken(data: { userId: string; token: string; expiresAt: Date }): Promise<void>;
+  getPasswordResetToken(token: string): Promise<{ userId: string; expiresAt: string; used: boolean } | undefined>;
+  markPasswordResetTokenAsUsed(token: string): Promise<void>;
+  updateUserPassword(userId: string, newPassword: string): Promise<void>;
   
   // Abuse Protection & Rate Limiting
   getRateLimitTracking(tenantId: string, timeWindow: string): Promise<RateLimitTracking | undefined>;
@@ -2591,6 +2600,48 @@ export class DatabaseStorage implements IStorage {
     }
 
     return user;
+  }
+
+  // Password Reset Operations
+  async createPasswordResetToken(data: { userId: string; token: string; expiresAt: Date }): Promise<void> {
+    await db.insert(passwordResetTokens).values({
+      userId: data.userId,
+      token: data.token,
+      expiresAt: data.expiresAt,
+    });
+  }
+
+  async getPasswordResetToken(token: string): Promise<{ userId: string; expiresAt: string; used: boolean } | undefined> {
+    const [resetToken] = await db
+      .select()
+      .from(passwordResetTokens)
+      .where(eq(passwordResetTokens.token, token))
+      .limit(1);
+    
+    if (!resetToken) {
+      return undefined;
+    }
+
+    return {
+      userId: resetToken.userId,
+      expiresAt: resetToken.expiresAt.toISOString(),
+      used: resetToken.used || false,
+    };
+  }
+
+  async markPasswordResetTokenAsUsed(token: string): Promise<void> {
+    await db
+      .update(passwordResetTokens)
+      .set({ used: true })
+      .where(eq(passwordResetTokens.token, token));
+  }
+
+  async updateUserPassword(userId: string, newPassword: string): Promise<void> {
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await db
+      .update(users)
+      .set({ hashedPassword, updatedAt: new Date() })
+      .where(eq(users.id, userId));
   }
 
   // ========================================

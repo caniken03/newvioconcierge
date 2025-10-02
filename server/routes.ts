@@ -656,6 +656,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  // Password reset endpoints
+  app.post('/api/auth/forgot-password', async (req, res) => {
+    try {
+      const schema = z.object({
+        email: z.string().email().trim().toLowerCase(),
+      });
+
+      const { email } = schema.parse(req.body);
+
+      // Find user by email
+      const user = await storage.getUserByEmail(email);
+      
+      // SECURITY: Always return success to prevent email enumeration
+      if (!user) {
+        return res.json({ 
+          success: true, 
+          message: 'If an account exists with this email, a password reset link has been sent.' 
+        });
+      }
+
+      // Generate secure reset token
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 3600000); // 1 hour from now
+
+      // Store reset token
+      await storage.createPasswordResetToken({
+        userId: user.id,
+        token: resetToken,
+        expiresAt,
+      });
+
+      // In production, send email here. For now, return the token in response
+      // TODO: Integrate email service (e.g., SendGrid, AWS SES)
+      const resetUrl = `${req.protocol}://${req.get('host')}/reset-password?token=${resetToken}`;
+      
+      console.log(`🔑 Password reset requested for ${email}. Reset URL: ${resetUrl}`);
+
+      res.json({ 
+        success: true, 
+        message: 'If an account exists with this email, a password reset link has been sent.',
+        // DEVELOPMENT ONLY: Remove in production
+        resetToken,
+        resetUrl
+      });
+    } catch (error) {
+      console.error('Password reset request error:', error);
+      res.status(400).json({ message: 'Invalid request' });
+    }
+  });
+
+  app.post('/api/auth/reset-password', async (req, res) => {
+    try {
+      const schema = z.object({
+        token: z.string().min(1),
+        newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+      });
+
+      const { token, newPassword } = schema.parse(req.body);
+
+      // Verify reset token
+      const resetTokenData = await storage.getPasswordResetToken(token);
+      
+      if (!resetTokenData) {
+        return res.status(400).json({ message: 'Invalid or expired reset token' });
+      }
+
+      if (resetTokenData.used) {
+        return res.status(400).json({ message: 'This reset token has already been used' });
+      }
+
+      if (new Date() > new Date(resetTokenData.expiresAt)) {
+        return res.status(400).json({ message: 'Reset token has expired' });
+      }
+
+      // Update password
+      await storage.updateUserPassword(resetTokenData.userId, newPassword);
+
+      // Mark token as used
+      await storage.markPasswordResetTokenAsUsed(token);
+
+      console.log(`✅ Password reset successful for user ${resetTokenData.userId}`);
+
+      res.json({ 
+        success: true, 
+        message: 'Password has been reset successfully. You can now log in with your new password.' 
+      });
+    } catch (error) {
+      console.error('Password reset error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0]?.message || 'Invalid request' });
+      }
+      res.status(400).json({ message: 'Failed to reset password' });
+    }
+  });
+
   // Health monitoring endpoints
   app.get('/api/admin/health', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
     try {
