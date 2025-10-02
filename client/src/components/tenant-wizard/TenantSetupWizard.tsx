@@ -82,7 +82,8 @@ interface TenantSetupWizardProps {
 }
 
 export default function TenantSetupWizard({ isOpen, onClose, onComplete }: TenantSetupWizardProps) {
-  const [currentStep, setCurrentStep] = useState(1);
+  const STORAGE_KEY = 'vioconcierge_wizard_data';
+  const STEP_STORAGE_KEY = 'vioconcierge_wizard_step';
   
   // Initial wizard data
   const getInitialWizardData = (): WizardData => ({
@@ -112,18 +113,78 @@ export default function TenantSetupWizard({ isOpen, onClose, onComplete }: Tenan
     },
   });
   
-  const [wizardData, setWizardData] = useState<WizardData>(getInitialWizardData);
+  // Load persisted data or use initial data
+  const getPersistedData = (): WizardData => {
+    try {
+      const stored = sessionStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Failed to load persisted wizard data:', error);
+    }
+    return getInitialWizardData();
+  };
   
-  // Reset wizard when opened
+  const getPersistedStep = (): number => {
+    try {
+      const stored = sessionStorage.getItem(STEP_STORAGE_KEY);
+      if (stored) {
+        return parseInt(stored, 10);
+      }
+    } catch (error) {
+      console.error('Failed to load persisted step:', error);
+    }
+    return 1;
+  };
+  
+  const [currentStep, setCurrentStep] = useState(getPersistedStep);
+  const [wizardData, setWizardData] = useState<WizardData>(getPersistedData);
+  
+  // Load persisted data when wizard opens
   useEffect(() => {
     if (isOpen) {
-      setCurrentStep(1);
-      setWizardData(getInitialWizardData());
+      const persistedData = getPersistedData();
+      const persistedStep = getPersistedStep();
+      setWizardData(persistedData);
+      setCurrentStep(persistedStep);
     }
   }, [isOpen]);
   
+  // Persist wizard data whenever it changes
+  useEffect(() => {
+    if (isOpen && wizardData) {
+      try {
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(wizardData));
+      } catch (error) {
+        console.error('Failed to persist wizard data:', error);
+      }
+    }
+  }, [wizardData, isOpen]);
+  
+  // Persist current step whenever it changes
+  useEffect(() => {
+    if (isOpen) {
+      try {
+        sessionStorage.setItem(STEP_STORAGE_KEY, currentStep.toString());
+      } catch (error) {
+        console.error('Failed to persist step:', error);
+      }
+    }
+  }, [currentStep, isOpen]);
+  
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Clear persisted wizard data
+  const clearPersistedData = () => {
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(STEP_STORAGE_KEY);
+    } catch (error) {
+      console.error('Failed to clear persisted wizard data:', error);
+    }
+  };
 
   // Create tenant mutation
   const createTenantMutation = useMutation({
@@ -137,6 +198,8 @@ export default function TenantSetupWizard({ isOpen, onClose, onComplete }: Tenan
         title: "Tenant created successfully!",
         description: `${wizardData.businessName} has been activated and admin credentials have been sent.`,
       });
+      // Clear persisted data after successful creation
+      clearPersistedData();
       onComplete();
       onClose();
     },
@@ -174,6 +237,18 @@ export default function TenantSetupWizard({ isOpen, onClose, onComplete }: Tenan
 
   const handleComplete = () => {
     createTenantMutation.mutate(wizardData);
+  };
+
+  const handleStartFresh = () => {
+    if (confirm('Are you sure you want to start fresh? All entered data will be lost.')) {
+      clearPersistedData();
+      setWizardData(getInitialWizardData());
+      setCurrentStep(1);
+      toast({
+        title: "Wizard reset",
+        description: "All data cleared. Starting fresh from step 1.",
+      });
+    }
   };
 
   const renderStepContent = () => {
@@ -270,9 +345,19 @@ export default function TenantSetupWizard({ isOpen, onClose, onComplete }: Tenan
                 Step {currentStep} of {WIZARD_STEPS.length}: {WIZARD_STEPS[currentStep - 1]?.title}
               </p>
             </div>
-            <Button variant="ghost" onClick={onClose} data-testid="button-close-wizard">
-              ✕
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={handleStartFresh} 
+                data-testid="button-start-fresh"
+              >
+                Start Fresh
+              </Button>
+              <Button variant="ghost" onClick={onClose} data-testid="button-close-wizard">
+                ✕
+              </Button>
+            </div>
           </div>
           
           {/* Progress Bar */}
