@@ -293,7 +293,8 @@ export interface IStorage {
   // Password Reset
   createPasswordResetToken(data: { userId: string; token: string; expiresAt: Date }): Promise<void>;
   getPasswordResetToken(token: string): Promise<{ userId: string; expiresAt: string; used: boolean } | undefined>;
-  markPasswordResetTokenAsUsed(token: string): Promise<void>;
+  getAllValidPasswordResetTokens(): Promise<{ id: number; userId: string; token: string; expiresAt: string; used: boolean }[]>;
+  markPasswordResetTokenAsUsedById(id: number): Promise<void>;
   updateUserPassword(userId: string, newPassword: string): Promise<void>;
   
   // Abuse Protection & Rate Limiting
@@ -2634,6 +2635,34 @@ export class DatabaseStorage implements IStorage {
       .update(passwordResetTokens)
       .set({ used: true })
       .where(eq(passwordResetTokens.token, token));
+  }
+
+  async getAllValidPasswordResetTokens(): Promise<{ id: number; userId: string; token: string; expiresAt: string; used: boolean }[]> {
+    const now = new Date();
+    const tokens = await db
+      .select()
+      .from(passwordResetTokens)
+      .where(
+        and(
+          eq(passwordResetTokens.used, false),
+          gt(passwordResetTokens.expiresAt, now)
+        )
+      );
+    
+    return tokens.map(t => ({
+      id: t.id,
+      userId: t.userId,
+      token: t.token,
+      expiresAt: t.expiresAt.toISOString(),
+      used: t.used || false,
+    }));
+  }
+
+  async markPasswordResetTokenAsUsedById(id: number): Promise<void> {
+    await db
+      .update(passwordResetTokens)
+      .set({ used: true })
+      .where(eq(passwordResetTokens.id, id));
   }
 
   async updateUserPassword(userId: string, newPassword: string): Promise<void> {

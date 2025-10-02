@@ -4,6 +4,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
+import bcrypt from "bcrypt";
 import type { User } from "@shared/schema";
 
 // Type for authenticated requests
@@ -676,14 +677,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Generate secure reset token
+      // SECURITY: Generate secure reset token and hash it before storage
       const resetToken = crypto.randomBytes(32).toString('hex');
+      const hashedToken = await bcrypt.hash(resetToken, 10);
       const expiresAt = new Date(Date.now() + 3600000); // 1 hour from now
 
-      // Store reset token
+      // Store HASHED reset token (prevents token exposure if DB is compromised)
       await storage.createPasswordResetToken({
         userId: user.id,
-        token: resetToken,
+        token: hashedToken,
         expiresAt,
       });
 
@@ -697,7 +699,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: true, 
         message: 'If an account exists with this email, a password reset link has been sent.',
         // DEVELOPMENT ONLY: Remove in production
-        resetToken,
         resetUrl
       });
     } catch (error) {
@@ -715,28 +716,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { token, newPassword } = schema.parse(req.body);
 
-      // Verify reset token
-      const resetTokenData = await storage.getPasswordResetToken(token);
+      // SECURITY: Get all valid tokens and compare using bcrypt (constant-time comparison)
+      const validTokens = await storage.getAllValidPasswordResetTokens();
       
-      if (!resetTokenData) {
+      let matchedToken: { id: number; userId: string; expiresAt: string } | null = null;
+      
+      // Compare the provided token against all hashed tokens
+      for (const tokenData of validTokens) {
+        const isMatch = await bcrypt.compare(token, tokenData.token);
+        if (isMatch) {
+          matchedToken = tokenData;
+          break;
+        }
+      }
+      
+      if (!matchedToken) {
         return res.status(400).json({ message: 'Invalid or expired reset token' });
       }
 
-      if (resetTokenData.used) {
-        return res.status(400).json({ message: 'This reset token has already been used' });
-      }
-
-      if (new Date() > new Date(resetTokenData.expiresAt)) {
-        return res.status(400).json({ message: 'Reset token has expired' });
-      }
-
       // Update password
-      await storage.updateUserPassword(resetTokenData.userId, newPassword);
+      await storage.updateUserPassword(matchedToken.userId, newPassword);
 
-      // Mark token as used
-      await storage.markPasswordResetTokenAsUsed(token);
+      // Mark token as used by ID
+      await storage.markPasswordResetTokenAsUsedById(matchedToken.id);
 
-      console.log(`✅ Password reset successful for user ${resetTokenData.userId}`);
+      console.log(`✅ Password reset successful for user ${matchedToken.userId}`);
 
       res.json({ 
         success: true, 
