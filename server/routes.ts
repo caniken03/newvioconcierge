@@ -239,20 +239,61 @@ function generateResponseForm(responseToken: string, responseData: any): string 
   `;
 }
 
-// Validate and sanitize contact data
-function validateContactData(data: any): { valid: boolean; contact?: any; error?: string } {
+// Validate and sanitize contact data - supports ALL contact fields
+function validateContactData(data: any): { valid: boolean; contact?: any; groups?: string[]; error?: string } {
   try {
-    // Basic field mapping with validation
-    const contactData = {
-      name: data.name || data.Name,
-      phone: data.phone || data.Phone,
-      email: data.email || data.Email || undefined,
-      appointmentType: data.appointmentType || data['Appointment Type'] || undefined,
-      appointmentTime: data.appointmentTime || data['Appointment Time'] ? new Date(data.appointmentTime || data['Appointment Time']) : undefined,
-      appointmentDuration: data.appointmentDuration || data['Appointment Duration'] ? parseInt(data.appointmentDuration || data['Appointment Duration']) : undefined,
-      notes: data.notes || data.Notes || undefined,
-      specialInstructions: data.specialInstructions || data['Special Instructions'] || undefined,
+    // Comprehensive field mapping with all possible field variations
+    const contactData: any = {
+      // Core fields
+      name: data.name || data.Name || data['Contact Name'] || data['Patient Name'] || data['Client Name'] || data['Guest Name'],
+      phone: data.phone || data.Phone || data['Phone Number'] || data['Mobile'],
+      email: data.email || data.Email || data['Email Address'] || undefined,
+      
+      // Appointment fields
+      appointmentType: data.appointmentType || data['Appointment Type'] || data['Visit Type'] || data['Service Type'] || undefined,
+      appointmentTime: data.appointmentTime || data['Appointment Time'] || data['Appointment Date'] ? 
+        new Date(data.appointmentTime || data['Appointment Time'] || data['Appointment Date']) : undefined,
+      appointmentDuration: data.appointmentDuration || data.duration || data['Duration'] ? 
+        parseInt(data.appointmentDuration || data.duration || data['Duration']) : undefined,
+      appointmentStatus: data.appointmentStatus || data['Appointment Status'] || data.status || undefined,
+      timezone: data.timezone || data['Timezone'] || data['Time Zone'] || undefined,
+      callBeforeHours: data.callBeforeHours || data['Call Before Hours'] || data['Hours Before'] ? 
+        parseInt(data.callBeforeHours || data['Call Before Hours'] || data['Hours Before']) : undefined,
+      
+      // Business/Company fields
+      companyName: data.companyName || data['Company Name'] || data['Business Name'] || data['Company'] || undefined,
+      ownerName: data.ownerName || data['Owner Name'] || data['Account Owner'] || data['Owner'] || undefined,
+      bookingSource: data.bookingSource || data['Booking Source'] || data['Source'] || data['Referral'] || undefined,
+      locationId: data.locationId || data['Location ID'] || data['Location'] || undefined,
+      
+      // Priority and contact preferences
+      priorityLevel: data.priorityLevel || data['Priority Level'] || data['Priority'] || undefined,
+      preferredContactMethod: data.preferredContactMethod || data['Preferred Contact Method'] || data['Contact Method'] || undefined,
+      
+      // Instructions and notes
+      specialInstructions: data.specialInstructions || data['Special Instructions'] || data['Instructions'] || undefined,
+      notes: data.notes || data.Notes || data['Internal Notes'] || undefined,
+      
+      // Legacy/business-specific fields
+      provider: data.provider || data.Provider || data['Doctor'] || data['Stylist'] || undefined,
+      serviceType: data.serviceType || data['Service Type'] || data['Service'] || undefined,
+      partySize: data.partySize || data['Party Size'] || data['Guests'] ? 
+        parseInt(data.partySize || data['Party Size'] || data['Guests']) : undefined,
+      occasion: data.occasion || data.Occasion || data['Event'] || undefined,
+      consultationType: data.consultationType || data['Consultation Type'] || undefined,
     };
+
+    // Extract groups data separately (can be comma-separated string or array)
+    let groups: string[] = [];
+    const groupData = data.groups || data.Groups || data['Group'] || data['Groups'] || data['Category'] || data['Categories'];
+    if (groupData) {
+      if (typeof groupData === 'string') {
+        // Split by comma and trim each group name
+        groups = groupData.split(',').map((g: string) => g.trim()).filter((g: string) => g.length > 0);
+      } else if (Array.isArray(groupData)) {
+        groups = groupData.map(g => String(g).trim()).filter(g => g.length > 0);
+      }
+    }
 
     // Remove undefined values
     const cleanedData = Object.fromEntries(
@@ -260,7 +301,7 @@ function validateContactData(data: any): { valid: boolean; contact?: any; error?
     );
 
     // Validate using Zod schema (excluding tenantId as it's added later)
-    const validationSchema = insertContactSchema.omit({ tenantId: true });
+    const validationSchema = insertContactSchema.omit({ tenantId: true }).partial();
     const validatedContact = validationSchema.parse(cleanedData);
 
     // Additional validation for required fields
@@ -268,7 +309,7 @@ function validateContactData(data: any): { valid: boolean; contact?: any; error?
       return { valid: false, error: 'Name and phone are required' };
     }
 
-    return { valid: true, contact: validatedContact };
+    return { valid: true, contact: validatedContact, groups: groups.length > 0 ? groups : undefined };
   } catch (error) {
     if (error instanceof z.ZodError) {
       return { valid: false, error: `Validation error: ${error.errors.map(e => e.message).join(', ')}` };
@@ -1965,7 +2006,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // CSV import/export routes
+  // CSV import/export routes - Enhanced with group auto-creation
   app.post('/api/contacts/import', authenticateJWT, requireRole(['client_admin', 'super_admin']), upload.single('csvFile'), async (req: any, res) => {
     let filePath: string | undefined;
     
@@ -1976,7 +2017,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       filePath = req.file.path;
       const validContacts: any[] = [];
+      const contactGroups: string[][] = []; // Track groups for each contact
       const errors: any[] = [];
+      const allGroupNames = new Set<string>(); // Track all unique group names
       let rowCount = 0;
 
       return new Promise((resolve, reject) => {
@@ -1999,6 +2042,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             if (validation.valid) {
               validContacts.push(validation.contact);
+              // Track groups for this contact
+              contactGroups.push(validation.groups || []);
+              // Add groups to the set of all unique group names
+              if (validation.groups) {
+                validation.groups.forEach(g => allGroupNames.add(g));
+              }
             } else {
               errors.push({
                 row: rowCount,
@@ -2020,11 +2069,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 return resolve(undefined);
               }
 
+              // Step 1: Auto-create groups that don't exist
+              const existingGroups = await storage.getGroupsByTenant(req.user.tenantId);
+              const existingGroupNames = new Set(existingGroups.map(g => g.name.toLowerCase()));
+              const groupsToCreate: string[] = [];
+              const groupNameToId = new Map<string, string>();
+              
+              // Map existing groups
+              existingGroups.forEach(g => {
+                groupNameToId.set(g.name.toLowerCase(), g.id);
+              });
+              
+              // Identify groups that need to be created
+              for (const groupName of allGroupNames) {
+                if (!existingGroupNames.has(groupName.toLowerCase())) {
+                  groupsToCreate.push(groupName);
+                }
+              }
+              
+              // Create missing groups
+              const createdGroupIds: string[] = [];
+              for (const groupName of groupsToCreate) {
+                try {
+                  const newGroup = await storage.createGroup({
+                    name: groupName,
+                    description: `Auto-created from CSV import`,
+                    tenantId: req.user.tenantId,
+                    createdBy: req.user.userId,
+                  });
+                  groupNameToId.set(groupName.toLowerCase(), newGroup.id);
+                  createdGroupIds.push(newGroup.id);
+                } catch (err) {
+                  console.error(`Failed to create group ${groupName}:`, err);
+                }
+              }
+
+              // Step 2: Create contacts
               const result = await storage.bulkCreateContacts(req.user.tenantId, validContacts);
               
+              // Step 3: Associate contacts with groups
+              let groupAssignmentCount = 0;
+              if (result.contactIds && result.contactIds.length > 0) {
+                for (let i = 0; i < result.contactIds.length; i++) {
+                  const contactId = result.contactIds[i];
+                  const groups = contactGroups[i];
+                  
+                  if (groups && groups.length > 0) {
+                    for (const groupName of groups) {
+                      const groupId = groupNameToId.get(groupName.toLowerCase());
+                      if (groupId) {
+                        try {
+                          await storage.addContactToGroup(contactId, groupId, req.user.tenantId, req.user.userId);
+                          groupAssignmentCount++;
+                        } catch (err) {
+                          // Ignore duplicate errors, just log them
+                          if (err instanceof Error && !err.message.includes('already in this group')) {
+                            console.error(`Failed to assign contact ${contactId} to group ${groupId}:`, err);
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              
               res.json({
-                message: `Successfully imported ${result.created} contacts. ${errors.length} rows had errors.`,
+                message: `Successfully imported ${result.created} contacts${groupsToCreate.length > 0 ? `, created ${groupsToCreate.length} new groups,` : ''} and made ${groupAssignmentCount} group assignments. ${errors.length} rows had errors.`,
                 created: result.created,
+                groupsCreated: groupsToCreate.length,
+                groupsCreatedNames: groupsToCreate,
+                groupAssignments: groupAssignmentCount,
                 errors: [...result.errors, ...errors],
                 totalProcessed: rowCount,
                 validRows: validContacts.length,
@@ -2276,23 +2390,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // CSV Template Download - provides blank template with all field headers
+  app.get('/api/contacts/template', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    let csvFilePath: string | undefined;
+    
+    try {
+      csvFilePath = `/tmp/contacts_template_${req.user.tenantId}_${Date.now()}.csv`;
+      const csvWriter = createCsvWriter.createObjectCsvWriter({
+        path: csvFilePath,
+        header: [
+          // Core fields (required)
+          { id: 'name', title: 'Name' },
+          { id: 'phone', title: 'Phone' },
+          { id: 'email', title: 'Email' },
+          
+          // Appointment fields
+          { id: 'appointmentType', title: 'Appointment Type' },
+          { id: 'appointmentTime', title: 'Appointment Time' },
+          { id: 'appointmentDuration', title: 'Duration (minutes)' },
+          { id: 'appointmentStatus', title: 'Appointment Status' },
+          { id: 'timezone', title: 'Timezone' },
+          { id: 'callBeforeHours', title: 'Call Before (hours)' },
+          
+          // Business/Company fields
+          { id: 'companyName', title: 'Company Name' },
+          { id: 'ownerName', title: 'Owner Name' },
+          { id: 'bookingSource', title: 'Booking Source' },
+          { id: 'locationId', title: 'Location ID' },
+          
+          // Priority and preferences
+          { id: 'priorityLevel', title: 'Priority' },
+          { id: 'preferredContactMethod', title: 'Contact Method' },
+          
+          // Instructions and notes
+          { id: 'specialInstructions', title: 'Special Instructions' },
+          { id: 'notes', title: 'Notes' },
+          
+          // Groups (comma-separated for multiple groups)
+          { id: 'groups', title: 'Groups' },
+        ],
+      });
+
+      // Write empty template with just headers
+      await csvWriter.writeRecords([]);
+      
+      const filename = `contacts_import_template.csv`;
+      res.download(csvFilePath, filename, (err) => {
+        if (err) {
+          console.error('Download error:', err);
+        }
+        // Clean up file after download
+        if (csvFilePath && fs.existsSync(csvFilePath)) {
+          try {
+            fs.unlinkSync(csvFilePath);
+          } catch (cleanupError) {
+            console.error('Failed to cleanup template file:', cleanupError);
+          }
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to generate template' });
+      
+      // Clean up file on error
+      if (csvFilePath && fs.existsSync(csvFilePath)) {
+        try {
+          fs.unlinkSync(csvFilePath);
+        } catch (cleanupError) {
+          console.error('Failed to cleanup template file on error:', cleanupError);
+        }
+      }
+    }
+  });
+
   app.get('/api/contacts/export', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
     let csvFilePath: string | undefined;
     
     try {
       const contacts = await storage.exportContactsToCSV(req.user.tenantId);
       
-      // Escape all values to prevent CSV injection
-      const safeContacts = contacts.map(contact => ({
+      // Get groups for each contact to include in export
+      const contactsWithGroups = await Promise.all(
+        contacts.map(async (contact) => {
+          const groupMemberships = await storage.getContactGroupMemberships(contact.id, req.user.tenantId);
+          const groupNames = groupMemberships.map(m => m.groupName).join(', ');
+          return { ...contact, groups: groupNames };
+        })
+      );
+      
+      // Escape all values to prevent CSV injection - ALL FIELDS
+      const safeContacts = contactsWithGroups.map(contact => ({
+        // Core fields
         name: escapeCsvValue(contact.name),
         phone: escapeCsvValue(contact.phone),
         email: escapeCsvValue(contact.email),
+        
+        // Appointment fields
         appointmentType: escapeCsvValue(contact.appointmentType),
         appointmentTime: contact.appointmentTime ? contact.appointmentTime.toISOString() : '',
         appointmentDuration: escapeCsvValue(contact.appointmentDuration),
         appointmentStatus: escapeCsvValue(contact.appointmentStatus),
-        notes: escapeCsvValue(contact.notes),
+        timezone: escapeCsvValue(contact.timezone),
+        callBeforeHours: escapeCsvValue(contact.callBeforeHours),
+        
+        // Business/Company fields
+        companyName: escapeCsvValue(contact.companyName),
+        ownerName: escapeCsvValue(contact.ownerName),
+        bookingSource: escapeCsvValue(contact.bookingSource),
+        locationId: escapeCsvValue(contact.locationId),
+        
+        // Priority and contact preferences
+        priorityLevel: escapeCsvValue(contact.priorityLevel),
+        preferredContactMethod: escapeCsvValue(contact.preferredContactMethod),
+        
+        // Instructions and notes
         specialInstructions: escapeCsvValue(contact.specialInstructions),
+        notes: escapeCsvValue(contact.notes),
+        
+        // Groups (comma-separated)
+        groups: escapeCsvValue(contact.groups),
+        
+        // Metadata
         createdAt: contact.createdAt ? contact.createdAt.toISOString() : '',
       }));
       
@@ -2300,15 +2517,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const csvWriter = createCsvWriter.createObjectCsvWriter({
         path: csvFilePath,
         header: [
+          // Core fields
           { id: 'name', title: 'Name' },
           { id: 'phone', title: 'Phone' },
           { id: 'email', title: 'Email' },
+          
+          // Appointment fields
           { id: 'appointmentType', title: 'Appointment Type' },
           { id: 'appointmentTime', title: 'Appointment Time' },
-          { id: 'appointmentDuration', title: 'Appointment Duration' },
+          { id: 'appointmentDuration', title: 'Duration (minutes)' },
           { id: 'appointmentStatus', title: 'Appointment Status' },
-          { id: 'notes', title: 'Notes' },
+          { id: 'timezone', title: 'Timezone' },
+          { id: 'callBeforeHours', title: 'Call Before (hours)' },
+          
+          // Business/Company fields
+          { id: 'companyName', title: 'Company Name' },
+          { id: 'ownerName', title: 'Owner Name' },
+          { id: 'bookingSource', title: 'Booking Source' },
+          { id: 'locationId', title: 'Location ID' },
+          
+          // Priority and preferences
+          { id: 'priorityLevel', title: 'Priority' },
+          { id: 'preferredContactMethod', title: 'Contact Method' },
+          
+          // Instructions and notes
           { id: 'specialInstructions', title: 'Special Instructions' },
+          { id: 'notes', title: 'Notes' },
+          
+          // Groups
+          { id: 'groups', title: 'Groups' },
+          
+          // Metadata
           { id: 'createdAt', title: 'Created At' },
         ],
       });
