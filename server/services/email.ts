@@ -23,7 +23,7 @@ export const emailService = {
 
     try {
       const { data, error } = await resend.emails.send({
-        from: 'VioConcierge <onboarding@resend.dev>', // Using Resend's test domain
+        from: 'VioConcierge <noreply@smartaisolutions.ai>',
         to: [to],
         subject: 'Reset Your VioConcierge Password',
         html: `
