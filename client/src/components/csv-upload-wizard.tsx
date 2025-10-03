@@ -79,7 +79,7 @@ interface FieldMapping {
   contactField: ContactFieldType | '';
   confidence: number;
   required: boolean;
-  dataType: 'text' | 'phone' | 'email' | 'date' | 'time' | 'number';
+  dataType: 'text' | 'phone' | 'date' | 'time' | 'number';
   sampleValues: string[];
   suggestions?: ContactFieldType[];
 }
@@ -137,7 +137,6 @@ type ContactFieldType =
   // Core fields
   | 'name' 
   | 'phone' 
-  | 'email' 
   // Appointment fields
   | 'appointmentDate' 
   | 'appointmentTime' 
@@ -179,12 +178,11 @@ interface BusinessConfig {
 const BUSINESS_FIELD_MAPPINGS: Record<BusinessType, BusinessConfig> = {
   medical: {
     requiredFields: ['name', 'phone', 'appointmentDate', 'appointmentTime'],
-    optionalFields: ['email', 'appointmentType', 'provider', 'specialInstructions', 'timezone', 'companyName', 'ownerName', 'priorityLevel', 'preferredContactMethod', 'callBeforeHours', 'groups'],
+    optionalFields: ['appointmentType', 'provider', 'specialInstructions', 'timezone', 'companyName', 'ownerName', 'priorityLevel', 'preferredContactMethod', 'callBeforeHours', 'groups'],
     restrictedFields: ['notes'], // HIPAA compliance
     fieldLabels: {
       name: 'Patient Name',
       phone: 'Phone Number',
-      email: 'Email Address',
       appointmentDate: 'Appointment Date',
       appointmentTime: 'Appointment Time',
       appointmentType: 'Visit Type',
@@ -210,11 +208,10 @@ const BUSINESS_FIELD_MAPPINGS: Record<BusinessType, BusinessConfig> = {
   },
   salon: {
     requiredFields: ['name', 'phone', 'appointmentDate', 'appointmentTime'],
-    optionalFields: ['email', 'serviceType', 'provider', 'duration', 'specialInstructions', 'timezone', 'companyName', 'ownerName', 'priorityLevel', 'preferredContactMethod', 'callBeforeHours', 'groups'],
+    optionalFields: ['serviceType', 'provider', 'duration', 'specialInstructions', 'timezone', 'companyName', 'ownerName', 'priorityLevel', 'preferredContactMethod', 'callBeforeHours', 'groups'],
     fieldLabels: {
       name: 'Client Name',
       phone: 'Phone Number',
-      email: 'Email Address',
       appointmentDate: 'Appointment Date',
       appointmentTime: 'Appointment Time',
       serviceType: 'Service Type',
@@ -240,11 +237,10 @@ const BUSINESS_FIELD_MAPPINGS: Record<BusinessType, BusinessConfig> = {
   },
   restaurant: {
     requiredFields: ['name', 'phone', 'appointmentDate', 'appointmentTime'],
-    optionalFields: ['email', 'partySize', 'occasion', 'specialInstructions', 'timezone', 'companyName', 'ownerName', 'priorityLevel', 'preferredContactMethod', 'callBeforeHours', 'groups'],
+    optionalFields: ['partySize', 'occasion', 'specialInstructions', 'timezone', 'companyName', 'ownerName', 'priorityLevel', 'preferredContactMethod', 'callBeforeHours', 'groups'],
     fieldLabels: {
       name: 'Guest Name',
       phone: 'Phone Number',
-      email: 'Email Address',
       appointmentDate: 'Reservation Date',
       appointmentTime: 'Reservation Time',
       partySize: 'Party Size',
@@ -270,11 +266,10 @@ const BUSINESS_FIELD_MAPPINGS: Record<BusinessType, BusinessConfig> = {
   },
   consultant: {
     requiredFields: ['name', 'phone', 'appointmentDate', 'appointmentTime'],
-    optionalFields: ['email', 'consultationType', 'provider', 'duration', 'specialInstructions', 'timezone', 'companyName', 'ownerName', 'priorityLevel', 'preferredContactMethod', 'callBeforeHours', 'groups'],
+    optionalFields: ['consultationType', 'provider', 'duration', 'specialInstructions', 'timezone', 'companyName', 'ownerName', 'priorityLevel', 'preferredContactMethod', 'callBeforeHours', 'groups'],
     fieldLabels: {
       name: 'Client Name',
       phone: 'Phone Number',
-      email: 'Email Address',
       appointmentDate: 'Appointment Date',
       appointmentTime: 'Appointment Time',
       consultationType: 'Consultation Type',
@@ -300,11 +295,10 @@ const BUSINESS_FIELD_MAPPINGS: Record<BusinessType, BusinessConfig> = {
   },
   general: {
     requiredFields: ['name', 'phone', 'appointmentDate', 'appointmentTime'],
-    optionalFields: ['email', 'appointmentType', 'duration', 'specialInstructions', 'timezone', 'companyName', 'ownerName', 'priorityLevel', 'preferredContactMethod', 'callBeforeHours', 'bookingSource', 'locationId', 'groups', 'notes'],
+    optionalFields: ['appointmentType', 'duration', 'specialInstructions', 'timezone', 'companyName', 'ownerName', 'priorityLevel', 'preferredContactMethod', 'callBeforeHours', 'bookingSource', 'locationId', 'groups', 'notes'],
     fieldLabels: {
       name: 'Contact Name',
       phone: 'Phone Number',
-      email: 'Email Address',
       appointmentDate: 'Appointment Date',
       appointmentTime: 'Appointment Time',
       appointmentType: 'Appointment Type',
@@ -466,7 +460,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
       const lowerHeader = header.toLowerCase().trim();
       let bestMatch: ContactFieldType | '' = '';
       let confidence = 0;
-      let dataType: 'text' | 'phone' | 'email' | 'date' | 'time' | 'number' = 'text';
+      let dataType: 'text' | 'phone' | 'date' | 'time' | 'number' = 'text';
       const suggestions: ContactFieldType[] = [];
 
       // Get sample values from first 5 non-empty rows
@@ -481,7 +475,6 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
         // Core fields
         name: ['name', 'customer', 'client', 'patient', 'guest', 'contact', 'full name', 'firstname', 'lastname'],
         phone: ['phone', 'mobile', 'telephone', 'tel', 'cell', 'number', 'contact number'],
-        email: ['email', 'e-mail', 'mail', 'email address'],
         // Appointment fields
         appointmentDate: ['date', 'appointment date', 'appt date', 'visit date', 'reservation date'],
         appointmentTime: ['time', 'appointment time', 'appt time', 'visit time', 'reservation time'],
@@ -584,9 +577,9 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
   // Helper function to validate data type based on sample values
   const validateDataType = (sampleValues: string[], fieldType: ContactFieldType): {
     isValid: boolean;
-    detectedType: 'text' | 'phone' | 'email' | 'date' | 'time' | 'number';
+    detectedType: 'text' | 'phone' | 'date' | 'time' | 'number';
   } => {
-    let detectedType: 'text' | 'phone' | 'email' | 'date' | 'time' | 'number' = 'text';
+    let detectedType: 'text' | 'phone' | 'date' | 'time' | 'number' = 'text';
     let isValid = true;
 
     if (fieldType === 'phone') {
@@ -594,11 +587,6 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
       // Check if samples look like phone numbers
       const phonePattern = /[\d\s\-\(\)\+\.]{7,}/;
       isValid = sampleValues.every(val => phonePattern.test(val));
-    } else if (fieldType === 'email') {
-      detectedType = 'email';
-      // Check if samples look like emails
-      const emailPattern = /[^\s@]+@[^\s@]+\.[^\s@]+/;
-      isValid = sampleValues.every(val => emailPattern.test(val));
     } else if (fieldType === 'appointmentDate') {
       detectedType = 'date';
       // Check if samples look like dates
@@ -675,33 +663,32 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
       const baseData = {
         name: "John Smith",
         phone: "+1 555-123-4567",
-        email: "john.smith@email.com"
       };
 
       switch (businessType) {
         case 'medical':
           return [
             { ...baseData, appointmentType: "Annual Checkup", appointmentTime: "2024-01-15 10:00:00", notes: "Routine visit" },
-            { name: "Jane Doe", phone: "+1 555-987-6543", email: "jane.doe@email.com", appointmentType: "Consultation", appointmentTime: "2024-01-16 14:30:00", notes: "Follow-up" },
-            { name: "Bob Johnson", phone: "+1 555-456-7890", email: "bob.johnson@email.com", appointmentType: "Physical Therapy", appointmentTime: "2024-01-17 09:15:00", notes: "" }
+            { name: "Jane Doe", phone: "+1 555-987-6543", appointmentType: "Consultation", appointmentTime: "2024-01-16 14:30:00", notes: "Follow-up" },
+            { name: "Bob Johnson", phone: "+1 555-456-7890", appointmentType: "Physical Therapy", appointmentTime: "2024-01-17 09:15:00", notes: "" }
           ];
         case 'restaurant':
           return [
             { ...baseData, appointmentType: "Dinner Reservation", appointmentTime: "2024-01-15 19:00:00", partySize: "4", notes: "Anniversary dinner" },
-            { name: "Sarah Wilson", phone: "+1 555-234-5678", email: "sarah.wilson@email.com", appointmentType: "Lunch Meeting", appointmentTime: "2024-01-16 12:30:00", partySize: "6", notes: "Business lunch" },
-            { name: "Mike Brown", phone: "+1 555-345-6789", email: "mike.brown@email.com", appointmentType: "Birthday Party", appointmentTime: "2024-01-17 18:00:00", partySize: "8", notes: "Kids birthday party" }
+            { name: "Sarah Wilson", phone: "+1 555-234-5678", appointmentType: "Lunch Meeting", appointmentTime: "2024-01-16 12:30:00", partySize: "6", notes: "Business lunch" },
+            { name: "Mike Brown", phone: "+1 555-345-6789", appointmentType: "Birthday Party", appointmentTime: "2024-01-17 18:00:00", partySize: "8", notes: "Kids birthday party" }
           ];
         case 'salon':
           return [
             { ...baseData, appointmentType: "Haircut & Style", appointmentTime: "2024-01-15 10:00:00", duration: "60", notes: "Regular client" },
-            { name: "Lisa Garcia", phone: "+1 555-567-8901", email: "lisa.garcia@email.com", appointmentType: "Color & Highlights", appointmentTime: "2024-01-16 14:00:00", duration: "120", notes: "Root touch-up" },
-            { name: "Tom Davis", phone: "+1 555-678-9012", email: "tom.davis@email.com", appointmentType: "Beard Trim", appointmentTime: "2024-01-17 11:30:00", duration: "30", notes: "" }
+            { name: "Lisa Garcia", phone: "+1 555-567-8901", appointmentType: "Color & Highlights", appointmentTime: "2024-01-16 14:00:00", duration: "120", notes: "Root touch-up" },
+            { name: "Tom Davis", phone: "+1 555-678-9012", appointmentType: "Beard Trim", appointmentTime: "2024-01-17 11:30:00", duration: "30", notes: "" }
           ];
         default:
           return [
             { ...baseData, appointmentType: "Consultation", appointmentTime: "2024-01-15 10:00:00", notes: "Initial meeting" },
-            { name: "Emma Taylor", phone: "+1 555-789-0123", email: "emma.taylor@email.com", appointmentType: "Follow-up", appointmentTime: "2024-01-16 15:00:00", notes: "Progress review" },
-            { name: "Chris Lee", phone: "+1 555-890-1234", email: "chris.lee@email.com", appointmentType: "Service Call", appointmentTime: "2024-01-17 13:00:00", notes: "Scheduled maintenance" }
+            { name: "Emma Taylor", phone: "+1 555-789-0123", appointmentType: "Follow-up", appointmentTime: "2024-01-16 15:00:00", notes: "Progress review" },
+            { name: "Chris Lee", phone: "+1 555-890-1234", appointmentType: "Service Call", appointmentTime: "2024-01-17 13:00:00", notes: "Scheduled maintenance" }
           ];
       }
     };
@@ -1218,9 +1205,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
       // 3. Dates (handled below in quasi-identifiers)
       // 4. Telephone/Fax numbers (beyond primary contact phone)
       { pattern: /\b(fax|home|work|mobile|cell)\s*(phone|number|tel)\s*:?\s*[\(\)\d\s\-\.\+]{7,}\b/i, reason: 'Secondary phone/fax number detected' },
-      // 5. Email addresses (beyond primary contact email)
-      { pattern: /\b(secondary|alternate|emergency|contact)\s*email\s*:?\s*[^\s@]+@[^\s@]+\.[^\s@]+\b/i, reason: 'Secondary email address detected' },
-      // 6. Social Security Numbers
+      // 5. Social Security Numbers
       { pattern: /\b\d{3}-\d{2}-\d{4}\b|\b\d{9}\b/, reason: 'Social Security Number detected' },
       // 7. Medical Record Numbers
       { pattern: /\b(mrn|medical|record|patient)\s*#?\s*:?\s*[a-z0-9]{6,}\b/i, reason: 'Medical Record Number detected' },
@@ -1415,19 +1400,6 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
             error: 'Invalid phone number format',
             severity: 'error',
             suggestion: 'Use format: +1234567890 or (123) 456-7890'
-          };
-        }
-        break;
-        
-      case 'email':
-        // Email validation
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(value)) {
-          return {
-            row: 0, column: '', value,
-            error: 'Invalid email format',
-            severity: 'error',
-            suggestion: 'Use format: name@example.com'
           };
         }
         break;
@@ -1785,7 +1757,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
             <CardContent>
               <div className="text-sm space-y-2">
                 <p><strong>Required Fields:</strong> All rows must have {businessConfig.requiredFields.map(f => businessConfig.fieldLabels[f]).join(', ')}</p>
-                <p><strong>Data Formats:</strong> Phone numbers, emails, dates, and times are validated</p>
+                <p><strong>Data Formats:</strong> Phone numbers, dates, and times are validated</p>
                 {businessType === 'medical' && (
                   <p className="text-blue-600"><strong>HIPAA Compliance:</strong> PHI detection and restricted field warnings applied</p>
                 )}
@@ -2545,7 +2517,6 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
         const contactsToImport = appointmentData.map(contact => ({
           name: contact.name,
           phone: contact.phone,
-          email: contact.email,
           appointmentTime: contact.appointmentDate && contact.appointmentTime ? 
             `${contact.appointmentDate} ${contact.appointmentTime}` : undefined,
           appointmentType: contact.appointmentType,
