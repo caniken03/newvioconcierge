@@ -2760,6 +2760,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Business Hours Configuration Endpoints
+  app.get('/api/tenant/business-hours', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      const businessHours = await storage.getBusinessHoursConfig(req.user.tenantId);
+      if (!businessHours) {
+        return res.status(404).json({ message: 'Business hours configuration not found' });
+      }
+      
+      res.json(businessHours);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch business hours configuration' });
+    }
+  });
+
+  app.put('/api/tenant/business-hours', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      const dayHoursSchema = z.object({
+        enabled: z.boolean(),
+        start: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/),
+        end: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/),
+      });
+
+      const businessHoursSchema = z.object({
+        timezone: z.string().min(1),
+        mondayHours: dayHoursSchema,
+        tuesdayHours: dayHoursSchema,
+        wednesdayHours: dayHoursSchema,
+        thursdayHours: dayHoursSchema,
+        fridayHours: dayHoursSchema,
+        saturdayHours: dayHoursSchema,
+        sundayHours: dayHoursSchema,
+        respectBankHolidays: z.boolean().optional(),
+        emergencyOverride: z.boolean().optional(),
+      });
+
+      const businessHoursData = businessHoursSchema.parse(req.body);
+      
+      const existingConfig = await storage.getBusinessHoursConfig(req.user.tenantId);
+      let config;
+      
+      if (existingConfig) {
+        config = await storage.updateBusinessHoursConfig(req.user.tenantId, {
+          timezone: businessHoursData.timezone,
+          mondayHours: JSON.stringify(businessHoursData.mondayHours),
+          tuesdayHours: JSON.stringify(businessHoursData.tuesdayHours),
+          wednesdayHours: JSON.stringify(businessHoursData.wednesdayHours),
+          thursdayHours: JSON.stringify(businessHoursData.thursdayHours),
+          fridayHours: JSON.stringify(businessHoursData.fridayHours),
+          saturdayHours: JSON.stringify(businessHoursData.saturdayHours),
+          sundayHours: JSON.stringify(businessHoursData.sundayHours),
+          respectBankHolidays: businessHoursData.respectBankHolidays,
+          emergencyOverride: businessHoursData.emergencyOverride,
+        });
+      } else {
+        config = await storage.createBusinessHoursConfig({
+          tenantId: req.user.tenantId,
+          timezone: businessHoursData.timezone,
+          mondayHours: JSON.stringify(businessHoursData.mondayHours),
+          tuesdayHours: JSON.stringify(businessHoursData.tuesdayHours),
+          wednesdayHours: JSON.stringify(businessHoursData.wednesdayHours),
+          thursdayHours: JSON.stringify(businessHoursData.thursdayHours),
+          fridayHours: JSON.stringify(businessHoursData.fridayHours),
+          saturdayHours: JSON.stringify(businessHoursData.saturdayHours),
+          sundayHours: JSON.stringify(businessHoursData.sundayHours),
+          respectBankHolidays: businessHoursData.respectBankHolidays,
+          emergencyOverride: businessHoursData.emergencyOverride,
+        });
+      }
+      
+      res.json(config);
+    } catch (error) {
+      console.error('Business hours update error:', error);
+      res.status(400).json({ message: 'Failed to save business hours configuration' });
+    }
+  });
+
   // User management routes
   app.get('/api/users', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
     try {
