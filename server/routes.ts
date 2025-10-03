@@ -3382,14 +3382,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
               tenantId: session.tenantId,
               contactId: session.contactId!,
               // Use proper schema fields that actually exist
-              overallEngagementScore: ((responsivenessUpdates?.responsivenessScore || 0.5) * 100).toString(), // Convert to percentage string
+              overallEngagementScore: ((Number(responsivenessUpdates.responsivenessScore) || 0.5) * 100).toString(), // Convert to percentage string
               totalCallsMade: 1,
               totalCallsAnswered: callOutcome === 'answered' ? 1 : 0,
               answerRate: (callOutcome === 'answered' ? 100 : 0).toString(), // Convert to percentage string
               currentSentimentTrend: sentimentAnalysis.overallSentiment || 'stable',
               averageSentimentScore: ((sentimentAnalysis.sentimentScore || 0.5) * 100).toString(), // Convert to percentage string
               appointmentConfirmationRate: (appointmentAction === 'confirmed' ? 100 : 0).toString(), // Convert to percentage string
-              lastAnalysisUpdate: new Date(),
             });
           } catch (error) {
             console.warn('Failed to create customer analytics:', error);
@@ -3769,9 +3768,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log(`❌ Customer declined rescheduling request ${response.reschedulingRequestId}`);
           } else {
             // Customer selected a slot - get the actual selected time (using pre-fetched data)
-            const selectedSlotIndex = parseInt(selectedSlotIndex);
-            if (responseData && !isNaN(selectedSlotIndex)) {
-              const selectedSlot = responseData.availableSlots[selectedSlotIndex];
+            const parsedSlotIndex = parseInt(selectedSlotIndex);
+            if (responseData && !isNaN(parsedSlotIndex)) {
+              const selectedSlot = responseData.availableSlots[parsedSlotIndex];
               if (selectedSlot) {
                 const selectedTime = new Date(selectedSlot.startTime);
                 
