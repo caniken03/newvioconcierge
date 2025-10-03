@@ -4,6 +4,17 @@ VioConcierge is an intelligent voice appointment management platform that automa
 
 # Recent Changes
 
+## October 2024 - Business Hours Configuration
+- **NEW FEATURE**: Client administrators can now configure business hours via Profile Settings
+- **Per-Day Control**: Separate configuration for each day of the week (Monday-Sunday) with enable/disable toggles
+- **Timezone Management**: Support for multiple timezones with easy selection interface
+- **Flexible Scheduling**: Custom start/end times for each day, weekend support, and bank holiday respect option
+- **UI Integration**: Added Business Hours tab to Profile Settings with compact, responsive layout
+- **Backend API**: GET/PUT endpoints at `/api/tenant/business-hours` with Zod validation
+- **Database Storage**: Uses existing business_hours_config table with JSON hours storage per day
+- **Architect Approved**: Implementation meets requirements with proper role-based access control
+- **Production Ready**: Feature fully tested and operational for all client admins
+
 ## October 2024 - Enterprise-Grade Password Reset Feature
 - **COMPLETE FEATURE**: Implemented secure password reset flow with forgot password modal, reset confirmation page, and email token delivery system
 - **CRITICAL SECURITY FIX**: Resolved plain-text token storage vulnerability - all reset tokens now hashed with bcrypt (cost 10) before database storage
@@ -19,10 +30,11 @@ VioConcierge is an intelligent voice appointment management platform that automa
 - **Architect Assessment**: "PASS" - Security vulnerability eliminated, implementation meets enterprise security standards
 
 ### Email Configuration Status
-- **PENDING**: Domain verification in progress at Resend
-- **Action Required**: Once domain is verified, update email service sender address to use verified domain
-- **Current Status**: Email service configured, awaiting domain verification to enable multi-tenant email delivery
-- **Testing**: Password reset emails successfully delivered to account owner email; full multi-tenant testing pending domain verification
+- **✅ FULLY OPERATIONAL**: Domain smartaisolutions.ai verified and configured at Resend
+- **Email Sender**: noreply@smartaisolutions.ai (verified domain)
+- **Multi-Tenant Support**: Password reset emails can be sent to ANY registered user across all tenants
+- **End-to-End Verified**: Password reset emails successfully delivered to all user emails including contact@mrsugardrop.com
+- **Production Ready**: Email system fully functional with professional HTML templates and enterprise security
 
 ## September 2024 - End-to-End Call Scheduler Validation & Phone Normalization
 - **COMPREHENSIVE STRESS TEST COMPLETED**: Conducted real-world end-to-end call scheduler testing with 6 system restarts proving production resilience
