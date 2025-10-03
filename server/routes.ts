@@ -250,53 +250,50 @@ function generateResponseForm(responseToken: string, responseData: any): string 
   `;
 }
 
-// Validate and sanitize contact data - supports ALL contact fields
+// Validate and sanitize contact data - 12 field CSV structure (no email)
 function validateContactData(data: any): { valid: boolean; contact?: any; groups?: string[]; error?: string } {
   try {
-    // Comprehensive field mapping with all possible field variations
+    // Combine separate date and time fields if provided
+    let appointmentTime: Date | undefined = undefined;
+    const appointmentDate = data['Appointment Date'] || data.appointmentDate;
+    const appointmentTimeStr = data['Appointment Time'] || data.appointmentTime;
+    
+    if (appointmentDate && appointmentTimeStr) {
+      // Combine date (YYYY-MM-DD) and time (HH:MM:SS) into ISO string
+      appointmentTime = new Date(`${appointmentDate}T${appointmentTimeStr}`);
+    } else if (appointmentDate) {
+      // Just date provided, assume midnight
+      appointmentTime = new Date(`${appointmentDate}T00:00:00`);
+    }
+    
+    // Map CSV fields to database fields (12-field structure)
     const contactData: any = {
       // Core fields
-      name: data.name || data.Name || data['Contact Name'] || data['Patient Name'] || data['Client Name'] || data['Guest Name'],
-      phone: data.phone || data.Phone || data['Phone Number'] || data['Mobile'],
-      email: data.email || data.Email || data['Email Address'] || undefined,
+      name: data['Client Name'] || data.name || data.Name || undefined,
+      phone: data['Phone Number'] || data.phone || data.Phone || undefined,
       
       // Appointment fields
-      appointmentType: data.appointmentType || data['Appointment Type'] || data['Visit Type'] || data['Service Type'] || undefined,
-      appointmentTime: data.appointmentTime || data['Appointment Time'] || data['Appointment Date'] ? 
-        new Date(data.appointmentTime || data['Appointment Time'] || data['Appointment Date']) : undefined,
-      appointmentDuration: data.appointmentDuration || data.duration || data['Duration'] ? 
-        parseInt(data.appointmentDuration || data.duration || data['Duration']) : undefined,
-      appointmentStatus: data.appointmentStatus || data['Appointment Status'] || data.status || undefined,
-      timezone: data.timezone || data['Timezone'] || data['Time Zone'] || undefined,
-      callBeforeHours: data.callBeforeHours || data['Call Before Hours'] || data['Hours Before'] ? 
-        parseInt(data.callBeforeHours || data['Call Before Hours'] || data['Hours Before']) : undefined,
+      appointmentType: data['Appointment Type'] || data.appointmentType || undefined,
+      appointmentTime,
+      appointmentDuration: data['Appointment Duration'] || data.appointmentDuration ? 
+        parseInt(data['Appointment Duration'] || data.appointmentDuration) : undefined,
       
       // Business/Company fields
-      companyName: data.companyName || data['Company Name'] || data['Business Name'] || data['Company'] || undefined,
-      ownerName: data.ownerName || data['Owner Name'] || data['Account Owner'] || data['Owner'] || undefined,
-      bookingSource: data.bookingSource || data['Booking Source'] || data['Source'] || data['Referral'] || undefined,
-      locationId: data.locationId || data['Location ID'] || data['Location'] || undefined,
+      companyName: data['Business Name'] || data.companyName || undefined,
+      ownerName: data['Contact Person'] || data.ownerName || undefined,
       
-      // Priority and contact preferences
-      priorityLevel: data.priorityLevel || data['Priority Level'] || data['Priority'] || undefined,
-      preferredContactMethod: data.preferredContactMethod || data['Preferred Contact Method'] || data['Contact Method'] || undefined,
+      // Call timing
+      callBeforeHours: data['VioConcierge Call Before (Hours)'] || data.callBeforeHours ? 
+        parseInt(data['VioConcierge Call Before (Hours)'] || data.callBeforeHours) : undefined,
       
       // Instructions and notes
-      specialInstructions: data.specialInstructions || data['Special Instructions'] || data['Instructions'] || undefined,
-      notes: data.notes || data.Notes || data['Internal Notes'] || undefined,
-      
-      // Legacy/business-specific fields
-      provider: data.provider || data.Provider || data['Doctor'] || data['Stylist'] || undefined,
-      serviceType: data.serviceType || data['Service Type'] || data['Service'] || undefined,
-      partySize: data.partySize || data['Party Size'] || data['Guests'] ? 
-        parseInt(data.partySize || data['Party Size'] || data['Guests']) : undefined,
-      occasion: data.occasion || data.Occasion || data['Event'] || undefined,
-      consultationType: data.consultationType || data['Consultation Type'] || undefined,
+      specialInstructions: data['Special Instructions'] || data.specialInstructions || undefined,
+      notes: data['Notes'] || data.notes || undefined,
     };
 
     // Extract groups data separately (can be comma-separated string or array)
     let groups: string[] = [];
-    const groupData = data.groups || data.Groups || data['Group'] || data['Groups'] || data['Category'] || data['Categories'];
+    const groupData = data['Contact Group'] || data.groups || data.Groups || data['Group'] || data['Category'];
     if (groupData) {
       if (typeof groupData === 'string') {
         // Split by comma and trim each group name
@@ -1778,7 +1775,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // CSV Template Download - provides blank template with all field headers
+  // CSV Template Download - provides blank template with 12 essential fields
   app.get('/api/contacts/template', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
     let csvFilePath: string | undefined;
     
@@ -1787,35 +1784,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const csvWriter = createCsvWriter.createObjectCsvWriter({
         path: csvFilePath,
         header: [
-          // Core fields (required)
-          { id: 'name', title: 'Name' },
-          { id: 'phone', title: 'Phone' },
-          { id: 'email', title: 'Email' },
-          
-          // Appointment fields
+          { id: 'name', title: 'Client Name' },
+          { id: 'phone', title: 'Phone Number' },
+          { id: 'groups', title: 'Contact Group' },
           { id: 'appointmentType', title: 'Appointment Type' },
-          { id: 'appointmentTime', title: 'Appointment Time' },
-          { id: 'appointmentDuration', title: 'Duration (minutes)' },
-          { id: 'appointmentStatus', title: 'Appointment Status' },
-          { id: 'timezone', title: 'Timezone' },
-          { id: 'callBeforeHours', title: 'Call Before (hours)' },
-          
-          // Business/Company fields
-          { id: 'companyName', title: 'Company Name' },
-          { id: 'ownerName', title: 'Owner Name' },
-          { id: 'bookingSource', title: 'Booking Source' },
-          { id: 'locationId', title: 'Location ID' },
-          
-          // Priority and preferences
-          { id: 'priorityLevel', title: 'Priority' },
-          { id: 'preferredContactMethod', title: 'Contact Method' },
-          
-          // Instructions and notes
+          { id: 'ownerName', title: 'Contact Person' },
+          { id: 'companyName', title: 'Business Name' },
+          { id: 'appointmentDuration', title: 'Appointment Duration' },
           { id: 'specialInstructions', title: 'Special Instructions' },
+          { id: 'appointmentDate', title: 'Appointment Date' },
+          { id: 'appointmentTime', title: 'Appointment Time' },
+          { id: 'callBeforeHours', title: 'VioConcierge Call Before (Hours)' },
           { id: 'notes', title: 'Notes' },
-          
-          // Groups (comma-separated for multiple groups)
-          { id: 'groups', title: 'Groups' },
         ],
       });
 
@@ -1865,78 +1845,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
       );
       
-      // Escape all values to prevent CSV injection - ALL FIELDS
-      const safeContacts = contactsWithGroups.map(contact => ({
-        // Core fields
-        name: escapeCsvValue(contact.name),
-        phone: escapeCsvValue(contact.phone),
-        email: escapeCsvValue(contact.email),
+      // Escape all values and split date/time for CSV export - 12 field structure
+      const safeContacts = contactsWithGroups.map(contact => {
+        const appointmentDateTime = contact.appointmentTime ? new Date(contact.appointmentTime) : null;
+        const appointmentDate = appointmentDateTime ? appointmentDateTime.toISOString().split('T')[0] : '';
+        const appointmentTime = appointmentDateTime ? appointmentDateTime.toISOString().split('T')[1].split('.')[0] : '';
         
-        // Appointment fields
-        appointmentType: escapeCsvValue(contact.appointmentType),
-        appointmentTime: contact.appointmentTime ? contact.appointmentTime.toISOString() : '',
-        appointmentDuration: escapeCsvValue(contact.appointmentDuration),
-        appointmentStatus: escapeCsvValue(contact.appointmentStatus),
-        timezone: escapeCsvValue(contact.timezone),
-        callBeforeHours: escapeCsvValue(contact.callBeforeHours),
-        
-        // Business/Company fields
-        companyName: escapeCsvValue(contact.companyName),
-        ownerName: escapeCsvValue(contact.ownerName),
-        bookingSource: escapeCsvValue(contact.bookingSource),
-        locationId: escapeCsvValue(contact.locationId),
-        
-        // Priority and contact preferences
-        priorityLevel: escapeCsvValue(contact.priorityLevel),
-        preferredContactMethod: escapeCsvValue(contact.preferredContactMethod),
-        
-        // Instructions and notes
-        specialInstructions: escapeCsvValue(contact.specialInstructions),
-        notes: escapeCsvValue(contact.notes),
-        
-        // Groups (comma-separated)
-        groups: escapeCsvValue(contact.groups),
-        
-        // Metadata
-        createdAt: contact.createdAt ? contact.createdAt.toISOString() : '',
-      }));
+        return {
+          name: escapeCsvValue(contact.name),
+          phone: escapeCsvValue(contact.phone),
+          groups: escapeCsvValue(contact.groups),
+          appointmentType: escapeCsvValue(contact.appointmentType),
+          ownerName: escapeCsvValue(contact.ownerName),
+          companyName: escapeCsvValue(contact.companyName),
+          appointmentDuration: escapeCsvValue(contact.appointmentDuration),
+          specialInstructions: escapeCsvValue(contact.specialInstructions),
+          appointmentDate,
+          appointmentTime,
+          callBeforeHours: escapeCsvValue(contact.callBeforeHours),
+          notes: escapeCsvValue(contact.notes),
+        };
+      });
       
       csvFilePath = `/tmp/contacts_export_${req.user.tenantId}_${Date.now()}.csv`;
       const csvWriter = createCsvWriter.createObjectCsvWriter({
         path: csvFilePath,
         header: [
-          // Core fields
-          { id: 'name', title: 'Name' },
-          { id: 'phone', title: 'Phone' },
-          { id: 'email', title: 'Email' },
-          
-          // Appointment fields
+          { id: 'name', title: 'Client Name' },
+          { id: 'phone', title: 'Phone Number' },
+          { id: 'groups', title: 'Contact Group' },
           { id: 'appointmentType', title: 'Appointment Type' },
-          { id: 'appointmentTime', title: 'Appointment Time' },
-          { id: 'appointmentDuration', title: 'Duration (minutes)' },
-          { id: 'appointmentStatus', title: 'Appointment Status' },
-          { id: 'timezone', title: 'Timezone' },
-          { id: 'callBeforeHours', title: 'Call Before (hours)' },
-          
-          // Business/Company fields
-          { id: 'companyName', title: 'Company Name' },
-          { id: 'ownerName', title: 'Owner Name' },
-          { id: 'bookingSource', title: 'Booking Source' },
-          { id: 'locationId', title: 'Location ID' },
-          
-          // Priority and preferences
-          { id: 'priorityLevel', title: 'Priority' },
-          { id: 'preferredContactMethod', title: 'Contact Method' },
-          
-          // Instructions and notes
+          { id: 'ownerName', title: 'Contact Person' },
+          { id: 'companyName', title: 'Business Name' },
+          { id: 'appointmentDuration', title: 'Appointment Duration' },
           { id: 'specialInstructions', title: 'Special Instructions' },
+          { id: 'appointmentDate', title: 'Appointment Date' },
+          { id: 'appointmentTime', title: 'Appointment Time' },
+          { id: 'callBeforeHours', title: 'VioConcierge Call Before (Hours)' },
           { id: 'notes', title: 'Notes' },
-          
-          // Groups
-          { id: 'groups', title: 'Groups' },
-          
-          // Metadata
-          { id: 'createdAt', title: 'Created At' },
         ],
       });
 
