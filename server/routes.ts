@@ -461,6 +461,19 @@ const authenticateJWT = async (req: any, res: any, next: any) => {
       return res.status(401).json({ message: 'Invalid or inactive user' });
     }
 
+    // SECURITY: Check tenant status for non-super_admin users
+    if (user.tenantId && user.role !== 'super_admin') {
+      const tenant = await storage.getTenant(user.tenantId);
+      if (!tenant || tenant.status !== 'active') {
+        console.warn(`🚫 Blocked request from user ${user.email} - Tenant ${tenant?.status || 'not found'}`);
+        return res.status(403).json({ 
+          message: tenant?.status === 'suspended'
+            ? 'Your organization account has been suspended. Please contact support.'
+            : 'Your organization account is no longer active. Please contact support.'
+        });
+      }
+    }
+
     req.user = user;
     next();
   } catch (error) {
@@ -570,6 +583,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // SECURITY: Server-side role determination ONLY (no client input)
       const userRole = user.role; // Always use role from database
       
+      // SECURITY: Check tenant status (unless super_admin)
+      let tenantInfo = null;
+      if (user.tenantId) {
+        const tenant = await storage.getTenant(user.tenantId);
+        if (tenant) {
+          // Block login if tenant is not active (unless user is super_admin)
+          if (tenant.status !== 'active' && userRole !== 'super_admin') {
+            console.warn(`❌ Failed auth: ${email} from ${clientIp} - Tenant ${tenant.status}`);
+            return res.status(401).json({ 
+              message: tenant.status === 'suspended' 
+                ? 'Your organization account has been suspended. Please contact support.'
+                : 'Your organization account is inactive. Please contact support.'
+            });
+          }
+          
+          tenantInfo = {
+            id: tenant.id,
+            name: tenant.name,
+            companyName: tenant.companyName
+          };
+        }
+      }
+      
       // SECURITY: Enhanced JWT with additional claims for security
       const token = jwt.sign(
         { 
@@ -601,19 +637,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'Expires': '0'
       });
 
-      // Get tenant information for consistent login/auth response
-      let tenantInfo = null;
-      if (user.tenantId) {
-        const tenant = await storage.getTenant(user.tenantId);
-        if (tenant) {
-          tenantInfo = {
-            id: tenant.id,
-            name: tenant.name,
-            companyName: tenant.companyName
-          };
-        }
-      }
-
       res.json({
         token,
         user: {
@@ -635,7 +658,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/auth/me', authenticateJWT, async (req: any, res) => {
     const user = req.user;
     
-    // Get tenant information for business name display
+    // Get tenant information for business name display (with status)
     let tenantInfo = null;
     if (user.tenantId) {
       const tenant = await storage.getTenant(user.tenantId);
@@ -643,7 +666,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tenantInfo = {
           id: tenant.id,
           name: tenant.name,
-          companyName: tenant.companyName
+          companyName: tenant.companyName,
+          status: tenant.status // Include tenant status for frontend awareness
         };
       }
     }
