@@ -34,7 +34,7 @@ interface BulkContactMethodUpdateModalProps {
   onContactMethodUpdated: () => void;
 }
 
-type ContactMethod = 'phone' | 'email' | 'sms' | 'any';
+type ContactMethod = 'phone' | 'sms' | 'any';
 
 const contactMethodOptions: { value: ContactMethod; label: string; icon: React.ReactNode; color: string }[] = [
   { 
@@ -42,12 +42,6 @@ const contactMethodOptions: { value: ContactMethod; label: string; icon: React.R
     label: 'Phone Call', 
     icon: <Phone className="w-4 h-4" />, 
     color: 'bg-blue-100 text-blue-800 border-blue-300' 
-  },
-  { 
-    value: 'email', 
-    label: 'Email', 
-    icon: <Mail className="w-4 h-4" />, 
-    color: 'bg-green-100 text-green-800 border-green-300' 
   },
   { 
     value: 'sms', 
@@ -190,17 +184,14 @@ export default function BulkContactMethodUpdateModal({
             </div>
           )}
 
-          {/* Info about SMS/Email requirements */}
-          {(selectedContactMethod === 'sms' || selectedContactMethod === 'email') && (
+          {/* Info about SMS requirements */}
+          {selectedContactMethod === 'sms' && (
             <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
               <MessageSquare className="w-4 h-4 text-blue-600 mt-0.5" />
               <div className="text-sm">
                 <p className="font-medium text-blue-800">Contact Method Requirements</p>
                 <p className="text-blue-700">
-                  {selectedContactMethod === 'sms' ? 
-                    'Contacts will need valid phone numbers for SMS delivery' :
-                    'Contacts will need valid email addresses for email delivery'
-                  }
+                  Contacts will need valid phone numbers for SMS delivery
                 </p>
               </div>
             </div>
