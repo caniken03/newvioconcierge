@@ -75,7 +75,6 @@ export const contacts = pgTable("contacts", {
   name: varchar("name", { length: 255 }).notNull(),
   phone: varchar("phone", { length: 50 }).notNull(), // E.164 format (original input)
   normalizedPhone: varchar("normalized_phone", { length: 50 }), // Sanitized E.164 format for API calls and deduplication
-  email: varchar("email", { length: 255 }),
   appointmentTime: timestamp("appointment_time"),
   appointmentType: varchar("appointment_type", { length: 100 }), // HIPAA: Optional for medical practices
   appointmentDuration: integer("appointment_duration"), // in minutes (15, 30, 45, 60, 90, 120)
@@ -90,7 +89,7 @@ export const contacts = pgTable("contacts", {
   bookingSource: varchar("booking_source", { length: 50 }).default("manual"), // 'manual' | 'calcom' | 'calendly'
   locationId: uuid("location_id"), // For multi-location businesses
   priorityLevel: varchar("priority_level", { length: 50 }).default("normal"), // 'normal' | 'high' | 'urgent'
-  preferredContactMethod: varchar("preferred_contact_method", { length: 50 }).default("voice"), // 'voice' | 'email' | 'sms'
+  preferredContactMethod: varchar("preferred_contact_method", { length: 50 }).default("voice"), // 'voice' | 'sms'
   
   // Existing fields
   callAttempts: integer("call_attempts").default(0),

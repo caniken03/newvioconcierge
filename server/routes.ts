@@ -3793,11 +3793,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: 'Invalid webhook signature' });
       }
 
-      // Check if contact already exists by email with tenant isolation
+      // Check if contact already exists by phone with tenant isolation
       let existingContact;
-      if (contactData.email) {
-        const contacts = await storage.searchContacts(tenantId, contactData.email);
-        existingContact = contacts.find(c => c.email === contactData.email);
+      if (contactData.phone) {
+        const contacts = await storage.searchContacts(tenantId, contactData.phone);
+        existingContact = contacts.find(c => c.phone === contactData.phone);
       }
 
       if (action === 'create' || action === 'update') {
@@ -3889,9 +3889,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Check if contact exists
           let existingContact;
-          if (contactData.email) {
-            const contacts = await storage.searchContacts(req.user.tenantId, contactData.email);
-            existingContact = contacts.find(c => c.email === contactData.email);
+          if (contactData.phone) {
+            const contacts = await storage.searchContacts(req.user.tenantId, contactData.phone);
+            existingContact = contacts.find(c => c.phone === contactData.phone);
           }
 
           if (existingContact) {
@@ -4077,11 +4077,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const contactData = calendlyService.mapEventToContact(event, invitee);
       
-      // Check if contact already exists by email with tenant isolation
+      // Check if contact already exists by phone with tenant isolation
       let existingContact;
-      if (contactData.email) {
-        const contacts = await storage.searchContacts(tenantId, contactData.email);
-        existingContact = contacts.find(c => c.email === contactData.email);
+      if (contactData.phone) {
+        const contacts = await storage.searchContacts(tenantId, contactData.phone);
+        existingContact = contacts.find(c => c.phone === contactData.phone);
       }
 
       if (action === 'create' || action === 'update') {
@@ -4187,9 +4187,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               // Check if contact exists
               let existingContact;
-              if (contactData.email) {
-                const contacts = await storage.searchContacts(req.user.tenantId, contactData.email);
-                existingContact = contacts.find(c => c.email === contactData.email);
+              if (contactData.phone) {
+                const contacts = await storage.searchContacts(req.user.tenantId, contactData.phone);
+                existingContact = contacts.find(c => c.phone === contactData.phone);
               }
 
               if (existingContact) {
@@ -4774,7 +4774,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             id: contact.id,
             name: contact.name,
             phone: contact.phone,
-            email: contact.email,
             appointmentTime: contact.appointmentTime,
             appointmentType: contact.appointmentType,
             lastContactTime: contact.lastContactTime,
