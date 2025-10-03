@@ -4,6 +4,18 @@ VioConcierge is an intelligent voice appointment management platform that automa
 
 # Recent Changes
 
+## October 2024 - Tenant Status Validation Security Fix
+- **CRITICAL SECURITY FIX**: Implemented comprehensive tenant status validation preventing inactive/suspended tenant access
+- **Triple-Layer Protection**: Tenant status checked at login endpoint, JWT middleware on every request, and auth/me endpoint
+- **Login Enforcement**: Blocks JWT issuance for non-super_admin users when tenant status is not 'active' (lines 576-597)
+- **Session Invalidation**: Middleware revalidates tenant status on every authenticated request, expiring existing sessions mid-session if tenant deactivated (lines 467-478)
+- **Status Transparency**: Auth/me endpoint now returns tenant status to frontend for UI awareness (lines 664-676)
+- **Super Admin Bypass**: Super admins can still authenticate and manage platform regardless of tenant status for platform administration
+- **User-Friendly Errors**: Distinct messages for 'suspended' vs 'inactive' states without exposing internal system details
+- **Audit Logging**: All blocked authentication attempts logged with user email, tenant status, and timestamp for security monitoring
+- **Architect Assessment**: "PASS" - Security model correct with proper super_admin bypass and session enforcement
+- **Production Ready**: Prevents unauthorized access from deactivated organizations with immediate session termination
+
 ## October 2024 - Business Hours Configuration
 - **NEW FEATURE**: Client administrators can now configure business hours via Profile Settings
 - **Per-Day Control**: Separate configuration for each day of the week (Monday-Sunday) with enable/disable toggles
