@@ -132,23 +132,39 @@ const WIZARD_STEPS = [
   { id: 6, title: "Import Progress", description: "Track the import process" }
 ];
 
-// Standard contact field types
+// Standard contact field types - ALL contact fields from schema
 type ContactFieldType = 
+  // Core fields
   | 'name' 
   | 'phone' 
   | 'email' 
+  // Appointment fields
   | 'appointmentDate' 
   | 'appointmentTime' 
   | 'appointmentType' 
   | 'duration' 
+  | 'appointmentStatus'
+  | 'timezone'
+  | 'callBeforeHours'
+  // Business/Company fields
+  | 'companyName'
+  | 'ownerName'
+  | 'bookingSource'
+  | 'locationId'
+  // Priority and contact preferences
+  | 'priorityLevel'
+  | 'preferredContactMethod'
+  // Instructions and notes
   | 'specialInstructions' 
-  | 'provider' 
-  | 'groups'
   | 'notes'
+  // Legacy/business-specific fields (kept for compatibility)
+  | 'provider' 
   | 'serviceType'
   | 'partySize'
   | 'occasion'
-  | 'consultationType';
+  | 'consultationType'
+  // Groups
+  | 'groups';
 
 type BusinessType = 'medical' | 'salon' | 'restaurant' | 'consultant' | 'general';
 
@@ -163,7 +179,7 @@ interface BusinessConfig {
 const BUSINESS_FIELD_MAPPINGS: Record<BusinessType, BusinessConfig> = {
   medical: {
     requiredFields: ['name', 'phone', 'appointmentDate', 'appointmentTime'],
-    optionalFields: ['email', 'appointmentType', 'provider', 'specialInstructions'],
+    optionalFields: ['email', 'appointmentType', 'provider', 'specialInstructions', 'timezone', 'companyName', 'ownerName', 'priorityLevel', 'preferredContactMethod', 'callBeforeHours', 'groups'],
     restrictedFields: ['notes'], // HIPAA compliance
     fieldLabels: {
       name: 'Patient Name',
@@ -172,9 +188,18 @@ const BUSINESS_FIELD_MAPPINGS: Record<BusinessType, BusinessConfig> = {
       appointmentDate: 'Appointment Date',
       appointmentTime: 'Appointment Time',
       appointmentType: 'Visit Type',
+      appointmentStatus: 'Appointment Status',
       provider: 'Doctor/Provider',
       specialInstructions: 'Preparation Instructions',
-      duration: 'Duration',
+      duration: 'Duration (minutes)',
+      timezone: 'Timezone',
+      callBeforeHours: 'Call Before (hours)',
+      companyName: 'Clinic/Hospital',
+      ownerName: 'Account Owner',
+      bookingSource: 'Booking Source',
+      locationId: 'Location ID',
+      priorityLevel: 'Priority',
+      preferredContactMethod: 'Contact Method',
       groups: 'Groups',
       notes: 'Notes',
       serviceType: 'Service Type',
@@ -185,7 +210,7 @@ const BUSINESS_FIELD_MAPPINGS: Record<BusinessType, BusinessConfig> = {
   },
   salon: {
     requiredFields: ['name', 'phone', 'appointmentDate', 'appointmentTime'],
-    optionalFields: ['email', 'serviceType', 'provider', 'duration', 'specialInstructions'],
+    optionalFields: ['email', 'serviceType', 'provider', 'duration', 'specialInstructions', 'timezone', 'companyName', 'ownerName', 'priorityLevel', 'preferredContactMethod', 'callBeforeHours', 'groups'],
     fieldLabels: {
       name: 'Client Name',
       phone: 'Phone Number',
@@ -193,10 +218,19 @@ const BUSINESS_FIELD_MAPPINGS: Record<BusinessType, BusinessConfig> = {
       appointmentDate: 'Appointment Date',
       appointmentTime: 'Appointment Time',
       serviceType: 'Service Type',
+      appointmentType: 'Service Type',
+      appointmentStatus: 'Appointment Status',
       provider: 'Stylist',
       specialInstructions: 'Special Requests',
-      appointmentType: 'Service Type',
-      duration: 'Duration',
+      duration: 'Duration (minutes)',
+      timezone: 'Timezone',
+      callBeforeHours: 'Call Before (hours)',
+      companyName: 'Salon/Business Name',
+      ownerName: 'Account Owner',
+      bookingSource: 'Booking Source',
+      locationId: 'Location ID',
+      priorityLevel: 'Priority',
+      preferredContactMethod: 'Contact Method',
       groups: 'Groups',
       notes: 'Notes',
       partySize: 'Party Size',
@@ -206,7 +240,7 @@ const BUSINESS_FIELD_MAPPINGS: Record<BusinessType, BusinessConfig> = {
   },
   restaurant: {
     requiredFields: ['name', 'phone', 'appointmentDate', 'appointmentTime'],
-    optionalFields: ['email', 'partySize', 'occasion', 'specialInstructions'],
+    optionalFields: ['email', 'partySize', 'occasion', 'specialInstructions', 'timezone', 'companyName', 'ownerName', 'priorityLevel', 'preferredContactMethod', 'callBeforeHours', 'groups'],
     fieldLabels: {
       name: 'Guest Name',
       phone: 'Phone Number',
@@ -217,8 +251,17 @@ const BUSINESS_FIELD_MAPPINGS: Record<BusinessType, BusinessConfig> = {
       occasion: 'Occasion',
       specialInstructions: 'Special Requests',
       appointmentType: 'Reservation Type',
+      appointmentStatus: 'Appointment Status',
       provider: 'Host/Server',
-      duration: 'Duration',
+      duration: 'Duration (minutes)',
+      timezone: 'Timezone',
+      callBeforeHours: 'Call Before (hours)',
+      companyName: 'Restaurant Name',
+      ownerName: 'Account Owner',
+      bookingSource: 'Booking Source',
+      locationId: 'Location ID',
+      priorityLevel: 'Priority',
+      preferredContactMethod: 'Contact Method',
       groups: 'Groups',
       notes: 'Notes',
       serviceType: 'Service Type',
@@ -227,7 +270,7 @@ const BUSINESS_FIELD_MAPPINGS: Record<BusinessType, BusinessConfig> = {
   },
   consultant: {
     requiredFields: ['name', 'phone', 'appointmentDate', 'appointmentTime'],
-    optionalFields: ['email', 'consultationType', 'provider', 'duration', 'specialInstructions'],
+    optionalFields: ['email', 'consultationType', 'provider', 'duration', 'specialInstructions', 'timezone', 'companyName', 'ownerName', 'priorityLevel', 'preferredContactMethod', 'callBeforeHours', 'groups'],
     fieldLabels: {
       name: 'Client Name',
       phone: 'Phone Number',
@@ -235,10 +278,19 @@ const BUSINESS_FIELD_MAPPINGS: Record<BusinessType, BusinessConfig> = {
       appointmentDate: 'Appointment Date',
       appointmentTime: 'Appointment Time',
       consultationType: 'Consultation Type',
+      appointmentType: 'Consultation Type',
+      appointmentStatus: 'Appointment Status',
       provider: 'Consultant',
       specialInstructions: 'Preparation Required',
-      appointmentType: 'Consultation Type',
-      duration: 'Duration',
+      duration: 'Duration (minutes)',
+      timezone: 'Timezone',
+      callBeforeHours: 'Call Before (hours)',
+      companyName: 'Company Name',
+      ownerName: 'Account Owner',
+      bookingSource: 'Booking Source',
+      locationId: 'Location ID',
+      priorityLevel: 'Priority',
+      preferredContactMethod: 'Contact Method',
       groups: 'Groups',
       notes: 'Notes',
       serviceType: 'Service Type',
@@ -248,7 +300,7 @@ const BUSINESS_FIELD_MAPPINGS: Record<BusinessType, BusinessConfig> = {
   },
   general: {
     requiredFields: ['name', 'phone', 'appointmentDate', 'appointmentTime'],
-    optionalFields: ['email', 'appointmentType', 'duration', 'specialInstructions'],
+    optionalFields: ['email', 'appointmentType', 'duration', 'specialInstructions', 'timezone', 'companyName', 'ownerName', 'priorityLevel', 'preferredContactMethod', 'callBeforeHours', 'bookingSource', 'locationId', 'groups', 'notes'],
     fieldLabels: {
       name: 'Contact Name',
       phone: 'Phone Number',
@@ -256,8 +308,17 @@ const BUSINESS_FIELD_MAPPINGS: Record<BusinessType, BusinessConfig> = {
       appointmentDate: 'Appointment Date',
       appointmentTime: 'Appointment Time',
       appointmentType: 'Appointment Type',
-      duration: 'Duration',
-      specialInstructions: 'Notes',
+      appointmentStatus: 'Appointment Status',
+      duration: 'Duration (minutes)',
+      timezone: 'Timezone',
+      callBeforeHours: 'Call Before (hours)',
+      companyName: 'Company/Business',
+      ownerName: 'Owner Name',
+      bookingSource: 'Booking Source',
+      locationId: 'Location ID',
+      priorityLevel: 'Priority',
+      preferredContactMethod: 'Contact Method',
+      specialInstructions: 'Special Instructions',
       provider: 'Provider',
       groups: 'Groups',
       notes: 'Notes',
@@ -417,21 +478,37 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
 
       // Define header synonyms for each field type
       const fieldSynonyms: Record<ContactFieldType, string[]> = {
+        // Core fields
         name: ['name', 'customer', 'client', 'patient', 'guest', 'contact', 'full name', 'firstname', 'lastname'],
         phone: ['phone', 'mobile', 'telephone', 'tel', 'cell', 'number', 'contact number'],
         email: ['email', 'e-mail', 'mail', 'email address'],
+        // Appointment fields
         appointmentDate: ['date', 'appointment date', 'appt date', 'visit date', 'reservation date'],
         appointmentTime: ['time', 'appointment time', 'appt time', 'visit time', 'reservation time'],
         appointmentType: ['type', 'service type', 'appointment type', 'visit type', 'service', 'procedure'],
+        appointmentStatus: ['status', 'appointment status', 'appt status', 'booking status'],
         duration: ['duration', 'length', 'time duration', 'minutes', 'hours'],
-        specialInstructions: ['instructions', 'notes', 'special instructions', 'comments', 'remarks', 'preparation'],
+        timezone: ['timezone', 'time zone', 'tz'],
+        callBeforeHours: ['call before', 'hours before', 'reminder hours', 'advance notice'],
+        // Business/Company fields
+        companyName: ['company', 'business', 'company name', 'business name', 'organization'],
+        ownerName: ['owner', 'owner name', 'account owner', 'responsible party'],
+        bookingSource: ['source', 'booking source', 'referral', 'channel'],
+        locationId: ['location', 'location id', 'branch', 'office'],
+        // Priority and contact preferences
+        priorityLevel: ['priority', 'priority level', 'urgency', 'importance'],
+        preferredContactMethod: ['contact method', 'preferred method', 'contact preference', 'communication preference'],
+        // Instructions and notes
+        specialInstructions: ['instructions', 'special instructions', 'comments', 'remarks', 'preparation'],
+        notes: ['notes', 'internal notes', 'remarks', 'memo'],
+        // Legacy/business-specific fields
         provider: ['provider', 'doctor', 'stylist', 'consultant', 'therapist', 'professional'],
-        groups: ['group', 'category', 'classification', 'type', 'department'],
-        notes: ['notes', 'comments', 'remarks', 'memo'],
         serviceType: ['service', 'service type', 'treatment', 'procedure'],
         partySize: ['party', 'party size', 'guests', 'people', 'size'],
         occasion: ['occasion', 'event', 'celebration', 'reason'],
-        consultationType: ['consultation', 'consultation type', 'meeting type']
+        consultationType: ['consultation', 'consultation type', 'meeting type'],
+        // Groups
+        groups: ['group', 'groups', 'category', 'categories', 'classification', 'department']
       };
 
       // Score each field type based on header similarity
