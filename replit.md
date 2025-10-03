@@ -21,7 +21,11 @@ The system uses PostgreSQL, with a schema designed for multi-tenancy, user manag
 Authentication is JWT-based with role-based middleware. The system enforces multi-level access control, distinguishing between super admin (cross-tenant), client admin (tenant-wide), and client user (read-only) roles. Strict tenant boundary enforcement prevents cross-tenant data access, and token-based session management is secured with robust password hashing and rate-limiting. Password reset functionality incorporates secure token handling, including bcrypt hashing and time-limited, single-use tokens.
 
 ## System Design Choices
-- **Comprehensive CSV Import**: Supports all contact fields with intelligent mapping and automatic group creation.
+- **Comprehensive CSV Import/Export**: 
+  - **Import**: Fully functional with support for all 25+ contact fields, intelligent field mapping, automatic group creation, and contact-to-group assignments. Uses multer with diskStorage for reliable file uploads up to 10MB.
+  - **Export**: Generates CSV files with all contact fields including group memberships (comma-separated). Includes CSV injection protection through value escaping.
+  - **Template Download**: Provides blank CSV template with all field headers for easy import preparation.
+  - **Route Optimization**: Template and export routes positioned before parameterized `:id` route to prevent Express routing conflicts.
 - **Tenant Status Validation**: Implemented triple-layer security at login, JWT middleware, and auth/me endpoint to prevent access by inactive/suspended tenants, with super admin bypass.
 - **Business Hours Configuration**: Allows client administrators to configure per-day business hours with timezone support.
 - **Phone Normalization**: Server-side normalization using libphonenumber-js with E.164 enforcement and Unicode control character stripping.
