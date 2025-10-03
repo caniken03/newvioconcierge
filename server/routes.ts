@@ -661,28 +661,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Password reset endpoints
   app.post('/api/auth/forgot-password', async (req, res) => {
     try {
+      console.log('🔍 Password reset request received:', req.body);
+      
       const schema = z.object({
         email: z.string().email().trim().toLowerCase(),
       });
 
       const { email } = schema.parse(req.body);
+      console.log('📧 Looking for user with email:', email);
 
       // Find user by email
       const user = await storage.getUserByEmail(email);
       
       // SECURITY: Always return success to prevent email enumeration
       if (!user) {
+        console.log('⚠️ No user found with email:', email);
         return res.json({ 
           success: true, 
           message: 'If an account exists with this email, a password reset link has been sent.' 
         });
       }
 
+      console.log('✅ User found:', user.id, user.email);
+
       // SECURITY: Generate secure reset token and hash it before storage
       const resetToken = crypto.randomBytes(32).toString('hex');
       const hashedToken = await bcrypt.hash(resetToken, 10);
       const expiresAt = new Date(Date.now() + 3600000); // 1 hour from now
 
+      console.log('🔐 Creating password reset token for user:', user.id);
+      
       // Store HASHED reset token (prevents token exposure if DB is compromised)
       await storage.createPasswordResetToken({
         userId: user.id,
@@ -690,8 +698,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         expiresAt,
       });
 
+      console.log('✅ Reset token created successfully');
+
       // Send password reset email
       const resetUrl = `${req.protocol}://${req.get('host')}/reset-password?token=${resetToken}`;
+      
+      console.log('📨 Attempting to send email to:', email);
+      console.log('🔗 Reset URL:', resetUrl);
       
       const emailSent = await emailService.sendPasswordResetEmail({
         to: email,
@@ -700,9 +713,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       if (emailSent) {
-        console.log(`📧 Password reset email sent to ${email}`);
+        console.log(`✅ Password reset email sent successfully to ${email}`);
       } else {
-        console.warn(`⚠️ Failed to send password reset email to ${email}, but token was created`);
+        console.warn(`❌ Failed to send password reset email to ${email}, but token was created`);
       }
 
       // Always return success to prevent email enumeration
@@ -713,7 +726,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...(process.env.NODE_ENV === 'development' && { resetUrl })
       });
     } catch (error) {
-      console.error('Password reset request error:', error);
+      console.error('❌ Password reset request error:', error);
       res.status(400).json({ message: 'Invalid request' });
     }
   });
