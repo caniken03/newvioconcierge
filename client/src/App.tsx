@@ -43,15 +43,19 @@ function ProtectedRoute({
 function Router() {
   const { user, isLoading } = useAuth();
   
-  // Check if this is the reset password page
-  const isResetPasswordPage = window.location.pathname === '/reset-password';
+  // Check if this is the reset password page (with or without trailing slash)
+  const pathname = window.location.pathname.replace(/\/$/, ''); // Remove trailing slash
+  const isResetPasswordPage = pathname === '/reset-password';
   
   // Allow access to reset password page without authentication
   if (isResetPasswordPage) {
     return <ResetPassword />;
   }
 
-  if (isLoading) {
+  // Check if this is the login page
+  const isLoginPage = pathname === '/login' || pathname === '';
+  
+  if (isLoading && !isLoginPage) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
