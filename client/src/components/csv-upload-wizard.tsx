@@ -806,6 +806,60 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Sample Data Guide */}
+      <Card className="border-blue-200 bg-blue-50/50">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2 text-blue-900">
+            <Eye className="w-4 h-4" />
+            Sample Data Guide
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="text-sm space-y-3">
+            <p className="text-blue-800 font-medium">CSV Structure (12 Fields):</p>
+            <div className="bg-white/80 p-3 rounded-md border border-blue-200 space-y-2 font-mono text-xs">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                <div><span className="text-blue-600">Client Name:</span> Sarah Johnson</div>
+                <div><span className="text-blue-600">Phone Number:</span> +447911123456</div>
+                <div><span className="text-blue-600">Contact Group:</span> VIP, Regular</div>
+                <div><span className="text-blue-600">Appointment Type:</span> Consultation</div>
+                <div><span className="text-blue-600">Contact Person:</span> Dr. Smith</div>
+                <div><span className="text-blue-600">Business Name:</span> City Clinic</div>
+                <div><span className="text-blue-600">Appointment Duration:</span> 30</div>
+                <div><span className="text-blue-600">Special Instructions:</span> Bring ID</div>
+                <div><span className="text-blue-600">Appointment Date:</span> 2025-10-15</div>
+                <div><span className="text-blue-600">Appointment Time:</span> 14:30:00</div>
+                <div><span className="text-blue-600">Call Before (Hours):</span> 24</div>
+                <div><span className="text-blue-600">Notes:</span> First-time client</div>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-2 p-3 bg-amber-50 rounded-md border border-amber-200">
+              <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm">
+                <p className="font-medium text-amber-800">Privacy Warning: Appointment Type</p>
+                <p className="text-amber-700 mt-1">
+                  Be mindful when entering Appointment Type. Avoid revealing sensitive personal circumstances 
+                  (e.g., use "Medical Consultation" instead of specific medical conditions). This helps protect 
+                  client privacy and maintains professional discretion.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-blue-800 font-medium">Format Requirements:</p>
+              <ul className="text-blue-700 space-y-1 text-xs">
+                <li>• <strong>Date:</strong> YYYY-MM-DD (e.g., 2025-10-15)</li>
+                <li>• <strong>Time:</strong> HH:MM:SS in 24-hour format (e.g., 14:30:00)</li>
+                <li>• <strong>Phone:</strong> Include country code (e.g., +447911123456)</li>
+                <li>• <strong>Groups:</strong> Comma-separated for multiple (e.g., "VIP, Regular")</li>
+                <li>• <strong>Duration:</strong> Number in minutes (e.g., 30, 60, 90)</li>
+              </ul>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 
