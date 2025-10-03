@@ -19,6 +19,7 @@ export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
+  options?: { skipAuthRedirect?: boolean }
 ): Promise<Response> {
   const token = localStorage.getItem('auth_token');
   
@@ -40,7 +41,25 @@ export async function apiRequest(
     credentials: "include",
   });
 
-  await throwIfResNotOk(res);
+  if (!res.ok) {
+    // For login/auth endpoints, don't auto-redirect - let the component handle the error
+    if (!options?.skipAuthRedirect && (res.status === 401 || res.status === 403)) {
+      localStorage.removeItem('auth_token');
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      }
+    }
+    const text = (await res.text()) || res.statusText;
+    let errorMessage = text;
+    try {
+      const json = JSON.parse(text);
+      errorMessage = json.message || text;
+    } catch {
+      // If not JSON, use text as-is
+    }
+    throw new Error(errorMessage);
+  }
+  
   return res;
 }
 
