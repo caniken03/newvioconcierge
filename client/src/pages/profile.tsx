@@ -235,6 +235,214 @@ function CallSettingsContent() {
   );
 }
 
+// Business Hours Settings Component
+function BusinessHoursContent() {
+  const { toast } = useToast();
+  
+  // Fetch current business hours configuration
+  const { data: businessHours, isLoading } = useQuery<any>({
+    queryKey: ['/api/tenant/business-hours'],
+  });
+
+  const [config, setConfig] = useState({
+    timezone: "Europe/London",
+    mondayHours: { enabled: true, start: "09:00", end: "17:00" },
+    tuesdayHours: { enabled: true, start: "09:00", end: "17:00" },
+    wednesdayHours: { enabled: true, start: "09:00", end: "17:00" },
+    thursdayHours: { enabled: true, start: "09:00", end: "17:00" },
+    fridayHours: { enabled: true, start: "09:00", end: "17:00" },
+    saturdayHours: { enabled: false, start: "09:00", end: "13:00" },
+    sundayHours: { enabled: false, start: "10:00", end: "14:00" },
+    respectBankHolidays: true,
+    emergencyOverride: false,
+  });
+
+  // Update local state when config is loaded
+  useEffect(() => {
+    if (businessHours) {
+      const parseHours = (hoursJson: string) => {
+        try {
+          return JSON.parse(hoursJson);
+        } catch {
+          return { enabled: false, start: "09:00", end: "17:00" };
+        }
+      };
+
+      setConfig({
+        timezone: businessHours.timezone || "Europe/London",
+        mondayHours: parseHours(businessHours.mondayHours),
+        tuesdayHours: parseHours(businessHours.tuesdayHours),
+        wednesdayHours: parseHours(businessHours.wednesdayHours),
+        thursdayHours: parseHours(businessHours.thursdayHours),
+        fridayHours: parseHours(businessHours.fridayHours),
+        saturdayHours: parseHours(businessHours.saturdayHours),
+        sundayHours: parseHours(businessHours.sundayHours),
+        respectBankHolidays: businessHours.respectBankHolidays ?? true,
+        emergencyOverride: businessHours.emergencyOverride ?? false,
+      });
+    }
+  }, [businessHours]);
+
+  // Save configuration mutation
+  const saveConfigMutation = useMutation({
+    mutationFn: async (data: typeof config) => {
+      const response = await apiRequest('PUT', '/api/tenant/business-hours', data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tenant/business-hours'] });
+      toast({
+        title: "Business hours saved",
+        description: "Your operating hours have been updated successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to save business hours",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSave = () => {
+    saveConfigMutation.mutate(config);
+  };
+
+  const days = [
+    { key: "mondayHours", label: "Monday" },
+    { key: "tuesdayHours", label: "Tuesday" },
+    { key: "wednesdayHours", label: "Wednesday" },
+    { key: "thursdayHours", label: "Thursday" },
+    { key: "fridayHours", label: "Friday" },
+    { key: "saturdayHours", label: "Saturday" },
+    { key: "sundayHours", label: "Sunday" },
+  ];
+
+  return (
+    <TabsContent value="business-hours" className="space-y-6">
+      <Card data-testid="business-hours-section">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="w-5 h-5" />
+            Business Hours Configuration
+          </CardTitle>
+          <CardDescription>
+            Set your operating hours to ensure calls are made during appropriate times
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Timezone Selection */}
+          <div className="space-y-2">
+            <Label htmlFor="timezone">Timezone</Label>
+            <Select
+              value={config.timezone}
+              onValueChange={(value) => setConfig(prev => ({ ...prev, timezone: value }))}
+            >
+              <SelectTrigger id="timezone" data-testid="select-timezone">
+                <SelectValue placeholder="Select timezone" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Europe/London">London (GMT/BST)</SelectItem>
+                <SelectItem value="America/New_York">New York (EST/EDT)</SelectItem>
+                <SelectItem value="America/Los_Angeles">Los Angeles (PST/PDT)</SelectItem>
+                <SelectItem value="America/Chicago">Chicago (CST/CDT)</SelectItem>
+                <SelectItem value="Europe/Paris">Paris (CET/CEST)</SelectItem>
+                <SelectItem value="Asia/Tokyo">Tokyo (JST)</SelectItem>
+                <SelectItem value="Australia/Sydney">Sydney (AEDT/AEST)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Separator />
+
+          {/* Days of the Week */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium">Weekly Operating Hours</h3>
+            {days.map(({ key, label }) => {
+              const dayConfig = config[key as keyof typeof config] as { enabled: boolean; start: string; end: string };
+              return (
+                <div key={key} className="flex items-center gap-4">
+                  <div className="w-32">
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        checked={dayConfig.enabled}
+                        onCheckedChange={(checked) => setConfig(prev => ({
+                          ...prev,
+                          [key]: { ...dayConfig, enabled: checked }
+                        }))}
+                        data-testid={`switch-${key}`}
+                      />
+                      <Label className={!dayConfig.enabled ? "text-muted-foreground" : ""}>
+                        {label}
+                      </Label>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-1">
+                    <Input
+                      type="time"
+                      value={dayConfig.start}
+                      onChange={(e) => setConfig(prev => ({
+                        ...prev,
+                        [key]: { ...dayConfig, start: e.target.value }
+                      }))}
+                      disabled={!dayConfig.enabled}
+                      data-testid={`input-${key}-start`}
+                      className="w-32"
+                    />
+                    <span className="text-muted-foreground">to</span>
+                    <Input
+                      type="time"
+                      value={dayConfig.end}
+                      onChange={(e) => setConfig(prev => ({
+                        ...prev,
+                        [key]: { ...dayConfig, end: e.target.value }
+                      }))}
+                      disabled={!dayConfig.enabled}
+                      data-testid={`input-${key}-end`}
+                      className="w-32"
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <Separator />
+
+          {/* Additional Settings */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium">Additional Settings</h3>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Respect Bank Holidays</Label>
+                <p className="text-xs text-muted-foreground">
+                  Automatically skip calls on public holidays
+                </p>
+              </div>
+              <Switch
+                checked={config.respectBankHolidays}
+                onCheckedChange={(checked) => setConfig(prev => ({ ...prev, respectBankHolidays: checked }))}
+                data-testid="switch-respect-bank-holidays"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-4">
+            <Button
+              onClick={handleSave}
+              disabled={saveConfigMutation.isPending || isLoading}
+              data-testid="button-save-business-hours"
+            >
+              {saveConfigMutation.isPending ? "Saving..." : "Save Business Hours"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </TabsContent>
+  );
+}
+
 export default function Profile() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -247,6 +455,13 @@ export default function Profile() {
       title: "Business Information",
       description: "Manage your business details and branding",
       icon: Building,
+      accessLevel: "client_admin_only"
+    },
+    {
+      id: "business-hours",
+      title: "Business Hours",
+      description: "Configure operating hours and timezone",
+      icon: Clock,
       accessLevel: "client_admin_only"
     },
     {
@@ -584,6 +799,10 @@ export default function Profile() {
           </Card>
         </TabsContent>
             );
+          }
+
+          if (section.id === "business-hours") {
+            return <BusinessHoursContent key="business-hours" />;
           }
 
           if (section.id === "calls") {
