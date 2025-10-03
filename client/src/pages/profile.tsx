@@ -539,19 +539,19 @@ export default function Profile() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
         <div className="w-full overflow-x-auto">
-          <TabsList className="inline-flex h-12 items-center justify-start rounded-xl bg-muted p-1 text-muted-foreground min-w-full lg:min-w-0 lg:w-auto">
+          <TabsList className="inline-flex h-auto flex-wrap items-center justify-start rounded-xl bg-muted p-1 text-muted-foreground gap-1">
             {accessibleSections.map((section) => {
               const IconComponent = section.icon;
               return (
                 <TabsTrigger 
                   key={section.id} 
                   value={section.id}
-                  className="inline-flex items-center justify-center whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm gap-2 min-w-fit flex-shrink-0"
+                  className="inline-flex items-center justify-center whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm gap-1.5 min-w-fit flex-shrink-0"
                   data-testid={`tab-${section.id}`}
                 >
-                  <IconComponent className="w-4 h-4 flex-shrink-0" />
-                  <span className="hidden sm:inline text-xs lg:text-sm font-medium">{section.title}</span>
-                  <span className="sm:hidden text-xs font-medium">{section.title.split(' ')[0]}</span>
+                  <IconComponent className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span className="hidden sm:inline font-medium">{section.title}</span>
+                  <span className="sm:hidden font-medium">{section.title.split(' ')[0]}</span>
                 </TabsTrigger>
               );
             })}
