@@ -574,7 +574,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
         appointmentTime: ['time', 'appointment time', 'appt time', 'visit time', 'reservation time'],
         appointmentType: ['type', 'service type', 'appointment type', 'visit type', 'service', 'procedure'],
         appointmentStatus: ['status', 'appointment status', 'appt status', 'booking status'],
-        duration: ['duration', 'length', 'time duration', 'minutes', 'hours'],
+        duration: ['duration', 'length', 'time duration', 'minutes', 'hours', 'appointment duration', 'appointment duration (minutes)'],
         timezone: ['timezone', 'time zone', 'tz'],
         callBeforeHours: ['call before', 'hours before', 'reminder hours', 'advance notice'],
         // Business/Company fields
