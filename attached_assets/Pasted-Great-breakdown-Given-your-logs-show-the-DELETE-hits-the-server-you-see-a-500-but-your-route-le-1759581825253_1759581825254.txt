@@ -1,0 +1,327 @@
+Great breakdown. Given your logs show the DELETE hits the server (you see a 500) but your **route-level logs never fire**, I’d prioritise the layers *before* the handler: preflight/CORS → body parsing → auth/role middleware → route matching. Here’s a tight, practical plan that will surface the fault fast, plus copy-paste snippets to harden things.
+
+---
+
+# 0) 5-Minute Isolation (do these in order)
+
+1. **Log every request before any middleware**
+
+```ts
+app.use((req, _res, next) => {
+  console.log(`[IN] ${req.method} ${req.originalUrl} ct=${req.headers['content-type']}`);
+  next();
+});
+```
+
+* If you **don’t** see this for the failing call, the request never reaches your app (proxy, port, path, or route mismatch).
+* If you **do** see it, move down the stack.
+
+2. **Bypass DELETE temporarily**
+   Create a throwaway endpoint to prove the pipeline:
+
+```ts
+app.post('/__ping', (req, res) => res.json({ ok: true, body: req.body || null }));
+```
+
+* If POST works end-to-end with JSON body, body-parser is fine in general.
+
+3. **Hit DELETE directly with curl (no frontend)**
+
+```bash
+curl -iv -X DELETE http://localhost:3000/api/contacts/bulk \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  --data '{"ids":["1","2"]}'
+```
+
+* If this fails but `__ping` succeeds, suspect **DELETE body parsing / CORS preflight / route match**.
+
+4. **Check preflight explicitly**
+
+```bash
+curl -iv -X OPTIONS http://localhost:3000/api/contacts/bulk \
+  -H "Origin: http://localhost:5173" \
+  -H "Access-Control-Request-Method: DELETE" \
+  -H "Access-Control-Request-Headers: content-type,authorization"
+```
+
+* If 4xx/5xx here, your browser request will never reach your handler.
+
+5. **Temporarily downgrade the method**
+
+* Mirror your handler at `POST /api/contacts/bulk-delete`. If POST works, the delete-with-body path is the culprit. Keep POST for bulk ops (it’s common industry practice).
+
+---
+
+# 1) Harden middleware & parsing (covers Issues 1–4)
+
+## Safe JSON parsing (including DELETE)
+
+```ts
+import express from 'express';
+import cors from 'cors';
+import 'express-async-errors'; // to bubble async errors to error handler
+
+const app = express();
+
+// CORS – allow DELETE + preflight
+app.use(cors({
+  origin: ['http://localhost:5173', 'https://yourapp.com'],
+  methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization'],
+  credentials: true,
+}));
+
+// Respond to preflight quickly
+app.options('*', cors());
+
+// Parse JSON for all verbs (DELETE included)
+app.use(express.json({ type: ['application/json', 'application/*+json'], limit: '1mb' }));
+
+// Log raw DELETE body early to confirm parse
+app.use((req, _res, next) => {
+  if (req.method === 'DELETE') {
+    console.log(`[DELETE] body=`, req.body, ` ct=${req.headers['content-type']}`);
+  }
+  next();
+});
+```
+
+## Defensive auth & role middleware (with robust logging)
+
+```ts
+const authenticateJWT = (req, res, next) => {
+  try {
+    const auth = req.headers.authorization || '';
+    const [, token] = auth.split(' ');
+    if (!token) {
+      console.warn('Auth missing/invalid');
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    // verify…
+    req.user = /* decoded token */;
+    return next();
+  } catch (err) {
+    console.error('JWT error:', err);
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+};
+
+const requireRole = (roles) => (req, res, next) => {
+  try {
+    if (!req.user?.role || !roles.includes(req.user.role)) {
+      console.warn('Role denied', { have: req.user?.role, need: roles });
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    return next();
+  } catch (err) {
+    console.error('Role middleware error:', err);
+    return res.status(500).json({ error: 'Role check failed' });
+  }
+};
+```
+
+## Centralised error handler (to catch thrown errors anywhere)
+
+```ts
+app.use((err, req, res, _next) => {
+  console.error('Unhandled error:', { path: req.originalUrl, method: req.method, err });
+  if (!res.headersSent) res.status(500).json({ error: 'Internal Server Error' });
+});
+```
+
+---
+
+# 2) Route definition & validation (covers Issues 2, 3, 5)
+
+**Prefer POST for bulk deletes** to avoid DELETE-with-body headaches:
+
+```ts
+import { z } from 'zod';
+const BulkDeleteSchema = z.object({ ids: z.array(z.string().min(1)).min(1) });
+
+app.post(
+  '/api/contacts/bulk-delete',
+  authenticateJWT,
+  requireRole(['client_admin','super_admin']),
+  (req, res, next) => {
+    const parsed = BulkDeleteSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid body', details: parsed.error.errors });
+    req.validated = parsed.data;
+    next();
+  },
+  async (req, res) => {
+    const { ids } = req.validated as { ids: string[] };
+    const count = await storage.bulkDeleteContacts(ids); // implement safely below
+    return res.status(200).json({ deleted: count });
+  }
+);
+```
+
+If you must keep DELETE:
+
+* Accept ids via **query**: `DELETE /api/contacts/bulk?ids=id1,id2`
+* Or accept JSON body but ensure your infra permits DELETE bodies (many proxies don’t).
+
+**Route registration tips**
+
+* Define specific routes **before** any catch-alls:
+
+```ts
+// ✅ specific first
+app.post('/api/contacts/bulk-delete', /* ... */);
+
+// ❌ avoid: this before the route
+// app.use('*', (_req,res)=>res.status(404).send('Not found'));
+```
+
+* Verify exact path (`/api/contacts/bulk` vs `/api/contact/bulk` vs trailing “s”).
+
+---
+
+# 3) Frontend request sanity (covers Issue 3 + CORS)
+
+Quick checklist:
+
+* Ensure call signature is `(method, url, data)` and **data is last**:
+
+```ts
+apiRequest('POST', '/api/contacts/bulk-delete', { ids: selectedIds });
+```
+
+* Always send JSON header:
+
+```ts
+{ headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } }
+```
+
+* **Network tab**: confirm verb, URL, headers, and **Request Payload** is an object with `ids: [...]`.
+* If using DELETE previously, confirm the browser didn’t strip the body.
+
+---
+
+# 4) Database safety (covers Issue 7)
+
+Typical pitfalls:
+
+* **FK constraints** from `contacts` → other tables (appointments, notes).
+
+  * Either delete dependants first, or define FKs with `ON DELETE CASCADE` where appropriate.
+* Wrap bulk delete in a transaction and **return count** with explicit error logs.
+
+Example (Postgres + node-pg/Knex/Prisma-like pseudocode):
+
+```ts
+async function bulkDeleteContacts(ids: string[]) {
+  if (ids.length === 0) return 0;
+  try {
+    // await db.$transaction(async (tx) => {
+    //   await tx.appointments.deleteMany({ where: { contact_id: { in: ids } } }); // if no cascade
+    //   const result = await tx.contacts.deleteMany({ where: { id: { in: ids } } });
+    //   return result.count;
+    // });
+
+    const { rowCount } = await db.query('DELETE FROM contacts WHERE id = ANY($1::uuid[])', [ids]);
+    return rowCount;
+  } catch (e) {
+    console.error('DB bulkDeleteContacts failed:', e);
+    throw e; // bubble up to central error handler
+  }
+}
+```
+
+**Direct SQL test** (to rule out DB constraints):
+
+```sql
+BEGIN;
+DELETE FROM contacts WHERE id IN ('uuid-1','uuid-2');
+ROLLBACK;
+```
+
+* If this fails in SQL, fix constraints first.
+
+---
+
+# 5) CORS/preflight ready (covers Issue 4)
+
+If you stick with DELETE + JSON body, browsers will often preflight:
+
+* Ensure the **OPTIONS** route returns `204` with the same `Access-Control-*` headers your CORS middleware sets.
+* If you front with a proxy (NGINX/Vercel/Cloudflare), confirm it allows:
+
+  * `DELETE` method
+  * `Authorization` header
+  * Request body on DELETE (some reverse proxies strip/transform)
+
+---
+
+# 6) Build/compile hygiene (covers Issue 6)
+
+* Stop the server completely; **rebuild**:
+
+  ```bash
+  rm -rf dist .turbo .next .parcel-cache node_modules/.cache
+  npm run build && npm start
+  ```
+* Confirm the file that’s actually running (e.g., `dist/server.js`) **contains** your latest logs.
+* If using ts-node-dev/nodemon, ensure it watches the right paths and isn’t ignoring route files.
+
+---
+
+# 7) Known-Good Baseline (drop-in mini server)
+
+Spin this up in isolation; if it works, diff against your app:
+
+```ts
+import express from 'express';
+import cors from 'cors';
+import 'express-async-errors';
+
+const app = express();
+app.use(cors({ origin: '*', methods: ['GET','POST','DELETE','OPTIONS'], allowedHeaders: ['Content-Type','Authorization'] }));
+app.options('*', cors());
+app.use(express.json());
+
+app.use((req,_res,next)=>{ console.log('IN', req.method, req.url, req.body); next(); });
+
+const authenticateJWT = (_req,_res,next)=>next();
+const requireRole = (_roles:any[]) => (_req,_res,next)=>next();
+
+app.post('/api/contacts/bulk-delete', authenticateJWT, requireRole(['client_admin','super_admin']), (req,res)=>{
+  if (!req.body?.ids?.length) return res.status(400).json({ error: 'ids required' });
+  return res.json({ deleted: req.body.ids.length });
+});
+
+app.delete('/api/contacts/bulk', authenticateJWT, requireRole(['client_admin','super_admin']), (req,res)=>{
+  return res.json({ sawDeleteBody: req.body ?? null });
+});
+
+app.use((err, req, res, _next) => {
+  console.error('ERROR:', err);
+  res.status(500).json({ error: 'boom' });
+});
+
+app.listen(3000, ()=>console.log('up on :3000'));
+```
+
+* If your **frontend works** against this, the problem is configuration (CORS/proxy/route order) in the main app.
+* If your **curl DELETE** shows `sawDeleteBody: null`, your pipeline strips DELETE bodies → switch to POST.
+
+---
+
+## My read of your likelihoods
+
+* **Most likely:** DELETE-with-body + preflight + middleware combo. Browsers preflight, CORS or proxy blocks it, or DELETE body is dropped → handler never reached, 500 from middleware or proxy.
+* **Next likely:** Auth/role middleware throws (async error not caught) → 500 before handler, no route logs.
+* **Also possible:** Route mismatch or catch-all swallows the request.
+
+---
+
+## Recommended fix to ship today
+
+1. **Move bulk delete to** `POST /api/contacts/bulk-delete` with `{ ids: string[] }`.
+2. Keep the DELETE route for completeness but **not used by the frontend**.
+3. Add the **global request logger**, **defensive auth/role try/catch**, **central error handler**, and the **explicit CORS options handler**.
+4. If you see FK errors, either **cascade** or **delete dependants first**.
+
+If you paste your current `app.ts`/`server.ts` middleware order and the exact failing route, I can mark the precise lines to change.
