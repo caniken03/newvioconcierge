@@ -2643,7 +2643,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     // Real API mutations for import process
     const importContactsMutation = useMutation({
       mutationFn: async (contacts: any[]) => {
-        return apiRequest('/api/import/contacts', 'POST', { contacts });
+        return apiRequest('POST', '/api/import/contacts', { contacts });
       },
       onSuccess: (data: any) => {
         setContactsImported(data.created);
@@ -2661,7 +2661,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
 
     const importAppointmentsMutation = useMutation({
       mutationFn: async (appointments: any[]) => {
-        return apiRequest('/api/import/appointments', 'POST', { appointments });
+        return apiRequest('POST', '/api/import/appointments', { appointments });
       },
       onSuccess: (data: any) => {
         setAppointmentsCreated(data.created);
@@ -2678,7 +2678,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
 
     const importRemindersMutation = useMutation({
       mutationFn: async (reminders: any[]) => {
-        return apiRequest('/api/import/reminders', 'POST', { reminders });
+        return apiRequest('POST', '/api/import/reminders', { reminders });
       },
       onSuccess: (data: any) => {
         setRemindersScheduled(data.scheduled);
