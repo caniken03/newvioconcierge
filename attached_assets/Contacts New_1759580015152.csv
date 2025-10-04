@@ -1,0 +1,11 @@
+Name,Phone Number,Contact Group,Appointment Type,Contact Person,Business Name,Appointment Duration,Appointment Date,Appointment Time,Call Before (Hours),Special Instructions,Notes
+John Smith,7123456789,General Patients,Dental Check-up,Dr. Lewis,SmileCare Dental,30 mins,2025-10-05,10:00,24,Prefers morning appointments,First-time patient
+Sarah Johnson,7987654321,VIP,Physiotherapy,Dr. Patel,BodyCare Physio,45 mins,2025-10-06,14:30,24,Wheelchair access required,Recovering from surgery
+Michael Brown,7700112233,VIP,Eye Test,Dr. Green,VisionPlus Optics,20 mins,2025-10-07,11:15,24,Bring previous prescription,Wears contact lenses
+Emma Wilson,7555444333,VIP,Chiropractic,Dr. Hughes,SpineCare Clinic,40 mins,2025-10-08,16:00,24,Prefers female practitioner,Chronic back pain
+David Lee,7888887777,VIP,GP Consultation,Dr. Adams,HealthyLife Clinic,15 mins,2025-10-09,09:30,1,Interpreter required,Non-English speaker
+Laura Martin,7333334444,VIP,Cosmetic Consultation,Dr. Carter,Glow Aesthetics,60 mins,2025-10-10,13:00,72,Private entrance,Confidential client
+James White,7444445555,VIP,Massage Therapy,Therapist Kim,Relax Spa,50 mins,2025-10-11,15:45,24,Aromatherapy oils,Stress relief treatment
+Olivia Harris,7222223333,General Patients,Nutritional Advice,Dietitian Moore,Wellness Hub,30 mins,2025-10-12,12:00,36,Vegetarian diet focus,Wants meal plan
+Daniel Evans,7999991111,Returning Clients,Mental Health Therapy,Dr. White,MindCare Centre,60 mins,2025-10-13,17:00,24,Prefers online session,Ongoing counselling
+Sophia Clark,7666667777,Private Patients,Skin Check,Dr. Taylor,Dermacare Clinic,25 mins,2025-10-14,10:45,12,Allergy to latex gloves,Previous mole removal

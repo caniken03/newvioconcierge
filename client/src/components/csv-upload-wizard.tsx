@@ -971,7 +971,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
                 <li>• <strong>Times:</strong> HH:MM:SS in 24-hour format (e.g., 14:30:00)</li>
                 <li>• <strong>Phone:</strong> Include country code (e.g., +447911123456)</li>
                 <li>• <strong>Contact Group:</strong> Comma-separated if multiple (e.g., "VIP, Regular")</li>
-                <li>• <strong>Duration:</strong> Number in minutes (e.g., 30, 60)</li>
+                <li>• <strong>Duration:</strong> Enter in hours (e.g., 1, 1.5) or minutes (e.g., 30 mins, 60)</li>
               </ul>
             </div>
 
@@ -1469,6 +1469,46 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     return null;
   };
 
+  // Smart duration parser - converts various formats to minutes
+  const parseDurationToMinutes = (value: string): number | null => {
+    if (!value || typeof value !== 'string') return null;
+    
+    const cleaned = value.trim().toLowerCase();
+    if (!cleaned) return null;
+    
+    // Extract numeric value and unit
+    // Patterns: "1.5", "1.5 hours", "90 mins", "1h", "30m", "90", "30 minutes"
+    const match = cleaned.match(/^(\d+\.?\d*)\s*(hour|hours|hr|hrs|h|minute|minutes|min|mins|m)?$/);
+    
+    if (!match) return null;
+    
+    const numericValue = parseFloat(match[1]);
+    const unit = match[2] || '';
+    
+    if (isNaN(numericValue) || numericValue <= 0) return null;
+    
+    // Determine if it's hours or minutes
+    const isHours = unit.startsWith('h') || unit.startsWith('hour');
+    const isMinutes = unit.startsWith('m') || unit.startsWith('min');
+    
+    if (isHours) {
+      // Explicit hours - convert to minutes
+      return Math.round(numericValue * 60);
+    } else if (isMinutes) {
+      // Explicit minutes
+      return Math.round(numericValue);
+    } else {
+      // No unit specified - smart detection
+      // If value is less than 15, assume hours (e.g., "1" = 1 hour = 60 minutes)
+      // Otherwise assume minutes (e.g., "30" = 30 minutes)
+      if (numericValue < 15) {
+        return Math.round(numericValue * 60);
+      } else {
+        return Math.round(numericValue);
+      }
+    }
+  };
+
   // Business-specific validation rules
   const validateBusinessSpecificField = (field: ContactFieldType, value: string, businessType: BusinessType): ValidationError | null => {
     // Medical practice specific validations (HIPAA compliance)
@@ -1583,14 +1623,22 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
         break;
         
       case 'duration':
-        // Duration validation
-        const duration = parseInt(value);
-        if (isNaN(duration) || duration < 15 || duration > 480) {
+        // Smart duration validation - supports hours and minutes with various formats
+        const parsedDuration = parseDurationToMinutes(value);
+        if (parsedDuration === null) {
           return {
             row: 0, column: '', value,
-            error: 'Duration should be between 15 and 480 minutes',
+            error: 'Invalid duration format',
+            severity: 'error',
+            suggestion: 'Use format: "1.5" or "1.5 hours" or "90 mins" or "90"'
+          };
+        }
+        if (parsedDuration < 15 || parsedDuration > 480) {
+          return {
+            row: 0, column: '', value,
+            error: `Duration ${parsedDuration} minutes is out of range (15-480 minutes)`,
             severity: 'warning',
-            suggestion: 'Enter duration in minutes (15-480)'
+            suggestion: 'Enter duration between 15-480 minutes (0.25-8 hours)'
           };
         }
         break;
@@ -2654,7 +2702,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
           appointmentTime: contact.appointmentDate && contact.appointmentTime ? 
             `${contact.appointmentDate} ${contact.appointmentTime}` : undefined,
           appointmentType: contact.appointmentType,
-          appointmentDuration: contact.duration ? parseInt(contact.duration) : undefined,
+          appointmentDuration: contact.duration ? parseDurationToMinutes(contact.duration) : undefined,
           specialInstructions: contact.specialInstructions,
           notes: contact.notes,
           priorityLevel: 'normal' as const,
