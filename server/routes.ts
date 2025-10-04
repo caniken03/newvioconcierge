@@ -250,7 +250,7 @@ function generateResponseForm(responseToken: string, responseData: any): string 
   `;
 }
 
-// Validate and sanitize contact data - ALL FIELDS CSV structure
+// Validate and sanitize contact data - 12 essential fields CSV structure
 function validateContactData(data: any): { valid: boolean; contact?: any; groups?: string[]; error?: string } {
   try {
     // Combine separate date and time fields for appointment if provided
@@ -266,17 +266,6 @@ function validateContactData(data: any): { valid: boolean; contact?: any; groups
       appointmentTime = new Date(`${appointmentDate}T00:00:00`);
     }
     
-    // Combine separate date and time fields for last contact if provided
-    let lastContactTime: Date | undefined = undefined;
-    const lastContactDate = data['Last Contact Date'] || data.lastContactDate;
-    const lastContactTimeStr = data['Last Contact Time'] || data.lastContactTime;
-    
-    if (lastContactDate && lastContactTimeStr) {
-      lastContactTime = new Date(`${lastContactDate}T${lastContactTimeStr}`);
-    } else if (lastContactDate) {
-      lastContactTime = new Date(`${lastContactDate}T00:00:00`);
-    }
-    
     // Helper to parse numbers safely
     const parseNumber = (value: any): number | undefined => {
       if (value === null || value === undefined || value === '') return undefined;
@@ -284,68 +273,32 @@ function validateContactData(data: any): { valid: boolean; contact?: any; groups
       return isNaN(num) ? undefined : num;
     };
     
-    // Helper to parse boolean safely
-    const parseBoolean = (value: any): boolean | undefined => {
-      if (value === null || value === undefined || value === '') return undefined;
-      const str = String(value).toLowerCase().trim();
-      if (str === 'true' || str === '1' || str === 'yes') return true;
-      if (str === 'false' || str === '0' || str === 'no') return false;
-      return undefined;
-    };
-    
-    // Map CSV fields to database fields (ALL FIELDS structure)
+    // Map CSV fields to database fields (12 essential fields matching template)
     const contactData: any = {
       // Core fields
-      name: data['Client Name'] || data.name || data.Name || undefined,
+      name: data['Name'] || data.name || undefined,
       phone: data['Phone Number'] || data.phone || data.Phone || undefined,
       
       // Appointment fields
       appointmentTime,
       appointmentType: data['Appointment Type'] || data.appointmentType || undefined,
-      appointmentDuration: parseNumber(data['Appointment Duration (Minutes)'] || data.appointmentDuration),
-      appointmentStatus: data['Appointment Status'] || data.appointmentStatus || undefined,
+      appointmentDuration: parseNumber(data['Appointment Duration'] || data.appointmentDuration),
       
       // Business/Company fields
       companyName: data['Business Name'] || data.companyName || undefined,
       ownerName: data['Contact Person'] || data.ownerName || undefined,
       
       // Preferences and timing
-      timezone: data['Timezone'] || data.timezone || undefined,
-      callBeforeHours: parseNumber(data['Call Before (Hours)'] || data.callBeforeHours),
-      lastContactTime,
-      bookingSource: data['Booking Source'] || data.bookingSource || undefined,
-      locationId: data['Location ID'] || data.locationId || undefined,
-      priorityLevel: data['Priority Level'] || data.priorityLevel || undefined,
-      preferredContactMethod: data['Preferred Contact Method'] || data.preferredContactMethod || undefined,
-      
-      // Call tracking
-      callAttempts: parseNumber(data['Call Attempts'] || data.callAttempts),
-      lastCallOutcome: data['Last Call Outcome'] || data.lastCallOutcome || undefined,
-      
-      // Responsiveness tracking
-      customerResponsiveness: data['Customer Responsiveness'] || data.customerResponsiveness || undefined,
-      responsivenessScore: parseNumber(data['Responsiveness Score'] || data.responsivenessScore),
-      consecutiveNoAnswers: parseNumber(data['Consecutive No Answers'] || data.consecutiveNoAnswers),
-      totalSuccessfulContacts: parseNumber(data['Total Successful Contacts'] || data.totalSuccessfulContacts),
-      averageResponseTime: parseNumber(data['Average Response Time (Seconds)'] || data.averageResponseTime),
-      bestContactTime: data['Best Contact Time'] || data.bestContactTime || undefined,
-      
-      // Sentiment tracking
-      overallSentiment: data['Overall Sentiment'] || data.overallSentiment || undefined,
-      lastSentimentScore: parseNumber(data['Last Sentiment Score'] || data.lastSentimentScore),
-      sentimentTrend: data['Sentiment Trend'] || data.sentimentTrend || undefined,
+      callBeforeHours: parseNumber(data['VioConcierge Call Before (Hours)'] || data.callBeforeHours),
       
       // Instructions and notes
       specialInstructions: data['Special Instructions'] || data.specialInstructions || undefined,
       notes: data['Notes'] || data.notes || undefined,
-      
-      // Status
-      isActive: parseBoolean(data['Is Active'] || data.isActive) ?? true, // Default to true if not specified
     };
 
     // Extract groups data separately (can be comma-separated string or array)
     let groups: string[] = [];
-    const groupData = data['Contact Groups'] || data['Contact Group'] || data.groups || data.Groups || data['Group'] || data['Category'];
+    const groupData = data['Contact Group'] || data.groups || data.Groups || data['Group'];
     if (groupData) {
       if (typeof groupData === 'string') {
         // Split by comma and trim each group name
