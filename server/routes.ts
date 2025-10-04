@@ -1783,8 +1783,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // CSV Template Download - serves the exact user-provided template file
   app.get('/api/contacts/template', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
     try {
-      const templateFilename = 'VioConcierge Contacts Template_1759573288582.csv';
-      const templatePath = path.join(__dirname, templateFilename);
+      const templateFilename = 'VioConcierge Contacts Template_1759573922698.csv';
+      const templatePath = path.resolve(process.cwd(), 'server', templateFilename);
+      
+      // Verify file exists before attempting download
+      if (!fs.existsSync(templatePath)) {
+        console.error('Template file not found:', templatePath);
+        return res.status(404).json({ message: 'Template file not found' });
+      }
+      
+      // Set cache-busting headers to ensure fresh downloads
+      res.set({
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      });
       
       res.download(templatePath, templateFilename, (err) => {
         if (err) {
