@@ -434,6 +434,12 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
   const [businessType, setBusinessType] = useState<BusinessType>('general');
   const businessConfig = BUSINESS_FIELD_MAPPINGS[businessType];
 
+  // Fetch existing contact groups for assignment (must be at top level with other hooks)
+  const { data: existingGroups = [] } = useQuery({
+    queryKey: ['/api/contact-groups'],
+    enabled: currentStep === 4 && isOpen, // Only fetch when on Step 4 and modal is open
+  });
+
   // Allow business type override for testing HIPAA compliance
   const setBusinessTypeForTesting = (type: BusinessType) => {
     setBusinessType(type);
@@ -2004,12 +2010,6 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
       )
     );
   };
-
-  // Fetch existing contact groups for assignment
-  const { data: existingGroups = [] } = useQuery({
-    queryKey: ['/api/contact-groups'],
-    enabled: currentStep === 4 && isOpen, // Only fetch when on Step 4 and modal is open
-  });
 
   // Generate import preview data from group assignments
   const generateGroupImportData = () => {
