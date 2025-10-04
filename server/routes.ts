@@ -2553,7 +2553,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error('Bulk delete error:', error);
-      res.status(500).json({ message: 'Failed to delete contacts' });
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      res.status(500).json({ message: `Failed to delete contacts: ${errorMessage}` });
     }
   });
 
