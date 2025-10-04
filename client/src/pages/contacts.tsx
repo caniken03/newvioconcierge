@@ -450,6 +450,41 @@ export default function Contacts() {
     setIsCallNowModalOpen(true);
   };
 
+  // Bulk delete mutation
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (contactIds: string[]) => {
+      const response = await apiRequest('DELETE', '/api/contacts/bulk', { 
+        contactIds,
+        preserveHistory: false 
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Contacts deleted",
+        description: `Successfully deleted ${data.deletedCount} contact(s)`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/contacts/stats'] });
+      setSelectedContacts([]);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to delete contacts",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleBulkDelete = () => {
+    if (selectedContacts.length === 0) return;
+    
+    if (confirm(`Are you sure you want to delete ${selectedContacts.length} contact(s)? This action cannot be undone.`)) {
+      bulkDeleteMutation.mutate(selectedContacts);
+    }
+  };
+
   const handleDelete = (contactId: string) => {
     if (confirm("Are you sure you want to delete this contact?")) {
       deleteContactMutation.mutate(contactId);
@@ -1807,8 +1842,15 @@ export default function Contacts() {
                   <Button variant="outline" size="sm">
                     Export Selected
                   </Button>
-                  <Button variant="outline" size="sm" className="text-destructive">
-                    Delete Selected
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-destructive"
+                    onClick={handleBulkDelete}
+                    disabled={bulkDeleteMutation.isPending}
+                    data-testid="button-bulk-delete"
+                  >
+                    {bulkDeleteMutation.isPending ? 'Deleting...' : 'Delete Selected'}
                   </Button>
                 </div>
               )}
