@@ -2527,12 +2527,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Bulk delete endpoint
   app.delete('/api/contacts/bulk', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
     try {
+      console.log('[BULK DELETE] Received request');
+      console.log('[BULK DELETE] Request body:', JSON.stringify(req.body));
+      console.log('[BULK DELETE] User tenant:', req.user?.tenantId);
+      
       const { contactIds, preserveHistory } = req.body;
 
       // Validate required fields
       if (!contactIds || !Array.isArray(contactIds) || contactIds.length === 0) {
+        console.log('[BULK DELETE] Validation failed - invalid contactIds:', contactIds);
         return res.status(400).json({ message: 'Contact IDs array is required and cannot be empty' });
       }
+      
+      console.log('[BULK DELETE] Validated - deleting', contactIds.length, 'contacts');
 
       // Enforce bulk operation limits for safety
       if (contactIds.length > 500) {
