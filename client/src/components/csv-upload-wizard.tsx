@@ -736,69 +736,48 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     onClose();
   };
 
-  // Download CSV template with ALL contact fields and 15 blank sample rows
-  const handleDownloadTemplate = () => {
-    // All contact fields matching the database schema
-    const headers = [
-      'Client Name',
-      'Phone Number',
-      'Contact Groups',
-      'Appointment Date',
-      'Appointment Time',
-      'Appointment Type',
-      'Appointment Duration (Minutes)',
-      'Appointment Status',
-      'Contact Person',
-      'Business Name',
-      'Special Instructions',
-      'Notes',
-      'Timezone',
-      'Call Before (Hours)',
-      'Last Contact Date',
-      'Last Contact Time',
-      'Booking Source',
-      'Location ID',
-      'Priority Level',
-      'Preferred Contact Method',
-      'Call Attempts',
-      'Last Call Outcome',
-      'Customer Responsiveness',
-      'Responsiveness Score',
-      'Consecutive No Answers',
-      'Total Successful Contacts',
-      'Average Response Time (Seconds)',
-      'Best Contact Time',
-      'Overall Sentiment',
-      'Last Sentiment Score',
-      'Sentiment Trend',
-      'Is Active'
-    ];
-    
-    // Create CSV content with headers
-    let csvContent = headers.join(',') + '\n';
-    
-    // Add 15 blank sample rows so users can see the structure
-    for (let i = 0; i < 15; i++) {
-      csvContent += headers.map(() => '').join(',') + '\n';
-    }
-    
-    // Create blob and download
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    if (link.download !== undefined) {
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `contacts_template.csv`);
-      link.style.visibility = 'hidden';
+  // Download CSV template from server - exact user-provided file
+  const handleDownloadTemplate = async () => {
+    try {
+      const response = await fetch('/api/contacts/template', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download template');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Extract filename from Content-Disposition header
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
+      const filename = filenameMatch ? filenameMatch[1] : 'VioConcierge Contacts Template.csv';
+      
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Template Downloaded",
+        description: `CSV template has been downloaded successfully`,
+      });
+    } catch (error) {
+      console.error('Template download error:', error);
+      toast({
+        title: "Download Failed",
+        description: "Failed to download CSV template. Please try again.",
+        variant: "destructive",
+      });
     }
-    
-    toast({
-      title: "Template Downloaded",
-      description: `CSV template with all contact fields and 15 blank rows has been downloaded`,
-    });
   };
 
   // Show sample data in a dialog
