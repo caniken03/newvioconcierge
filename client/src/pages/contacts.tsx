@@ -450,10 +450,10 @@ export default function Contacts() {
     setIsCallNowModalOpen(true);
   };
 
-  // Bulk delete mutation
+  // Bulk delete mutation (using POST for reliability)
   const bulkDeleteMutation = useMutation({
     mutationFn: async (contactIds: string[]) => {
-      const response = await apiRequest('DELETE', '/api/contacts/bulk', { 
+      const response = await apiRequest('POST', '/api/contacts/bulk-delete', { 
         contactIds,
         preserveHistory: false 
       });

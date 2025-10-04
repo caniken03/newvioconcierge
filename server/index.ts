@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import cors from "cors";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
@@ -10,6 +11,17 @@ app.set('trust proxy', 1);
 // Disable ETag generation to prevent 304 responses
 app.set('etag', false);
 
+// CORS configuration - handle preflight OPTIONS for DELETE/PUT/PATCH requests
+app.use(cors({
+  origin: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+}));
+
+// Explicit preflight handler
+app.options('*', cors());
+
 // Global cache-busting middleware for all API routes
 app.use('/api', (req, res, next) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private, max-age=0');
@@ -20,22 +32,9 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// Exclude webhook paths from JSON parsing to allow raw body verification
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api/webhooks/')) {
-    // Skip JSON parsing for webhook routes - they handle raw bodies
-    return next();
-  }
-  express.json()(req, res, next);
-});
-
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api/webhooks/')) {
-    // Skip URL encoding for webhook routes
-    return next();
-  }
-  express.urlencoded({ extended: false })(req, res, next);
-});
+// Body parsing for all routes (webhooks will handle raw bodies separately if needed)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: false }));
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -81,12 +80,21 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
+    
+    console.error('[ERROR HANDLER]', {
+      path: req.originalUrl,
+      method: req.method,
+      status,
+      message,
+      stack: err.stack
+    });
 
-    res.status(status).json({ message });
-    throw err;
+    if (!res.headersSent) {
+      res.status(status).json({ message });
+    }
   });
 
   // importantly only setup vite in development and after

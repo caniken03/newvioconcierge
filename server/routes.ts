@@ -2524,32 +2524,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Bulk delete endpoint
-  app.delete('/api/contacts/bulk', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+  // Bulk delete endpoint (POST - industry standard for bulk operations)
+  app.post('/api/contacts/bulk-delete', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
     try {
-      console.log('[BULK DELETE] Received request');
-      console.log('[BULK DELETE] Request body:', JSON.stringify(req.body));
-      console.log('[BULK DELETE] User tenant:', req.user?.tenantId);
-      
-      const { contactIds, preserveHistory } = req.body;
+      const bulkDeleteSchema = z.object({
+        contactIds: z.array(z.string().uuid()).min(1).max(500),
+        preserveHistory: z.boolean().optional().default(false),
+      });
 
-      // Validate required fields
-      if (!contactIds || !Array.isArray(contactIds) || contactIds.length === 0) {
-        console.log('[BULK DELETE] Validation failed - invalid contactIds:', contactIds);
-        return res.status(400).json({ message: 'Contact IDs array is required and cannot be empty' });
-      }
+      const validation = bulkDeleteSchema.safeParse(req.body);
       
-      console.log('[BULK DELETE] Validated - deleting', contactIds.length, 'contacts');
-
-      // Enforce bulk operation limits for safety
-      if (contactIds.length > 500) {
-        return res.status(400).json({ message: 'Bulk operations limited to 500 contacts at once' });
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: 'Invalid request data',
+          errors: validation.error.errors.map(e => `${e.path.join('.')}: ${e.message}`)
+        });
       }
+
+      const { contactIds, preserveHistory } = validation.data;
 
       const result = await storage.bulkDeleteContacts(
         req.user.tenantId, 
         contactIds, 
-        preserveHistory || false
+        preserveHistory
       );
 
       res.json({
