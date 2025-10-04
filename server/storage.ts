@@ -1131,6 +1131,23 @@ export class DatabaseStorage implements IStorage {
             }
           } else {
             // Hard delete - remove completely
+            console.log(`[BULK DELETE] Deleting contact ${contactId} for tenant ${tenantId}`);
+            
+            // First delete related records that don't have CASCADE delete
+            const logsDeleted = await tx
+              .delete(callLogs)
+              .where(eq(callLogs.contactId, contactId))
+              .returning({ id: callLogs.id });
+            console.log(`[BULK DELETE] Deleted ${logsDeleted.length} call_logs for contact ${contactId}`);
+            
+            const historyDeleted = await tx
+              .delete(contactCallHistory)
+              .where(eq(contactCallHistory.contactId, contactId))
+              .returning({ id: contactCallHistory.id });
+            console.log(`[BULK DELETE] Deleted ${historyDeleted.length} contact_call_history for contact ${contactId}`);
+            
+            // Now delete the contact (CASCADE will handle other related records)
+            console.log(`[BULK DELETE] About to delete contact with id=${contactId}, tenantId=${tenantId}`);
             const result = await tx
               .delete(contacts)
               .where(and(
@@ -1138,9 +1155,13 @@ export class DatabaseStorage implements IStorage {
                 eq(contacts.tenantId, tenantId)
               ))
               .returning({ id: contacts.id });
-
+            
+            console.log(`[BULK DELETE] Contact delete result:`, result);
             if (result.length > 0) {
               deletedCount++;
+              console.log(`[BULK DELETE] Successfully deleted contact ${contactId}`);
+            } else {
+              console.log(`[BULK DELETE] WARNING: No contact was deleted for id=${contactId}`);
             }
           }
         } catch (error) {
