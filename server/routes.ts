@@ -1783,10 +1783,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // CSV Template Download - serves the exact user-provided template file
   app.get('/api/contacts/template', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
     try {
-      const templatePath = path.join(__dirname, 'csv-template.csv');
-      const filename = `VioConcierge_Contacts_Template_${Date.now()}.csv`;
+      const templateFilename = 'VioConcierge Contacts Template_1759573288582.csv';
+      const templatePath = path.join(__dirname, templateFilename);
       
-      res.download(templatePath, filename, (err) => {
+      res.download(templatePath, templateFilename, (err) => {
         if (err) {
           console.error('Download error:', err);
           if (!res.headersSent) {
