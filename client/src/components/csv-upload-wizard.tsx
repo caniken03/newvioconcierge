@@ -944,43 +944,26 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2 text-blue-900">
             <Eye className="w-4 h-4" />
-            CSV Template Guide (32 Fields)
+            CSV Template Guide (12 Essential Fields)
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="text-sm space-y-3">
-            <p className="text-blue-800 font-medium">Template includes ALL contact fields:</p>
-            <div className="bg-white/80 p-3 rounded-md border border-blue-200 space-y-2">
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                <div className="font-medium text-blue-900 col-span-2">Core Information:</div>
-                <div><span className="text-blue-600">•</span> Client Name</div>
-                <div><span className="text-blue-600">•</span> Phone Number</div>
-                <div><span className="text-blue-600">•</span> Contact Groups</div>
-                
-                <div className="font-medium text-blue-900 col-span-2 mt-2">Appointment Details:</div>
-                <div><span className="text-blue-600">•</span> Appointment Date & Time</div>
-                <div><span className="text-blue-600">•</span> Appointment Type</div>
-                <div><span className="text-blue-600">•</span> Appointment Duration</div>
-                <div><span className="text-blue-600">•</span> Appointment Status</div>
-                
-                <div className="font-medium text-blue-900 col-span-2 mt-2">Business Information:</div>
-                <div><span className="text-blue-600">•</span> Contact Person</div>
-                <div><span className="text-blue-600">•</span> Business Name</div>
-                <div><span className="text-blue-600">•</span> Location ID</div>
-                <div><span className="text-blue-600">•</span> Booking Source</div>
-                
-                <div className="font-medium text-blue-900 col-span-2 mt-2">Call Management:</div>
-                <div><span className="text-blue-600">•</span> Call Before (Hours)</div>
-                <div><span className="text-blue-600">•</span> Timezone</div>
-                <div><span className="text-blue-600">•</span> Preferred Contact Method</div>
-                <div><span className="text-blue-600">•</span> Priority Level</div>
-                
-                <div className="font-medium text-blue-900 col-span-2 mt-2">Tracking & Analytics:</div>
-                <div><span className="text-blue-600">•</span> Call Attempts</div>
-                <div><span className="text-blue-600">•</span> Last Call Outcome</div>
-                <div><span className="text-blue-600">•</span> Customer Responsiveness</div>
-                <div><span className="text-blue-600">•</span> Sentiment Data</div>
-                <div className="text-blue-600 text-xs col-span-2">...and more (see template)</div>
+            <p className="text-blue-800 font-medium">Template includes these 12 fields in order:</p>
+            <div className="bg-white/80 p-3 rounded-md border border-blue-200 space-y-1">
+              <div className="grid grid-cols-1 gap-y-1 text-xs">
+                <div><span className="text-blue-600">1.</span> Name</div>
+                <div><span className="text-blue-600">2.</span> Phone Number</div>
+                <div><span className="text-blue-600">3.</span> Contact Group</div>
+                <div><span className="text-blue-600">4.</span> Appointment Type</div>
+                <div><span className="text-blue-600">5.</span> Contact Person</div>
+                <div><span className="text-blue-600">6.</span> Business Name</div>
+                <div><span className="text-blue-600">7.</span> Appointment Duration</div>
+                <div><span className="text-blue-600">8.</span> Appointment Date</div>
+                <div><span className="text-blue-600">9.</span> Appointment Time</div>
+                <div><span className="text-blue-600">10.</span> VioConcierge Call Before (Hours)</div>
+                <div><span className="text-blue-600">11.</span> Special Instructions</div>
+                <div><span className="text-blue-600">12.</span> Notes</div>
               </div>
             </div>
             
@@ -998,13 +981,12 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
             <div className="space-y-2">
               <p className="text-blue-800 font-medium">Format Requirements:</p>
               <ul className="text-blue-700 space-y-1 text-xs">
-                <li>• <strong>Required Fields:</strong> Client Name, Phone Number (all others optional)</li>
+                <li>• <strong>Required Fields:</strong> Name, Phone Number (all others optional)</li>
                 <li>• <strong>Dates:</strong> YYYY-MM-DD format (e.g., 2025-10-15)</li>
                 <li>• <strong>Times:</strong> HH:MM:SS in 24-hour format (e.g., 14:30:00)</li>
                 <li>• <strong>Phone:</strong> Include country code (e.g., +447911123456)</li>
-                <li>• <strong>Groups:</strong> Comma-separated (e.g., "VIP, Regular")</li>
-                <li>• <strong>Numbers:</strong> Integers for durations, scores, etc.</li>
-                <li>• <strong>Booleans:</strong> true/false or 1/0 for Is Active</li>
+                <li>• <strong>Contact Group:</strong> Comma-separated if multiple (e.g., "VIP, Regular")</li>
+                <li>• <strong>Duration:</strong> Number in minutes (e.g., 30, 60)</li>
               </ul>
             </div>
 
