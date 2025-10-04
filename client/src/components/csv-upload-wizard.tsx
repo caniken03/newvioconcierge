@@ -961,7 +961,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
                 <div><span className="text-blue-600">7.</span> Appointment Duration</div>
                 <div><span className="text-blue-600">8.</span> Appointment Date</div>
                 <div><span className="text-blue-600">9.</span> Appointment Time</div>
-                <div><span className="text-blue-600">10.</span> VioConcierge Call Before (Hours)</div>
+                <div><span className="text-blue-600">10.</span> Call Before (Hours)</div>
                 <div><span className="text-blue-600">11.</span> Special Instructions</div>
                 <div><span className="text-blue-600">12.</span> Notes</div>
               </div>

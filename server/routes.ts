@@ -289,7 +289,7 @@ function validateContactData(data: any): { valid: boolean; contact?: any; groups
       ownerName: data['Contact Person'] || data.ownerName || undefined,
       
       // Preferences and timing
-      callBeforeHours: parseNumber(data['VioConcierge Call Before (Hours)'] || data.callBeforeHours),
+      callBeforeHours: parseNumber(data['Call Before (Hours)'] || data.callBeforeHours),
       
       // Instructions and notes
       specialInstructions: data['Special Instructions'] || data.specialInstructions || undefined,
@@ -1780,72 +1780,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // CSV Template Download - provides blank template with exact 12 columns
+  // CSV Template Download - serves the exact user-provided template file
   app.get('/api/contacts/template', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
-    let csvFilePath: string | undefined;
-    
     try {
-      csvFilePath = `/tmp/contacts_template_${req.user.tenantId}_${Date.now()}.csv`;
-      const csvWriter = createCsvWriter.createObjectCsvWriter({
-        path: csvFilePath,
-        header: [
-          { id: 'name', title: 'Name' },
-          { id: 'phone', title: 'Phone Number' },
-          { id: 'groups', title: 'Contact Group' },
-          { id: 'appointmentType', title: 'Appointment Type' },
-          { id: 'ownerName', title: 'Contact Person' },
-          { id: 'companyName', title: 'Business Name' },
-          { id: 'appointmentDuration', title: 'Appointment Duration' },
-          { id: 'appointmentDate', title: 'Appointment Date' },
-          { id: 'appointmentTime', title: 'Appointment Time' },
-          { id: 'callBeforeHours', title: 'VioConcierge Call Before (Hours)' },
-          { id: 'specialInstructions', title: 'Special Instructions' },
-          { id: 'notes', title: 'Notes' },
-        ],
-      });
-
-      // Write 15 empty sample rows for visibility
-      const emptyRows = Array(15).fill({
-        name: '',
-        phone: '',
-        groups: '',
-        appointmentType: '',
-        ownerName: '',
-        companyName: '',
-        appointmentDuration: '',
-        appointmentDate: '',
-        appointmentTime: '',
-        callBeforeHours: '',
-        specialInstructions: '',
-        notes: ''
-      });
-      await csvWriter.writeRecords(emptyRows);
+      const templatePath = path.join(__dirname, 'csv-template.csv');
+      const filename = `VioConcierge_Contacts_Template_${Date.now()}.csv`;
       
-      const filename = `vio_concierge_template_${Date.now()}.csv`;
-      res.download(csvFilePath, filename, (err) => {
+      res.download(templatePath, filename, (err) => {
         if (err) {
           console.error('Download error:', err);
-        }
-        // Clean up file after download
-        if (csvFilePath && fs.existsSync(csvFilePath)) {
-          try {
-            fs.unlinkSync(csvFilePath);
-          } catch (cleanupError) {
-            console.error('Failed to cleanup template file:', cleanupError);
+          if (!res.headersSent) {
+            res.status(500).json({ message: 'Failed to download template' });
           }
         }
       });
     } catch (error) {
-      res.status(500).json({ message: 'Failed to generate template' });
-      
-      // Clean up file on error
-      if (csvFilePath && fs.existsSync(csvFilePath)) {
-        try {
-          fs.unlinkSync(csvFilePath);
-        } catch (cleanupError) {
-          console.error('Failed to cleanup template file on error:', cleanupError);
-        }
-      }
+      console.error('Template download error:', error);
+      res.status(500).json({ message: 'Failed to download template' });
     }
   });
 
@@ -1899,7 +1850,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           { id: 'appointmentDuration', title: 'Appointment Duration' },
           { id: 'appointmentDate', title: 'Appointment Date' },
           { id: 'appointmentTime', title: 'Appointment Time' },
-          { id: 'callBeforeHours', title: 'VioConcierge Call Before (Hours)' },
+          { id: 'callBeforeHours', title: 'Call Before (Hours)' },
           { id: 'specialInstructions', title: 'Special Instructions' },
           { id: 'notes', title: 'Notes' },
         ],
