@@ -943,7 +943,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
                 <div><span className="text-blue-600">4.</span> Appointment Type</div>
                 <div><span className="text-blue-600">5.</span> Contact Person</div>
                 <div><span className="text-blue-600">6.</span> Business Name</div>
-                <div><span className="text-blue-600">7.</span> Appointment Duration</div>
+                <div><span className="text-blue-600">7.</span> Appointment Duration (Minutes)</div>
                 <div><span className="text-blue-600">8.</span> Appointment Date</div>
                 <div><span className="text-blue-600">9.</span> Appointment Time</div>
                 <div><span className="text-blue-600">10.</span> Call Before (Hours)</div>
