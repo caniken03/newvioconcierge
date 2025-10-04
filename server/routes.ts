@@ -1827,7 +1827,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // CSV Template Download - provides blank template with 12 essential fields
+  // CSV Template Download - provides blank template with exact 12 columns
   app.get('/api/contacts/template', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
     let csvFilePath: string | undefined;
     
@@ -1836,25 +1836,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const csvWriter = createCsvWriter.createObjectCsvWriter({
         path: csvFilePath,
         header: [
-          { id: 'name', title: 'Client Name' },
+          { id: 'name', title: 'Name' },
           { id: 'phone', title: 'Phone Number' },
           { id: 'groups', title: 'Contact Group' },
           { id: 'appointmentType', title: 'Appointment Type' },
           { id: 'ownerName', title: 'Contact Person' },
           { id: 'companyName', title: 'Business Name' },
           { id: 'appointmentDuration', title: 'Appointment Duration' },
-          { id: 'specialInstructions', title: 'Special Instructions' },
           { id: 'appointmentDate', title: 'Appointment Date' },
           { id: 'appointmentTime', title: 'Appointment Time' },
           { id: 'callBeforeHours', title: 'VioConcierge Call Before (Hours)' },
+          { id: 'specialInstructions', title: 'Special Instructions' },
           { id: 'notes', title: 'Notes' },
         ],
       });
 
-      // Write empty template with just headers
-      await csvWriter.writeRecords([]);
+      // Write 15 empty sample rows for visibility
+      const emptyRows = Array(15).fill({
+        name: '',
+        phone: '',
+        groups: '',
+        appointmentType: '',
+        ownerName: '',
+        companyName: '',
+        appointmentDuration: '',
+        appointmentDate: '',
+        appointmentTime: '',
+        callBeforeHours: '',
+        specialInstructions: '',
+        notes: ''
+      });
+      await csvWriter.writeRecords(emptyRows);
       
-      const filename = `contacts_import_template.csv`;
+      const filename = `vio_concierge_template_${Date.now()}.csv`;
       res.download(csvFilePath, filename, (err) => {
         if (err) {
           console.error('Download error:', err);
@@ -1897,49 +1911,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
       );
       
-      // Escape all values and split date/time for CSV export - ALL FIELDS
+      // Escape all values and split date/time for CSV export - 12 essential fields
       const safeContacts = contactsWithGroups.map(contact => {
         const appointmentDateTime = contact.appointmentTime ? new Date(contact.appointmentTime) : null;
         const appointmentDate = appointmentDateTime ? appointmentDateTime.toISOString().split('T')[0] : '';
         const appointmentTime = appointmentDateTime ? appointmentDateTime.toISOString().split('T')[1].split('.')[0] : '';
         
-        const lastContactDateTime = contact.lastContactTime ? new Date(contact.lastContactTime) : null;
-        const lastContactDate = lastContactDateTime ? lastContactDateTime.toISOString().split('T')[0] : '';
-        const lastContactTimeOnly = lastContactDateTime ? lastContactDateTime.toISOString().split('T')[1].split('.')[0] : '';
-        
         return {
           name: escapeCsvValue(contact.name),
           phone: escapeCsvValue(contact.phone),
           groups: escapeCsvValue(contact.groups),
-          appointmentDate,
-          appointmentTime,
           appointmentType: escapeCsvValue(contact.appointmentType),
-          appointmentDuration: escapeCsvValue(contact.appointmentDuration),
-          appointmentStatus: escapeCsvValue(contact.appointmentStatus),
           ownerName: escapeCsvValue(contact.ownerName),
           companyName: escapeCsvValue(contact.companyName),
+          appointmentDuration: escapeCsvValue(contact.appointmentDuration),
+          appointmentDate,
+          appointmentTime,
+          callBeforeHours: escapeCsvValue(contact.callBeforeHours),
           specialInstructions: escapeCsvValue(contact.specialInstructions),
           notes: escapeCsvValue(contact.notes),
-          timezone: escapeCsvValue(contact.timezone),
-          callBeforeHours: escapeCsvValue(contact.callBeforeHours),
-          lastContactDate,
-          lastContactTime: lastContactTimeOnly,
-          bookingSource: escapeCsvValue(contact.bookingSource),
-          locationId: escapeCsvValue(contact.locationId),
-          priorityLevel: escapeCsvValue(contact.priorityLevel),
-          preferredContactMethod: escapeCsvValue(contact.preferredContactMethod),
-          callAttempts: escapeCsvValue(contact.callAttempts),
-          lastCallOutcome: escapeCsvValue(contact.lastCallOutcome),
-          customerResponsiveness: escapeCsvValue(contact.customerResponsiveness),
-          responsivenessScore: escapeCsvValue(contact.responsivenessScore),
-          consecutiveNoAnswers: escapeCsvValue(contact.consecutiveNoAnswers),
-          totalSuccessfulContacts: escapeCsvValue(contact.totalSuccessfulContacts),
-          averageResponseTime: escapeCsvValue(contact.averageResponseTime),
-          bestContactTime: escapeCsvValue(contact.bestContactTime),
-          overallSentiment: escapeCsvValue(contact.overallSentiment),
-          lastSentimentScore: escapeCsvValue(contact.lastSentimentScore),
-          sentimentTrend: escapeCsvValue(contact.sentimentTrend),
-          isActive: escapeCsvValue(contact.isActive),
         };
       });
       
@@ -1947,38 +1937,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const csvWriter = createCsvWriter.createObjectCsvWriter({
         path: csvFilePath,
         header: [
-          { id: 'name', title: 'Client Name' },
+          { id: 'name', title: 'Name' },
           { id: 'phone', title: 'Phone Number' },
-          { id: 'groups', title: 'Contact Groups' },
-          { id: 'appointmentDate', title: 'Appointment Date' },
-          { id: 'appointmentTime', title: 'Appointment Time' },
+          { id: 'groups', title: 'Contact Group' },
           { id: 'appointmentType', title: 'Appointment Type' },
-          { id: 'appointmentDuration', title: 'Appointment Duration (Minutes)' },
-          { id: 'appointmentStatus', title: 'Appointment Status' },
           { id: 'ownerName', title: 'Contact Person' },
           { id: 'companyName', title: 'Business Name' },
+          { id: 'appointmentDuration', title: 'Appointment Duration' },
+          { id: 'appointmentDate', title: 'Appointment Date' },
+          { id: 'appointmentTime', title: 'Appointment Time' },
+          { id: 'callBeforeHours', title: 'VioConcierge Call Before (Hours)' },
           { id: 'specialInstructions', title: 'Special Instructions' },
           { id: 'notes', title: 'Notes' },
-          { id: 'timezone', title: 'Timezone' },
-          { id: 'callBeforeHours', title: 'Call Before (Hours)' },
-          { id: 'lastContactDate', title: 'Last Contact Date' },
-          { id: 'lastContactTime', title: 'Last Contact Time' },
-          { id: 'bookingSource', title: 'Booking Source' },
-          { id: 'locationId', title: 'Location ID' },
-          { id: 'priorityLevel', title: 'Priority Level' },
-          { id: 'preferredContactMethod', title: 'Preferred Contact Method' },
-          { id: 'callAttempts', title: 'Call Attempts' },
-          { id: 'lastCallOutcome', title: 'Last Call Outcome' },
-          { id: 'customerResponsiveness', title: 'Customer Responsiveness' },
-          { id: 'responsivenessScore', title: 'Responsiveness Score' },
-          { id: 'consecutiveNoAnswers', title: 'Consecutive No Answers' },
-          { id: 'totalSuccessfulContacts', title: 'Total Successful Contacts' },
-          { id: 'averageResponseTime', title: 'Average Response Time (Seconds)' },
-          { id: 'bestContactTime', title: 'Best Contact Time' },
-          { id: 'overallSentiment', title: 'Overall Sentiment' },
-          { id: 'lastSentimentScore', title: 'Last Sentiment Score' },
-          { id: 'sentimentTrend', title: 'Sentiment Trend' },
-          { id: 'isActive', title: 'Is Active' },
         ],
       });
 
