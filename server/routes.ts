@@ -250,10 +250,10 @@ function generateResponseForm(responseToken: string, responseData: any): string 
   `;
 }
 
-// Validate and sanitize contact data - 12 field CSV structure (no email)
+// Validate and sanitize contact data - ALL FIELDS CSV structure
 function validateContactData(data: any): { valid: boolean; contact?: any; groups?: string[]; error?: string } {
   try {
-    // Combine separate date and time fields if provided
+    // Combine separate date and time fields for appointment if provided
     let appointmentTime: Date | undefined = undefined;
     const appointmentDate = data['Appointment Date'] || data.appointmentDate;
     const appointmentTimeStr = data['Appointment Time'] || data.appointmentTime;
@@ -266,34 +266,86 @@ function validateContactData(data: any): { valid: boolean; contact?: any; groups
       appointmentTime = new Date(`${appointmentDate}T00:00:00`);
     }
     
-    // Map CSV fields to database fields (12-field structure)
+    // Combine separate date and time fields for last contact if provided
+    let lastContactTime: Date | undefined = undefined;
+    const lastContactDate = data['Last Contact Date'] || data.lastContactDate;
+    const lastContactTimeStr = data['Last Contact Time'] || data.lastContactTime;
+    
+    if (lastContactDate && lastContactTimeStr) {
+      lastContactTime = new Date(`${lastContactDate}T${lastContactTimeStr}`);
+    } else if (lastContactDate) {
+      lastContactTime = new Date(`${lastContactDate}T00:00:00`);
+    }
+    
+    // Helper to parse numbers safely
+    const parseNumber = (value: any): number | undefined => {
+      if (value === null || value === undefined || value === '') return undefined;
+      const num = Number(value);
+      return isNaN(num) ? undefined : num;
+    };
+    
+    // Helper to parse boolean safely
+    const parseBoolean = (value: any): boolean | undefined => {
+      if (value === null || value === undefined || value === '') return undefined;
+      const str = String(value).toLowerCase().trim();
+      if (str === 'true' || str === '1' || str === 'yes') return true;
+      if (str === 'false' || str === '0' || str === 'no') return false;
+      return undefined;
+    };
+    
+    // Map CSV fields to database fields (ALL FIELDS structure)
     const contactData: any = {
       // Core fields
       name: data['Client Name'] || data.name || data.Name || undefined,
       phone: data['Phone Number'] || data.phone || data.Phone || undefined,
       
       // Appointment fields
-      appointmentType: data['Appointment Type'] || data.appointmentType || undefined,
       appointmentTime,
-      appointmentDuration: data['Appointment Duration'] || data.appointmentDuration ? 
-        parseInt(data['Appointment Duration'] || data.appointmentDuration) : undefined,
+      appointmentType: data['Appointment Type'] || data.appointmentType || undefined,
+      appointmentDuration: parseNumber(data['Appointment Duration (Minutes)'] || data.appointmentDuration),
+      appointmentStatus: data['Appointment Status'] || data.appointmentStatus || undefined,
       
       // Business/Company fields
       companyName: data['Business Name'] || data.companyName || undefined,
       ownerName: data['Contact Person'] || data.ownerName || undefined,
       
-      // Call timing
-      callBeforeHours: data['VioConcierge Call Before (Hours)'] || data.callBeforeHours ? 
-        parseInt(data['VioConcierge Call Before (Hours)'] || data.callBeforeHours) : undefined,
+      // Preferences and timing
+      timezone: data['Timezone'] || data.timezone || undefined,
+      callBeforeHours: parseNumber(data['Call Before (Hours)'] || data.callBeforeHours),
+      lastContactTime,
+      bookingSource: data['Booking Source'] || data.bookingSource || undefined,
+      locationId: data['Location ID'] || data.locationId || undefined,
+      priorityLevel: data['Priority Level'] || data.priorityLevel || undefined,
+      preferredContactMethod: data['Preferred Contact Method'] || data.preferredContactMethod || undefined,
+      
+      // Call tracking
+      callAttempts: parseNumber(data['Call Attempts'] || data.callAttempts),
+      lastCallOutcome: data['Last Call Outcome'] || data.lastCallOutcome || undefined,
+      
+      // Responsiveness tracking
+      customerResponsiveness: data['Customer Responsiveness'] || data.customerResponsiveness || undefined,
+      responsivenessScore: parseNumber(data['Responsiveness Score'] || data.responsivenessScore),
+      consecutiveNoAnswers: parseNumber(data['Consecutive No Answers'] || data.consecutiveNoAnswers),
+      totalSuccessfulContacts: parseNumber(data['Total Successful Contacts'] || data.totalSuccessfulContacts),
+      averageResponseTime: parseNumber(data['Average Response Time (Seconds)'] || data.averageResponseTime),
+      bestContactTime: data['Best Contact Time'] || data.bestContactTime || undefined,
+      
+      // Sentiment tracking
+      overallSentiment: data['Overall Sentiment'] || data.overallSentiment || undefined,
+      lastSentimentScore: parseNumber(data['Last Sentiment Score'] || data.lastSentimentScore),
+      sentimentTrend: data['Sentiment Trend'] || data.sentimentTrend || undefined,
       
       // Instructions and notes
       specialInstructions: data['Special Instructions'] || data.specialInstructions || undefined,
       notes: data['Notes'] || data.notes || undefined,
+      
+      // Status
+      isActive: parseBoolean(data['Is Active'] || data.isActive) ?? true, // Default to true if not specified
     };
 
     // Extract groups data separately (can be comma-separated string or array)
     let groups: string[] = [];
-    const groupData = data['Contact Group'] || data.groups || data.Groups || data['Group'] || data['Category'];
+    const groupData = data['Contact Groups'] || data['Contact Group'] || data.groups || data.Groups || data['Group'] || data['Category'];
     if (groupData) {
       if (typeof groupData === 'string') {
         // Split by comma and trim each group name
@@ -1845,25 +1897,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
       );
       
-      // Escape all values and split date/time for CSV export - 12 field structure
+      // Escape all values and split date/time for CSV export - ALL FIELDS
       const safeContacts = contactsWithGroups.map(contact => {
         const appointmentDateTime = contact.appointmentTime ? new Date(contact.appointmentTime) : null;
         const appointmentDate = appointmentDateTime ? appointmentDateTime.toISOString().split('T')[0] : '';
         const appointmentTime = appointmentDateTime ? appointmentDateTime.toISOString().split('T')[1].split('.')[0] : '';
         
+        const lastContactDateTime = contact.lastContactTime ? new Date(contact.lastContactTime) : null;
+        const lastContactDate = lastContactDateTime ? lastContactDateTime.toISOString().split('T')[0] : '';
+        const lastContactTimeOnly = lastContactDateTime ? lastContactDateTime.toISOString().split('T')[1].split('.')[0] : '';
+        
         return {
           name: escapeCsvValue(contact.name),
           phone: escapeCsvValue(contact.phone),
           groups: escapeCsvValue(contact.groups),
-          appointmentType: escapeCsvValue(contact.appointmentType),
-          ownerName: escapeCsvValue(contact.ownerName),
-          companyName: escapeCsvValue(contact.companyName),
-          appointmentDuration: escapeCsvValue(contact.appointmentDuration),
-          specialInstructions: escapeCsvValue(contact.specialInstructions),
           appointmentDate,
           appointmentTime,
-          callBeforeHours: escapeCsvValue(contact.callBeforeHours),
+          appointmentType: escapeCsvValue(contact.appointmentType),
+          appointmentDuration: escapeCsvValue(contact.appointmentDuration),
+          appointmentStatus: escapeCsvValue(contact.appointmentStatus),
+          ownerName: escapeCsvValue(contact.ownerName),
+          companyName: escapeCsvValue(contact.companyName),
+          specialInstructions: escapeCsvValue(contact.specialInstructions),
           notes: escapeCsvValue(contact.notes),
+          timezone: escapeCsvValue(contact.timezone),
+          callBeforeHours: escapeCsvValue(contact.callBeforeHours),
+          lastContactDate,
+          lastContactTime: lastContactTimeOnly,
+          bookingSource: escapeCsvValue(contact.bookingSource),
+          locationId: escapeCsvValue(contact.locationId),
+          priorityLevel: escapeCsvValue(contact.priorityLevel),
+          preferredContactMethod: escapeCsvValue(contact.preferredContactMethod),
+          callAttempts: escapeCsvValue(contact.callAttempts),
+          lastCallOutcome: escapeCsvValue(contact.lastCallOutcome),
+          customerResponsiveness: escapeCsvValue(contact.customerResponsiveness),
+          responsivenessScore: escapeCsvValue(contact.responsivenessScore),
+          consecutiveNoAnswers: escapeCsvValue(contact.consecutiveNoAnswers),
+          totalSuccessfulContacts: escapeCsvValue(contact.totalSuccessfulContacts),
+          averageResponseTime: escapeCsvValue(contact.averageResponseTime),
+          bestContactTime: escapeCsvValue(contact.bestContactTime),
+          overallSentiment: escapeCsvValue(contact.overallSentiment),
+          lastSentimentScore: escapeCsvValue(contact.lastSentimentScore),
+          sentimentTrend: escapeCsvValue(contact.sentimentTrend),
+          isActive: escapeCsvValue(contact.isActive),
         };
       });
       
@@ -1873,16 +1949,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         header: [
           { id: 'name', title: 'Client Name' },
           { id: 'phone', title: 'Phone Number' },
-          { id: 'groups', title: 'Contact Group' },
-          { id: 'appointmentType', title: 'Appointment Type' },
-          { id: 'ownerName', title: 'Contact Person' },
-          { id: 'companyName', title: 'Business Name' },
-          { id: 'appointmentDuration', title: 'Appointment Duration' },
-          { id: 'specialInstructions', title: 'Special Instructions' },
+          { id: 'groups', title: 'Contact Groups' },
           { id: 'appointmentDate', title: 'Appointment Date' },
           { id: 'appointmentTime', title: 'Appointment Time' },
-          { id: 'callBeforeHours', title: 'VioConcierge Call Before (Hours)' },
+          { id: 'appointmentType', title: 'Appointment Type' },
+          { id: 'appointmentDuration', title: 'Appointment Duration (Minutes)' },
+          { id: 'appointmentStatus', title: 'Appointment Status' },
+          { id: 'ownerName', title: 'Contact Person' },
+          { id: 'companyName', title: 'Business Name' },
+          { id: 'specialInstructions', title: 'Special Instructions' },
           { id: 'notes', title: 'Notes' },
+          { id: 'timezone', title: 'Timezone' },
+          { id: 'callBeforeHours', title: 'Call Before (Hours)' },
+          { id: 'lastContactDate', title: 'Last Contact Date' },
+          { id: 'lastContactTime', title: 'Last Contact Time' },
+          { id: 'bookingSource', title: 'Booking Source' },
+          { id: 'locationId', title: 'Location ID' },
+          { id: 'priorityLevel', title: 'Priority Level' },
+          { id: 'preferredContactMethod', title: 'Preferred Contact Method' },
+          { id: 'callAttempts', title: 'Call Attempts' },
+          { id: 'lastCallOutcome', title: 'Last Call Outcome' },
+          { id: 'customerResponsiveness', title: 'Customer Responsiveness' },
+          { id: 'responsivenessScore', title: 'Responsiveness Score' },
+          { id: 'consecutiveNoAnswers', title: 'Consecutive No Answers' },
+          { id: 'totalSuccessfulContacts', title: 'Total Successful Contacts' },
+          { id: 'averageResponseTime', title: 'Average Response Time (Seconds)' },
+          { id: 'bestContactTime', title: 'Best Contact Time' },
+          { id: 'overallSentiment', title: 'Overall Sentiment' },
+          { id: 'lastSentimentScore', title: 'Last Sentiment Score' },
+          { id: 'sentimentTrend', title: 'Sentiment Trend' },
+          { id: 'isActive', title: 'Is Active' },
         ],
       });
 

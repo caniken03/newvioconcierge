@@ -156,6 +156,24 @@ type ContactFieldType =
   // Instructions and notes
   | 'specialInstructions' 
   | 'notes'
+  // Call tracking & analytics
+  | 'lastContactDate'
+  | 'lastContactTime'
+  | 'callAttempts'
+  | 'lastCallOutcome'
+  // Responsiveness tracking
+  | 'customerResponsiveness'
+  | 'responsivenessScore'
+  | 'consecutiveNoAnswers'
+  | 'totalSuccessfulContacts'
+  | 'averageResponseTime'
+  | 'bestContactTime'
+  // Sentiment tracking
+  | 'overallSentiment'
+  | 'lastSentimentScore'
+  | 'sentimentTrend'
+  // Status
+  | 'isActive'
   // Legacy/business-specific fields (kept for compatibility)
   | 'provider' 
   | 'serviceType'
@@ -203,7 +221,21 @@ const BUSINESS_FIELD_MAPPINGS: Record<BusinessType, BusinessConfig> = {
       serviceType: 'Service Type',
       partySize: 'Party Size',
       occasion: 'Occasion',
-      consultationType: 'Consultation Type'
+      consultationType: 'Consultation Type',
+      lastContactDate: 'Last Contact Date',
+      lastContactTime: 'Last Contact Time',
+      callAttempts: 'Call Attempts',
+      lastCallOutcome: 'Last Call Outcome',
+      customerResponsiveness: 'Customer Responsiveness',
+      responsivenessScore: 'Responsiveness Score',
+      consecutiveNoAnswers: 'Consecutive No Answers',
+      totalSuccessfulContacts: 'Total Successful Contacts',
+      averageResponseTime: 'Average Response Time (Seconds)',
+      bestContactTime: 'Best Contact Time',
+      overallSentiment: 'Overall Sentiment',
+      lastSentimentScore: 'Last Sentiment Score',
+      sentimentTrend: 'Sentiment Trend',
+      isActive: 'Is Active'
     }
   },
   salon: {
@@ -232,7 +264,21 @@ const BUSINESS_FIELD_MAPPINGS: Record<BusinessType, BusinessConfig> = {
       notes: 'Notes',
       partySize: 'Party Size',
       occasion: 'Occasion',
-      consultationType: 'Consultation Type'
+      consultationType: 'Consultation Type',
+      lastContactDate: 'Last Contact Date',
+      lastContactTime: 'Last Contact Time',
+      callAttempts: 'Call Attempts',
+      lastCallOutcome: 'Last Call Outcome',
+      customerResponsiveness: 'Customer Responsiveness',
+      responsivenessScore: 'Responsiveness Score',
+      consecutiveNoAnswers: 'Consecutive No Answers',
+      totalSuccessfulContacts: 'Total Successful Contacts',
+      averageResponseTime: 'Average Response Time (Seconds)',
+      bestContactTime: 'Best Contact Time',
+      overallSentiment: 'Overall Sentiment',
+      lastSentimentScore: 'Last Sentiment Score',
+      sentimentTrend: 'Sentiment Trend',
+      isActive: 'Is Active'
     }
   },
   restaurant: {
@@ -261,7 +307,21 @@ const BUSINESS_FIELD_MAPPINGS: Record<BusinessType, BusinessConfig> = {
       groups: 'Groups',
       notes: 'Notes',
       serviceType: 'Service Type',
-      consultationType: 'Consultation Type'
+      consultationType: 'Consultation Type',
+      lastContactDate: 'Last Contact Date',
+      lastContactTime: 'Last Contact Time',
+      callAttempts: 'Call Attempts',
+      lastCallOutcome: 'Last Call Outcome',
+      customerResponsiveness: 'Customer Responsiveness',
+      responsivenessScore: 'Responsiveness Score',
+      consecutiveNoAnswers: 'Consecutive No Answers',
+      totalSuccessfulContacts: 'Total Successful Contacts',
+      averageResponseTime: 'Average Response Time (Seconds)',
+      bestContactTime: 'Best Contact Time',
+      overallSentiment: 'Overall Sentiment',
+      lastSentimentScore: 'Last Sentiment Score',
+      sentimentTrend: 'Sentiment Trend',
+      isActive: 'Is Active'
     }
   },
   consultant: {
@@ -290,12 +350,26 @@ const BUSINESS_FIELD_MAPPINGS: Record<BusinessType, BusinessConfig> = {
       notes: 'Notes',
       serviceType: 'Service Type',
       partySize: 'Party Size',
-      occasion: 'Occasion'
+      occasion: 'Occasion',
+      lastContactDate: 'Last Contact Date',
+      lastContactTime: 'Last Contact Time',
+      callAttempts: 'Call Attempts',
+      lastCallOutcome: 'Last Call Outcome',
+      customerResponsiveness: 'Customer Responsiveness',
+      responsivenessScore: 'Responsiveness Score',
+      consecutiveNoAnswers: 'Consecutive No Answers',
+      totalSuccessfulContacts: 'Total Successful Contacts',
+      averageResponseTime: 'Average Response Time (Seconds)',
+      bestContactTime: 'Best Contact Time',
+      overallSentiment: 'Overall Sentiment',
+      lastSentimentScore: 'Last Sentiment Score',
+      sentimentTrend: 'Sentiment Trend',
+      isActive: 'Is Active'
     }
   },
   general: {
     requiredFields: ['name', 'phone', 'appointmentDate', 'appointmentTime'],
-    optionalFields: ['appointmentType', 'duration', 'specialInstructions', 'timezone', 'companyName', 'ownerName', 'priorityLevel', 'preferredContactMethod', 'callBeforeHours', 'bookingSource', 'locationId', 'groups', 'notes'],
+    optionalFields: ['appointmentType', 'duration', 'appointmentStatus', 'specialInstructions', 'timezone', 'companyName', 'ownerName', 'priorityLevel', 'preferredContactMethod', 'callBeforeHours', 'bookingSource', 'locationId', 'groups', 'notes', 'lastContactDate', 'lastContactTime', 'callAttempts', 'lastCallOutcome', 'customerResponsiveness', 'responsivenessScore', 'consecutiveNoAnswers', 'totalSuccessfulContacts', 'averageResponseTime', 'bestContactTime', 'overallSentiment', 'lastSentimentScore', 'sentimentTrend', 'isActive'],
     fieldLabels: {
       name: 'Contact Name',
       phone: 'Phone Number',
@@ -319,7 +393,21 @@ const BUSINESS_FIELD_MAPPINGS: Record<BusinessType, BusinessConfig> = {
       serviceType: 'Service Type',
       partySize: 'Party Size',
       occasion: 'Occasion',
-      consultationType: 'Consultation Type'
+      consultationType: 'Consultation Type',
+      lastContactDate: 'Last Contact Date',
+      lastContactTime: 'Last Contact Time',
+      callAttempts: 'Call Attempts',
+      lastCallOutcome: 'Last Call Outcome',
+      customerResponsiveness: 'Customer Responsiveness',
+      responsivenessScore: 'Responsiveness Score',
+      consecutiveNoAnswers: 'Consecutive No Answers',
+      totalSuccessfulContacts: 'Total Successful Contacts',
+      averageResponseTime: 'Average Response Time (Seconds)',
+      bestContactTime: 'Best Contact Time',
+      overallSentiment: 'Overall Sentiment',
+      lastSentimentScore: 'Last Sentiment Score',
+      sentimentTrend: 'Sentiment Trend',
+      isActive: 'Is Active'
     }
   }
 };
@@ -485,7 +573,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
         callBeforeHours: ['call before', 'hours before', 'reminder hours', 'advance notice'],
         // Business/Company fields
         companyName: ['company', 'business', 'company name', 'business name', 'organization'],
-        ownerName: ['owner', 'owner name', 'account owner', 'responsible party'],
+        ownerName: ['owner', 'owner name', 'account owner', 'responsible party', 'contact person'],
         bookingSource: ['source', 'booking source', 'referral', 'channel'],
         locationId: ['location', 'location id', 'branch', 'office'],
         // Priority and contact preferences
@@ -494,6 +582,24 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
         // Instructions and notes
         specialInstructions: ['instructions', 'special instructions', 'comments', 'remarks', 'preparation'],
         notes: ['notes', 'internal notes', 'remarks', 'memo'],
+        // Call tracking & analytics
+        lastContactDate: ['last contact date', 'last contacted', 'last call date'],
+        lastContactTime: ['last contact time', 'last call time'],
+        callAttempts: ['call attempts', 'attempts', 'number of calls', 'tries'],
+        lastCallOutcome: ['last call outcome', 'call outcome', 'last result', 'call result'],
+        // Responsiveness tracking
+        customerResponsiveness: ['customer responsiveness', 'responsiveness', 'response pattern'],
+        responsivenessScore: ['responsiveness score', 'response score', 'engagement score'],
+        consecutiveNoAnswers: ['consecutive no answers', 'no answers', 'missed calls'],
+        totalSuccessfulContacts: ['total successful contacts', 'successful contacts', 'total contacts'],
+        averageResponseTime: ['average response time', 'response time', 'avg response'],
+        bestContactTime: ['best contact time', 'best time', 'preferred time'],
+        // Sentiment tracking
+        overallSentiment: ['overall sentiment', 'sentiment', 'customer sentiment'],
+        lastSentimentScore: ['last sentiment score', 'sentiment score'],
+        sentimentTrend: ['sentiment trend', 'trend'],
+        // Status
+        isActive: ['is active', 'active', 'status'],
         // Legacy/business-specific fields
         provider: ['provider', 'doctor', 'stylist', 'consultant', 'therapist', 'professional'],
         serviceType: ['service', 'service type', 'treatment', 'procedure'],
@@ -501,7 +607,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
         occasion: ['occasion', 'event', 'celebration', 'reason'],
         consultationType: ['consultation', 'consultation type', 'meeting type'],
         // Groups
-        groups: ['group', 'groups', 'category', 'categories', 'classification', 'department']
+        groups: ['group', 'groups', 'category', 'categories', 'classification', 'department', 'contact groups', 'contact group']
       };
 
       // Score each field type based on header similarity
@@ -630,12 +736,51 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     onClose();
   };
 
-  // Download CSV template based on business type
+  // Download CSV template with ALL contact fields and 15 blank sample rows
   const handleDownloadTemplate = () => {
-    const headers = businessConfig.requiredFields.concat(businessConfig.optionalFields);
+    // All contact fields matching the database schema
+    const headers = [
+      'Client Name',
+      'Phone Number',
+      'Contact Groups',
+      'Appointment Date',
+      'Appointment Time',
+      'Appointment Type',
+      'Appointment Duration (Minutes)',
+      'Appointment Status',
+      'Contact Person',
+      'Business Name',
+      'Special Instructions',
+      'Notes',
+      'Timezone',
+      'Call Before (Hours)',
+      'Last Contact Date',
+      'Last Contact Time',
+      'Booking Source',
+      'Location ID',
+      'Priority Level',
+      'Preferred Contact Method',
+      'Call Attempts',
+      'Last Call Outcome',
+      'Customer Responsiveness',
+      'Responsiveness Score',
+      'Consecutive No Answers',
+      'Total Successful Contacts',
+      'Average Response Time (Seconds)',
+      'Best Contact Time',
+      'Overall Sentiment',
+      'Last Sentiment Score',
+      'Sentiment Trend',
+      'Is Active'
+    ];
     
     // Create CSV content with headers
-    const csvContent = headers.join(',') + '\n';
+    let csvContent = headers.join(',') + '\n';
+    
+    // Add 15 blank sample rows so users can see the structure
+    for (let i = 0; i < 15; i++) {
+      csvContent += headers.map(() => '').join(',') + '\n';
+    }
     
     // Create blob and download
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -643,7 +788,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     if (link.download !== undefined) {
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
-      link.setAttribute('download', `${businessType}_contacts_template.csv`);
+      link.setAttribute('download', `contacts_template.csv`);
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
@@ -652,7 +797,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     
     toast({
       title: "Template Downloaded",
-      description: `CSV template for ${businessType} contacts has been downloaded`,
+      description: `CSV template with all contact fields and 15 blank rows has been downloaded`,
     });
   };
 
@@ -799,37 +944,53 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2 text-blue-900">
             <Eye className="w-4 h-4" />
-            Sample Data Guide
+            CSV Template Guide (32 Fields)
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="text-sm space-y-3">
-            <p className="text-blue-800 font-medium">CSV Structure (12 Fields):</p>
-            <div className="bg-white/80 p-3 rounded-md border border-blue-200 space-y-2 font-mono text-xs">
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                <div><span className="text-blue-600">Client Name:</span> Sarah Johnson</div>
-                <div><span className="text-blue-600">Phone Number:</span> +447911123456</div>
-                <div><span className="text-blue-600">Contact Group:</span> VIP, Regular</div>
-                <div><span className="text-blue-600">Appointment Type:</span> Consultation</div>
-                <div><span className="text-blue-600">Contact Person:</span> Dr. Smith</div>
-                <div><span className="text-blue-600">Business Name:</span> City Clinic</div>
-                <div><span className="text-blue-600">Appointment Duration:</span> 30</div>
-                <div><span className="text-blue-600">Special Instructions:</span> Bring ID</div>
-                <div><span className="text-blue-600">Appointment Date:</span> 2025-10-15</div>
-                <div><span className="text-blue-600">Appointment Time:</span> 14:30:00</div>
-                <div><span className="text-blue-600">Call Before (Hours):</span> 24</div>
-                <div><span className="text-blue-600">Notes:</span> First-time client</div>
+            <p className="text-blue-800 font-medium">Template includes ALL contact fields:</p>
+            <div className="bg-white/80 p-3 rounded-md border border-blue-200 space-y-2">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                <div className="font-medium text-blue-900 col-span-2">Core Information:</div>
+                <div><span className="text-blue-600">•</span> Client Name</div>
+                <div><span className="text-blue-600">•</span> Phone Number</div>
+                <div><span className="text-blue-600">•</span> Contact Groups</div>
+                
+                <div className="font-medium text-blue-900 col-span-2 mt-2">Appointment Details:</div>
+                <div><span className="text-blue-600">•</span> Appointment Date & Time</div>
+                <div><span className="text-blue-600">•</span> Appointment Type</div>
+                <div><span className="text-blue-600">•</span> Appointment Duration</div>
+                <div><span className="text-blue-600">•</span> Appointment Status</div>
+                
+                <div className="font-medium text-blue-900 col-span-2 mt-2">Business Information:</div>
+                <div><span className="text-blue-600">•</span> Contact Person</div>
+                <div><span className="text-blue-600">•</span> Business Name</div>
+                <div><span className="text-blue-600">•</span> Location ID</div>
+                <div><span className="text-blue-600">•</span> Booking Source</div>
+                
+                <div className="font-medium text-blue-900 col-span-2 mt-2">Call Management:</div>
+                <div><span className="text-blue-600">•</span> Call Before (Hours)</div>
+                <div><span className="text-blue-600">•</span> Timezone</div>
+                <div><span className="text-blue-600">•</span> Preferred Contact Method</div>
+                <div><span className="text-blue-600">•</span> Priority Level</div>
+                
+                <div className="font-medium text-blue-900 col-span-2 mt-2">Tracking & Analytics:</div>
+                <div><span className="text-blue-600">•</span> Call Attempts</div>
+                <div><span className="text-blue-600">•</span> Last Call Outcome</div>
+                <div><span className="text-blue-600">•</span> Customer Responsiveness</div>
+                <div><span className="text-blue-600">•</span> Sentiment Data</div>
+                <div className="text-blue-600 text-xs col-span-2">...and more (see template)</div>
               </div>
             </div>
             
             <div className="flex items-start gap-2 p-3 bg-amber-50 rounded-md border border-amber-200">
               <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
               <div className="text-sm">
-                <p className="font-medium text-amber-800">Privacy Warning: Appointment Type</p>
+                <p className="font-medium text-amber-800">Privacy Warning</p>
                 <p className="text-amber-700 mt-1">
-                  Be mindful when entering Appointment Type. Avoid revealing sensitive personal circumstances 
-                  (e.g., use "Medical Consultation" instead of specific medical conditions). This helps protect 
-                  client privacy and maintains professional discretion.
+                  Be mindful when entering sensitive information like Appointment Type. Use professional, 
+                  discrete descriptions to protect client privacy.
                 </p>
               </div>
             </div>
@@ -837,12 +998,24 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
             <div className="space-y-2">
               <p className="text-blue-800 font-medium">Format Requirements:</p>
               <ul className="text-blue-700 space-y-1 text-xs">
-                <li>• <strong>Date:</strong> YYYY-MM-DD (e.g., 2025-10-15)</li>
-                <li>• <strong>Time:</strong> HH:MM:SS in 24-hour format (e.g., 14:30:00)</li>
+                <li>• <strong>Required Fields:</strong> Client Name, Phone Number (all others optional)</li>
+                <li>• <strong>Dates:</strong> YYYY-MM-DD format (e.g., 2025-10-15)</li>
+                <li>• <strong>Times:</strong> HH:MM:SS in 24-hour format (e.g., 14:30:00)</li>
                 <li>• <strong>Phone:</strong> Include country code (e.g., +447911123456)</li>
-                <li>• <strong>Groups:</strong> Comma-separated for multiple (e.g., "VIP, Regular")</li>
-                <li>• <strong>Duration:</strong> Number in minutes (e.g., 30, 60, 90)</li>
+                <li>• <strong>Groups:</strong> Comma-separated (e.g., "VIP, Regular")</li>
+                <li>• <strong>Numbers:</strong> Integers for durations, scores, etc.</li>
+                <li>• <strong>Booleans:</strong> true/false or 1/0 for Is Active</li>
               </ul>
+            </div>
+
+            <div className="flex items-start gap-2 p-3 bg-green-50 rounded-md border border-green-200">
+              <Download className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm">
+                <p className="font-medium text-green-800">Template includes 15 blank rows</p>
+                <p className="text-green-700 mt-1">
+                  The CSV template has 15 empty rows ready for you to fill in. You can add or remove rows as needed.
+                </p>
+              </div>
             </div>
           </div>
         </CardContent>
