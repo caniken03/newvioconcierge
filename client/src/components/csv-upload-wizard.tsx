@@ -848,7 +848,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
       case 5:
         return renderImportPreviewStep();
       case 6:
-        return renderImportProgressStep();
+        return <ImportProgressStep />;
       default:
         return null;
     }
@@ -2596,8 +2596,8 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     );
   };
 
-  // Step 6: Import Progress with Appointment Creation
-  const renderImportProgressStep = () => {
+  // Step 6: Import Progress Component (extracted to avoid hooks in render function)
+  const ImportProgressStep = () => {
     const [currentPhase, setCurrentPhase] = useState<'contacts' | 'appointments' | 'reminders' | 'complete'>('contacts');
     const [contactsImported, setContactsImported] = useState(0);
     const [appointmentsCreated, setAppointmentsCreated] = useState(0);
