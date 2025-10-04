@@ -22,9 +22,9 @@ Authentication is JWT-based with role-based middleware. The system enforces mult
 
 ## System Design Choices
 - **Streamlined CSV Import/Export (12 Essential Fields)**: 
-  - **Import**: Supports 12 essential contact fields for SMS-focused communication. Fields include (in exact order): Name, Phone Number, Contact Group, Appointment Type, Contact Person, Business Name, Appointment Duration, Appointment Date, Appointment Time, VioConcierge Call Before (Hours), Special Instructions, Notes. Features intelligent field mapping with auto-detection, automatic group creation, and contact-to-group assignments. Uses multer with diskStorage for reliable file uploads up to 10MB.
+  - **Import**: Supports 12 essential contact fields for SMS-focused communication. Fields include (in exact order): Name, Phone Number, Contact Group, Appointment Type, Contact Person, Business Name, Appointment Duration, Appointment Date, Appointment Time, Call Before (Hours), Special Instructions, Notes. Features intelligent field mapping with auto-detection, automatic group creation, and contact-to-group assignments. Uses multer with diskStorage for reliable file uploads up to 10MB.
   - **Export**: Generates CSV files with exact 12 fields matching template structure, including group memberships (comma-separated). Includes CSV injection protection through value escaping. Splits appointment timestamp into separate date/time columns for ease of editing.
-  - **Template Download**: Provides blank CSV template with exact 12 field headers (matching user specification) PLUS 15 empty sample rows ready to fill in - no more one-line Excel sheets! Template filename: `vio_concierge_template_[timestamp].csv`
+  - **Template Download**: Serves the exact user-provided CSV template file (server/csv-template.csv) with 12 field headers matching the required structure. Template filename: `VioConcierge_Contacts_Template_[timestamp].csv`
   - **Sample Data Guide**: In-app UI guide showing the 12 fields in order with format requirements and privacy warning about sensitive data in Appointment Type field.
   - **Phone-Based Deduplication**: Uses normalized phone numbers for duplicate detection (email-based deduplication removed).
   - **Route Optimization**: Template and export routes positioned before parameterized `:id` route to prevent Express routing conflicts.
