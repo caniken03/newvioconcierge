@@ -742,7 +742,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
       const response = await fetch('/api/contacts/template', {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
       });
 
