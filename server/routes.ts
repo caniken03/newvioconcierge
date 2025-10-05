@@ -4238,12 +4238,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         notes: z.string().optional(),
         priorityLevel: z.enum(['normal', 'high', 'urgent']).optional(),
         preferredContactMethod: z.enum(['voice', 'email', 'sms']).optional(),
+        groups: z.array(z.string()).optional(),
       }));
 
       const contactsData = contactsSchema.parse(req.body.contacts);
       const tenantId = req.user.tenantId;
 
-      // Transform CSV data to contact format
+      // Step 1: Collect all unique group names and create missing groups
+      const allGroupNames = new Set<string>();
+      contactsData.forEach(contact => {
+        if (contact.groups && contact.groups.length > 0) {
+          contact.groups.forEach(groupName => allGroupNames.add(groupName));
+        }
+      });
+
+      const existingGroups = await storage.getContactGroupsByTenant(tenantId);
+      const existingGroupNames = new Set(existingGroups.map((g: any) => g.name.toLowerCase()));
+      const groupNameToId = new Map<string, string>();
+      
+      existingGroups.forEach((g: any) => {
+        groupNameToId.set(g.name.toLowerCase(), g.id);
+      });
+
+      const groupsToCreate = Array.from(allGroupNames).filter(
+        name => !existingGroupNames.has(name.toLowerCase())
+      );
+
+      for (const groupName of groupsToCreate) {
+        try {
+          const newGroup = await storage.createContactGroup({
+            name: groupName,
+            description: `Auto-created from CSV import`,
+            tenantId: tenantId,
+          });
+          groupNameToId.set(groupName.toLowerCase(), newGroup.id);
+        } catch (err) {
+          console.error(`Failed to create group ${groupName}:`, err);
+        }
+      }
+
+      // Step 2: Transform CSV data to contact format
       const transformedContacts = contactsData.map(contact => ({
         ...contact,
         appointmentTime: contact.appointmentTime ? new Date(contact.appointmentTime) : undefined,
@@ -4255,13 +4289,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         preferredContactMethod: contact.preferredContactMethod || 'voice' as const,
       }));
 
+      // Step 3: Create contacts
       const result = await storage.bulkCreateContacts(tenantId, transformedContacts);
 
-      // Schedule appointment reminders for contacts with appointment times
+      // Step 4: Assign contacts to groups
+      let groupAssignmentCount = 0;
+      if (result.contactIds && result.contactIds.length > 0) {
+        for (let i = 0; i < result.contactIds.length; i++) {
+          const contactId = result.contactIds[i];
+          const originalContact = contactsData[i];
+          
+          if (originalContact.groups && originalContact.groups.length > 0) {
+            for (const groupName of originalContact.groups) {
+              const groupId = groupNameToId.get(groupName.toLowerCase());
+              if (groupId) {
+                try {
+                  await storage.addContactToGroup(contactId, groupId, tenantId, req.user.id);
+                  groupAssignmentCount++;
+                } catch (err) {
+                  console.error(`Failed to add contact ${contactId} to group ${groupName}:`, err);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Step 5: Schedule appointment reminders for contacts with appointment times
       if (result.contactIds && result.contactIds.length > 0) {
         const { callScheduler } = await import("./services/call-scheduler");
         
-        // Schedule reminders for contacts that have appointment times
         for (let i = 0; i < result.contactIds.length; i++) {
           const contactId = result.contactIds[i];
           const originalContact = transformedContacts[i];
@@ -4279,7 +4336,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         message: `Successfully imported ${result.created} contacts`,
         created: result.created,
-        contactIds: result.contactIds || [], // Include created contact IDs
+        contactIds: result.contactIds || [],
+        groupsCreated: groupsToCreate.length,
+        groupAssignments: groupAssignmentCount,
         errors: result.errors,
         totalRequested: contactsData.length,
       });

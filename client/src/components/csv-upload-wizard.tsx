@@ -2659,6 +2659,11 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
         setAppointmentsCreated(contactsWithAppointments);
         setRemindersScheduled(contactsWithAppointments);
         
+        // Invalidate contacts and groups cache to trigger auto-refresh
+        queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/contact-groups'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/contacts/stats'] });
+        
         // Simulate progress through phases for UI feedback
         setTimeout(() => setCurrentPhase('appointments'), 500);
         setTimeout(() => setCurrentPhase('reminders'), 1000);
@@ -2725,6 +2730,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
           notes: contact.notes,
           priorityLevel: 'normal' as const,
           preferredContactMethod: 'voice' as const,
+          groups: contact.groups ? contact.groups.split(/[,;|]/).map((g: string) => g.trim()).filter(Boolean) : undefined,
         }));
 
         importContactsMutation.mutate(contactsToImport);
