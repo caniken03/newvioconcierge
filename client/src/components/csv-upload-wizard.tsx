@@ -430,6 +430,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const [isImportComplete, setIsImportComplete] = useState(false);
+  const [finalImportCounts, setFinalImportCounts] = useState({ contacts: 0, appointments: 0, reminders: 0 });
 
   // Business type - should be sourced from tenant config, defaulting to general for testing
   // TODO: Wire to actual tenant configuration
@@ -750,6 +751,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     setImportProgress(0);
     setIsProcessing(false);
     setIsImportComplete(false);
+    setFinalImportCounts({ contacts: 0, appointments: 0, reminders: 0 });
     hasStartedImportRef.current = false;
     onClose();
   };
@@ -860,7 +862,11 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
       case 5:
         return renderImportPreviewStep();
       case 6:
-        return <ImportProgressStep />;
+        return <ImportProgressStep 
+          key="import-progress-step"
+          finalCounts={finalImportCounts}
+          onCountsUpdate={setFinalImportCounts}
+        />;
       default:
         return null;
     }
@@ -2609,11 +2615,14 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
   };
 
   // Step 6: Import Progress Component (extracted to avoid hooks in render function)
-  const ImportProgressStep = () => {
+  const ImportProgressStep = ({ finalCounts, onCountsUpdate }: { 
+    finalCounts: { contacts: number; appointments: number; reminders: number };
+    onCountsUpdate: (counts: { contacts: number; appointments: number; reminders: number }) => void;
+  }) => {
     const [currentPhase, setCurrentPhase] = useState<'contacts' | 'appointments' | 'reminders' | 'complete'>('contacts');
-    const [contactsImported, setContactsImported] = useState(0);
-    const [appointmentsCreated, setAppointmentsCreated] = useState(0);
-    const [remindersScheduled, setRemindersScheduled] = useState(0);
+    const [contactsImported, setContactsImported] = useState(finalCounts.contacts);
+    const [appointmentsCreated, setAppointmentsCreated] = useState(finalCounts.appointments);
+    const [remindersScheduled, setRemindersScheduled] = useState(finalCounts.reminders);
     const [importErrors, setImportErrors] = useState<string[]>([]);
     const [createdContactIds, setCreatedContactIds] = useState<string[]>([]);
     const [targetCounts, setTargetCounts] = useState({ contacts: 0, appointments: 0, reminders: 0 });
