@@ -428,6 +428,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
+  const [isImportComplete, setIsImportComplete] = useState(false);
 
   // Business type - should be sourced from tenant config, defaulting to general for testing
   // TODO: Wire to actual tenant configuration
@@ -739,6 +740,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     setImportPreview(null);
     setImportProgress(0);
     setIsProcessing(false);
+    setIsImportComplete(false);
     onClose();
   };
 
@@ -2702,6 +2704,13 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
       },
     });
 
+    // Signal parent component when import is complete
+    useEffect(() => {
+      if (currentPhase === 'complete') {
+        setIsImportComplete(true);
+      }
+    }, [currentPhase]);
+
     // Start import process when component mounts
     useEffect(() => {
       if (currentPhase === 'contacts' && !importContactsMutation.isPending && contactsImported === 0) {
@@ -2991,9 +3000,9 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
           </div>
           
           <Button 
-            onClick={goToNextStep}
+            onClick={isImportComplete ? handleClose : goToNextStep}
             disabled={
-              currentStep === WIZARD_STEPS.length || 
+              (currentStep === WIZARD_STEPS.length && !isImportComplete) || 
               (currentStep === 1 && !csvFile) ||
               (currentStep === 2 && fieldMappings.filter(m => m.required && m.contactField).length < businessConfig.requiredFields.length) ||
               (currentStep === 3 && (
@@ -3003,8 +3012,8 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
             }
             data-testid="wizard-next-button"
           >
-            Next
-            <ArrowRight className="w-4 h-4 ml-2" />
+            {isImportComplete ? 'Done' : 'Next'}
+            {isImportComplete ? <CheckCircle className="w-4 h-4 ml-2" /> : <ArrowRight className="w-4 h-4 ml-2" />}
           </Button>
         </div>
       </DialogContent>
