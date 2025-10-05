@@ -736,6 +736,11 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
   };
 
   const handleClose = () => {
+    // Invalidate cache when closing wizard to refresh the contacts list
+    queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/contact-groups'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/contacts/stats'] });
+    
     setCurrentStep(1);
     setCsvFile(null);
     setFieldMappings([]);
@@ -2681,10 +2686,8 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
           setImportErrors(prev => [...prev, ...data.errors.map((e: any) => e.error)]);
         }
         
-        // Invalidate contacts and groups cache to trigger auto-refresh
-        queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/contact-groups'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/contacts/stats'] });
+        // DON'T invalidate cache here - it causes component to unmount during animation
+        // Cache will be invalidated when user closes the wizard
         
         // Set target counts for animation
         console.log('[SETTING TARGET COUNTS]', { importedCount, appointmentCount, reminderCount });
