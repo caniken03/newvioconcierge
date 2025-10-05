@@ -2619,7 +2619,11 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     finalCounts: { contacts: number; appointments: number; reminders: number };
     onCountsUpdate: (counts: { contacts: number; appointments: number; reminders: number }) => void;
   }) => {
-    const [currentPhase, setCurrentPhase] = useState<'contacts' | 'appointments' | 'reminders' | 'complete'>('contacts');
+    // If finalCounts already set (e.g., from a parent re-render), use those values; otherwise start at 0
+    const hasExistingCounts = finalCounts.contacts > 0 || finalCounts.appointments > 0 || finalCounts.reminders > 0;
+    const [currentPhase, setCurrentPhase] = useState<'contacts' | 'appointments' | 'reminders' | 'complete'>(
+      hasExistingCounts ? 'complete' : 'contacts'
+    );
     const [contactsImported, setContactsImported] = useState(finalCounts.contacts);
     const [appointmentsCreated, setAppointmentsCreated] = useState(finalCounts.appointments);
     const [remindersScheduled, setRemindersScheduled] = useState(finalCounts.reminders);
@@ -2698,13 +2702,15 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
         // DON'T invalidate cache here - it causes component to unmount during animation
         // Cache will be invalidated when user closes the wizard
         
-        // Set target counts for animation
+        // Set target counts for animation AND store in parent component
         console.log('[SETTING TARGET COUNTS]', { importedCount, appointmentCount, reminderCount });
-        setTargetCounts({
+        const counts = {
           contacts: importedCount,
           appointments: appointmentCount,
           reminders: reminderCount
-        });
+        };
+        setTargetCounts(counts);
+        onCountsUpdate(counts); // Store in parent so it survives re-renders
       },
       onError: (error: any) => {
         setImportErrors(prev => [...prev, 'Failed to import contacts: ' + error.message]);
