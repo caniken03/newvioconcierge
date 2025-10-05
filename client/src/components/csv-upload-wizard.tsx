@@ -2929,7 +2929,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
                     <span className="ml-2 text-sm font-medium">Contacts</span>
                   </div>
                   <div className={`text-2xl font-bold ${currentPhase === 'contacts' ? 'text-blue-600' : contactsImported === totalContacts ? 'text-green-600' : 'text-gray-400'}`} data-testid="contacts-imported-count">
-                    {contactsImported}
+                    {finalCounts.contacts > 0 ? finalCounts.contacts : contactsImported}
                   </div>
                   <div className="text-xs text-muted-foreground">of {totalContacts} imported</div>
                   {currentPhase === 'contacts' && (
@@ -2953,7 +2953,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
                     <span className="ml-2 text-sm font-medium">Appointments</span>
                   </div>
                   <div className={`text-2xl font-bold ${currentPhase === 'appointments' ? 'text-orange-600' : appointmentsCreated === upcomingAppointments.length ? 'text-green-600' : 'text-gray-400'}`} data-testid="appointments-created-count">
-                    {appointmentsCreated}
+                    {finalCounts.appointments > 0 ? finalCounts.appointments : appointmentsCreated}
                   </div>
                   <div className="text-xs text-muted-foreground">of {upcomingAppointments.length} scheduled</div>
                   {currentPhase === 'appointments' && upcomingAppointments.length > 0 && (
@@ -2977,7 +2977,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
                     <span className="ml-2 text-sm font-medium">Reminders</span>
                   </div>
                   <div className={`text-2xl font-bold ${currentPhase === 'reminders' ? 'text-purple-600' : remindersScheduled === upcomingAppointments.length ? 'text-green-600' : 'text-gray-400'}`} data-testid="reminders-scheduled-count">
-                    {remindersScheduled}
+                    {finalCounts.reminders > 0 ? finalCounts.reminders : remindersScheduled}
                   </div>
                   <div className="text-xs text-muted-foreground">of {upcomingAppointments.length} scheduled</div>
                   {currentPhase === 'reminders' && upcomingAppointments.length > 0 && (
