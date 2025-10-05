@@ -207,6 +207,12 @@ export default function Contacts() {
     groupName: null
   });
 
+  // Bulk Delete Confirmation Dialog state
+  const [bulkDeleteDialog, setBulkDeleteDialog] = useState({
+    isOpen: false,
+    count: 0
+  });
+
   // Enhanced filter state
   const [filters, setFilters] = useState<ContactFilters>(initialFilters);
 
@@ -498,9 +504,15 @@ export default function Contacts() {
   const handleBulkDelete = () => {
     if (selectedContacts.length === 0) return;
     
-    if (confirm(`Are you sure you want to delete ${selectedContacts.length} contact(s)? This action cannot be undone.`)) {
-      bulkDeleteMutation.mutate(selectedContacts);
-    }
+    setBulkDeleteDialog({
+      isOpen: true,
+      count: selectedContacts.length
+    });
+  };
+
+  const confirmBulkDelete = () => {
+    bulkDeleteMutation.mutate(selectedContacts);
+    setBulkDeleteDialog({ isOpen: false, count: 0 });
   };
 
   const handleDelete = (contactId: string) => {
@@ -2348,6 +2360,42 @@ export default function Contacts() {
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete Group
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Bulk Delete Contacts Confirmation Dialog */}
+          <AlertDialog 
+            open={bulkDeleteDialog.isOpen} 
+            onOpenChange={(open) => !open && setBulkDeleteDialog({ isOpen: false, count: 0 })}
+          >
+            <AlertDialogContent className="max-w-md">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2 text-xl">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  Delete Multiple Contacts
+                </AlertDialogTitle>
+                <AlertDialogDescription className="text-base pt-2">
+                  Are you sure you want to delete <strong className="text-destructive text-lg">{bulkDeleteDialog.count}</strong> contact{bulkDeleteDialog.count !== 1 ? 's' : ''}?
+                  <br /><br />
+                  <span className="text-destructive font-semibold">This action cannot be undone.</span> All contact information, appointments, and call history will be permanently deleted.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="gap-2 sm:gap-2">
+                <AlertDialogCancel 
+                  className="mt-0"
+                  data-testid="button-cancel-bulk-delete"
+                >
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={confirmBulkDelete}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  data-testid="button-confirm-bulk-delete"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete {bulkDeleteDialog.count} Contact{bulkDeleteDialog.count !== 1 ? 's' : ''}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
