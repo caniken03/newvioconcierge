@@ -2651,7 +2651,16 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
         if (data.errors && data.errors.length > 0) {
           setImportErrors(prev => [...prev, ...data.errors.map((e: any) => e.error)]);
         }
+        
+        // Backend already handles appointments and reminders, so count them
+        const contactsWithAppointments = upcomingAppointments.length;
+        setAppointmentsCreated(contactsWithAppointments);
+        setRemindersScheduled(contactsWithAppointments);
+        
+        // Simulate progress through phases for UI feedback
         setTimeout(() => setCurrentPhase('appointments'), 500);
+        setTimeout(() => setCurrentPhase('reminders'), 1000);
+        setTimeout(() => setCurrentPhase('complete'), 1500);
       },
       onError: (error: any) => {
         setImportErrors(prev => [...prev, 'Failed to import contacts: ' + error.message]);
@@ -2713,44 +2722,16 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
       }
     }, [currentPhase]);
 
+    // NOTE: Appointments and reminders are now handled by the backend during contact import
+    // These useEffects are kept for reference but won't trigger since counts are already set
     useEffect(() => {
-      if (currentPhase === 'appointments' && !importAppointmentsMutation.isPending && appointmentsCreated === 0 && upcomingAppointments.length > 0 && createdContactIds.length > 0) {
-        // Create appointments using real contact IDs returned from import
-        const appointmentsToCreate = upcomingAppointments.slice(0, createdContactIds.length).map((contact, index) => ({
-          contactId: createdContactIds[index],
-          appointmentTime: `${contact.appointmentDate} ${contact.appointmentTime}`,
-          appointmentType: contact.appointmentType,
-          appointmentDuration: contact.appointmentDuration || 60,
-          calendarProvider: settingsData.calendarProvider || 'cal.com' as const,
-          eventTypeId: settingsData.eventTypeId || 'default',
-        }));
-
-        importAppointmentsMutation.mutate(appointmentsToCreate);
-      } else if (currentPhase === 'appointments' && upcomingAppointments.length === 0) {
-        // Skip appointment creation if no appointments
-        setTimeout(() => setCurrentPhase('reminders'), 500);
-      }
+      // Appointments are already created by backend during contact import
+      // This phase just displays progress for user feedback
     }, [currentPhase, createdContactIds]);
 
     useEffect(() => {
-      if (currentPhase === 'reminders' && !importRemindersMutation.isPending && remindersScheduled === 0 && upcomingAppointments.length > 0 && createdContactIds.length > 0) {
-        const remindersToSchedule = upcomingAppointments.slice(0, createdContactIds.length).map((contact, index) => {
-          const appointmentDateTime = new Date(`${contact.appointmentDate} ${contact.appointmentTime}`);
-          const reminderTime = new Date(appointmentDateTime.getTime() - (settingsData.reminderMinutes || 24 * 60) * 60 * 1000);
-          
-          return {
-            contactId: createdContactIds[index], // Use actual contact IDs
-            reminderTime: reminderTime.toISOString(),
-            callBeforeHours: Math.round((settingsData.reminderMinutes || 24 * 60) / 60),
-            voiceSettings: settingsData.voiceSettings,
-          };
-        });
-
-        importRemindersMutation.mutate(remindersToSchedule);
-      } else if (currentPhase === 'reminders' && upcomingAppointments.length === 0) {
-        // Skip reminder scheduling if no appointments
-        setTimeout(() => setCurrentPhase('complete'), 500);
-      }
+      // Reminders are already scheduled by backend during contact import
+      // This phase just displays progress for user feedback
     }, [currentPhase, createdContactIds]);
 
     return (
