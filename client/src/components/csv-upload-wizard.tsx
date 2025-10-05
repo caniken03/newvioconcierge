@@ -2677,14 +2677,21 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
         queryClient.invalidateQueries({ queryKey: ['/api/contact-groups'] });
         queryClient.invalidateQueries({ queryKey: ['/api/contacts/stats'] });
         
-        // Immediately transition through phases to show completion
+        // Transition through phases with visual feedback, then mark complete
         setCurrentPhase('appointments');
-        setTimeout(() => setCurrentPhase('reminders'), 300);
-        setTimeout(() => setCurrentPhase('complete'), 600);
+        setTimeout(() => {
+          setCurrentPhase('reminders');
+          setTimeout(() => {
+            setCurrentPhase('complete');
+            // Directly set import complete to ensure button enables
+            setIsImportComplete(true);
+          }, 400);
+        }, 400);
       },
       onError: (error: any) => {
         setImportErrors(prev => [...prev, 'Failed to import contacts: ' + error.message]);
         setCurrentPhase('complete');
+        setIsImportComplete(true); // Enable button even on error so user can exit
       },
     });
 
