@@ -1054,6 +1054,19 @@ export default function Contacts() {
                             >
                               <Edit2 className="w-4 h-4" />
                             </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteGroup(group.id, group.name);
+                              }}
+                              data-testid={`button-delete-group-overview-${group.id}`}
+                              title="Delete group"
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
                           </div>
                         </div>
                         
