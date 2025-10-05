@@ -238,7 +238,7 @@ export interface IStorage {
   }>;
 
   // CSV import/export operations
-  bulkCreateContacts(tenantId: string, contacts: Omit<InsertContact, 'tenantId'>[]): Promise<{ created: number; errors: any[] }>;
+  bulkCreateContacts(tenantId: string, contacts: Omit<InsertContact, 'tenantId'>[]): Promise<{ created: number; contactIds: string[]; errors: any[] }>;
   exportContactsToCSV(tenantId: string): Promise<Contact[]>;
 
   // Call session operations

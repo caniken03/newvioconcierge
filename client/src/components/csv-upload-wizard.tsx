@@ -3035,13 +3035,13 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
                   
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="font-medium">✅ {contactsImported} contacts imported</span>
+                      <span className="font-medium">✅ {finalCounts.contacts > 0 ? finalCounts.contacts : contactsImported} contacts imported</span>
                     </div>
                     <div>
-                      <span className="font-medium">📅 {appointmentsCreated} appointments scheduled</span>
+                      <span className="font-medium">📅 {finalCounts.appointments > 0 ? finalCounts.appointments : appointmentsCreated} appointments scheduled</span>
                     </div>
                     <div>
-                      <span className="font-medium">📞 {remindersScheduled} voice reminders set up</span>
+                      <span className="font-medium">📞 {finalCounts.reminders > 0 ? finalCounts.reminders : remindersScheduled} voice reminders set up</span>
                     </div>
                     <div>
                       <span className="font-medium">⚡ Ready for appointment management</span>

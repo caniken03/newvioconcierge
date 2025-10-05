@@ -4341,6 +4341,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      console.log('[IMPORT RESPONSE]', {
+        created: result.created,
+        contactIds: result.contactIds?.length,
+        groupsCreated: groupsToCreate.length,
+        groupAssignments: groupAssignmentCount,
+        totalRequested: contactsData.length
+      });
+
       res.json({
         message: `Successfully imported ${result.created} contacts`,
         created: result.created,
