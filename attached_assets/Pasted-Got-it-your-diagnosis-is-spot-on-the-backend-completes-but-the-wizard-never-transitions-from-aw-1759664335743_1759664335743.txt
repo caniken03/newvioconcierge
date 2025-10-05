@@ -1,0 +1,197 @@
+Got it — your diagnosis is spot-on: the backend completes, but the wizard never transitions from “awaiting progress” to “done.” Here’s a practical fix you can ship now, plus a scalable option if you later want true progress.
+
+# Quick win (no backend change)
+
+Treat the import as a single-shot task. Show an indeterminate loader while the request runs; when the 200 arrives, set everything to 100% and finish the wizard.
+
+### 1) Wire the mutation with proper success/settled handlers
+
+```tsx
+// ImportWizard.tsx (relevant bits)
+import { useMutation } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+
+type ImportResponse = {
+  contactsImported: number;
+  contactsTotal?: number;             // optional if you can pass it from step config
+  appointmentsScheduled: number;
+  remindersScheduled: number;
+  groups?: Array<{ id: string; name: string; count: number }>;
+};
+
+export default function ImportWizard(props: { expectedCounts: { contacts: number; appointments?: number; reminders?: number } }) {
+  const { expectedCounts } = props;
+
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isImportComplete, setIsImportComplete] = useState(false);
+  const [importProgress, setImportProgress] = useState({
+    contacts: { imported: 0, total: expectedCounts.contacts ?? 0 },
+    appointments: { scheduled: 0, total: expectedCounts.appointments ?? 0 },
+    reminders: { scheduled: 0, total: expectedCounts.reminders ?? 0 },
+  });
+
+  const hasStartedImportRef = useRef(false);
+
+  // Safety: reset guard on mount/unmount to avoid “stuck” state after navigation
+  useEffect(() => {
+    hasStartedImportRef.current = false;
+    return () => { hasStartedImportRef.current = false; };
+  }, []);
+
+  const startImport = async (payload: FormData | Record<string, unknown>) => {
+    const res = await fetch("/api/import/contacts", {
+      method: "POST",
+      body: payload instanceof FormData ? payload : JSON.stringify(payload),
+      headers: payload instanceof FormData ? undefined : { "Content-Type": "application/json" },
+    });
+    if (!res.ok) throw new Error(`Import failed: ${res.status}`);
+    const data: ImportResponse = await res.json();
+    return data;
+  };
+
+  const importMutation = useMutation({
+    mutationFn: startImport,
+    onMutate: () => {
+      setIsProcessing(true);
+      // Show an indeterminate loader by keeping numbers at 0 while request runs
+    },
+    onSuccess: (data) => {
+      // Map the final backend result into 100% progress
+      const contactsTotal = data.contactsTotal ?? expectedCounts.contacts ?? data.contactsImported;
+
+      setImportProgress({
+        contacts: { imported: data.contactsImported, total: contactsTotal },
+        appointments: { scheduled: data.appointmentsScheduled, total: data.appointmentsScheduled },
+        reminders: { scheduled: data.remindersScheduled, total: data.remindersScheduled },
+      });
+
+      setIsImportComplete(true);
+    },
+    onError: (err: unknown) => {
+      console.error(err);
+      // surface an inline error and allow retry
+    },
+    onSettled: () => {
+      setIsProcessing(false);
+      hasStartedImportRef.current = false; // release the “duplicate import” guard
+    },
+  });
+
+  const handleStart = (payload: FormData | Record<string, unknown>) => {
+    if (hasStartedImportRef.current) return; // guard against double-clicks
+    hasStartedImportRef.current = true;
+    importMutation.mutate(payload);
+  };
+
+  // Render:
+  // - While isProcessing && !isImportComplete: show indeterminate spinner with “Importing…”
+  // - Once isImportComplete: render the 100% bars using importProgress values and advance to next step
+
+  return /* ... your component ... */;
+}
+```
+
+### 2) Make the UI tolerant to fast completions
+
+* While `isProcessing && !isImportComplete`, show an **indeterminate** spinner (not 0%).
+* When `isImportComplete` flips true, fill bars to 100% using `importProgress` and auto-advance the wizard.
+
+### 3) Add a dead-man timer (optional but nice)
+
+Avoid “silent success” feelings if something odd happens (network stalled but not errored):
+
+```tsx
+useEffect(() => {
+  if (!isProcessing || isImportComplete) return;
+  const t = setTimeout(() => {
+    // If still processing after N seconds, show a “still working…” hint
+    // or offer a “View results” button if you can verify via a light status check
+  }, 8000);
+  return () => clearTimeout(t);
+}, [isProcessing, isImportComplete]);
+```
+
+### 4) Reset state cleanly on step change / route change
+
+Wherever you navigate away from the import step, also reset:
+
+```tsx
+function resetImportState() {
+  setIsProcessing(false);
+  setIsImportComplete(false);
+  setImportProgress({
+    contacts: { imported: 0, total: expectedCounts.contacts ?? 0 },
+    appointments: { scheduled: 0, total: expectedCounts.appointments ?? 0 },
+    reminders: { scheduled: 0, total: expectedCounts.reminders ?? 0 },
+  });
+  hasStartedImportRef.current = false;
+}
+```
+
+---
+
+# Scalable option (true progress with minimal churn)
+
+If you want real progress ticks:
+
+**Backend**
+
+1. Make the POST asynchronous:
+
+* `POST /api/import/contacts` → returns `202 Accepted` with `{ jobId }`.
+* Worker processes the CSV and periodically updates `progress` in a store (Redis/DB), e.g. `{ processed: 7, total: 10, phase: "creating_contacts" }`.
+
+2. Add a status endpoint or SSE:
+
+* `GET /api/import/status/:jobId` (poll every 500–1000ms), **or**
+* `GET /api/import/stream/:jobId` (SSE pushes updates).
+
+**Frontend**
+
+* After POST, store `jobId`.
+* Start polling (or open SSE) to update `importProgress` live.
+* On `status.done === true`, set `isImportComplete=true`, stop polling, advance wizard.
+
+Example poller:
+
+```tsx
+useEffect(() => {
+  if (!jobId || isImportComplete) return;
+  let timer: number | undefined;
+
+  const poll = async () => {
+    const res = await fetch(`/api/import/status/${jobId}`);
+    if (!res.ok) return; // handle error
+    const s = await res.json(); // { processed, total, appointments, reminders, done }
+    setImportProgress({
+      contacts: { imported: s.processed, total: s.total },
+      appointments: { scheduled: s.appointments.done, total: s.appointments.total },
+      reminders: { scheduled: s.reminders.done, total: s.reminders.total },
+    });
+    if (s.done) {
+      setIsImportComplete(true);
+      setIsProcessing(false);
+      hasStartedImportRef.current = false;
+      return;
+    }
+    timer = window.setTimeout(poll, 800);
+  };
+
+  poll();
+  return () => { if (timer) clearTimeout(timer); };
+}, [jobId, isImportComplete]);
+```
+
+---
+
+# Extras that prevent regressions
+
+* **Idempotency key**: send a `X-Idempotency-Key` header from the wizard to avoid double imports on retries/navigation.
+* **UX clarity**: switch progress bar to indeterminate while the request is in flight; only show numbers once you have data.
+* **Guard reset**: always clear `hasStartedImportRef` in `onSettled` and on unmount.
+* **Retry CTA**: on error, show “Try again” which calls `resetImportState()` and lets users restart safely.
+
+---
+
+**Bottom line:**
+If you don’t need live ticks, implement the “Quick win” now: use `onSuccess` to map the final response into 100% progress, flip `isImportComplete`, and reset the guard in `onSettled`. If/when you want granular progress, adopt the jobId + status (polling or SSE) pattern.
