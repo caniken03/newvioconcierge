@@ -2662,6 +2662,14 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
         const appointmentCount = upcomingAppointments.length;
         const reminderCount = upcomingAppointments.length; // Each appointment gets reminders
         
+        console.log('[IMPORT SUCCESS]', {
+          importedCount,
+          appointmentCount,
+          reminderCount,
+          upcomingAppointments: upcomingAppointments.length,
+          data
+        });
+        
         // Store contact IDs if available
         if (data.contactIds) {
           setCreatedContactIds(data.contactIds);
@@ -2678,6 +2686,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
         queryClient.invalidateQueries({ queryKey: ['/api/contacts/stats'] });
         
         // Set target counts for animation
+        console.log('[SETTING TARGET COUNTS]', { importedCount, appointmentCount, reminderCount });
         setTargetCounts({
           contacts: importedCount,
           appointments: appointmentCount,
@@ -2764,77 +2773,79 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
       }
     }, []); // Empty array = run only once on mount
 
-    // Animate contacts counter
+    // Single animation effect - animate all counters when targetCounts changes
     useEffect(() => {
-      if (targetCounts.contacts === 0) return;
+      console.log('[ANIMATION] targetCounts changed:', targetCounts);
       
-      const duration = 2000; // 2 seconds to count up
-      const steps = targetCounts.contacts;
-      const stepDuration = duration / steps;
+      // If no targets set yet, skip
+      if (targetCounts.contacts === 0 && targetCounts.appointments === 0 && targetCounts.reminders === 0) {
+        console.log('[ANIMATION] No targets set yet');
+        return;
+      }
       
-      let current = 0;
-      const interval = setInterval(() => {
-        current++;
-        setContactsImported(current);
-        
-        if (current >= targetCounts.contacts) {
-          clearInterval(interval);
-          // Transition to appointments phase after contacts are done
-          setTimeout(() => setCurrentPhase('appointments'), 500);
+      console.log('[ANIMATION] Starting animations');
+      
+      // Animate contacts (200ms per count)
+      const contactsDuration = targetCounts.contacts * 200;
+      const contactsStep = contactsDuration / (targetCounts.contacts || 1);
+      let contactsCurrent = 0;
+      
+      const contactsInterval = setInterval(() => {
+        contactsCurrent++;
+        console.log('[ANIMATION] contacts:', contactsCurrent);
+        setContactsImported(contactsCurrent);
+        if (contactsCurrent >= targetCounts.contacts) {
+          clearInterval(contactsInterval);
         }
-      }, stepDuration);
+      }, contactsStep);
       
-      return () => clearInterval(interval);
-    }, [targetCounts.contacts]);
-
-    // Animate appointments counter
-    useEffect(() => {
-      if (currentPhase !== 'appointments' || targetCounts.appointments === 0) return;
-      
-      const duration = 1500; // 1.5 seconds
-      const steps = targetCounts.appointments;
-      const stepDuration = duration / steps;
-      
-      let current = 0;
-      const interval = setInterval(() => {
-        current++;
-        setAppointmentsCreated(current);
-        
-        if (current >= targetCounts.appointments) {
-          clearInterval(interval);
-          // Transition to reminders phase
-          setTimeout(() => setCurrentPhase('reminders'), 500);
+      // Start appointments after a delay
+      setTimeout(() => {
+        setCurrentPhase('appointments');
+        if (targetCounts.appointments > 0) {
+          const appointmentsDuration = targetCounts.appointments * 150;
+          const appointmentsStep = appointmentsDuration / targetCounts.appointments;
+          let appointmentsCurrent = 0;
+          
+          const appointmentsInterval = setInterval(() => {
+            appointmentsCurrent++;
+            console.log('[ANIMATION] appointments:', appointmentsCurrent);
+            setAppointmentsCreated(appointmentsCurrent);
+            if (appointmentsCurrent >= targetCounts.appointments) {
+              clearInterval(appointmentsInterval);
+            }
+          }, appointmentsStep);
         }
-      }, stepDuration);
+      }, contactsDuration + 300);
       
-      return () => clearInterval(interval);
-    }, [currentPhase, targetCounts.appointments]);
-
-    // Animate reminders counter
-    useEffect(() => {
-      if (currentPhase !== 'reminders' || targetCounts.reminders === 0) return;
-      
-      const duration = 1500; // 1.5 seconds
-      const steps = targetCounts.reminders;
-      const stepDuration = duration / steps;
-      
-      let current = 0;
-      const interval = setInterval(() => {
-        current++;
-        setRemindersScheduled(current);
-        
-        if (current >= targetCounts.reminders) {
-          clearInterval(interval);
-          // Mark as complete
-          setTimeout(() => {
-            setCurrentPhase('complete');
-            setIsImportComplete(true);
-          }, 500);
+      // Start reminders after appointments
+      setTimeout(() => {
+        setCurrentPhase('reminders');
+        if (targetCounts.reminders > 0) {
+          const remindersDuration = targetCounts.reminders * 150;
+          const remindersStep = remindersDuration / targetCounts.reminders;
+          let remindersCurrent = 0;
+          
+          const remindersInterval = setInterval(() => {
+            remindersCurrent++;
+            console.log('[ANIMATION] reminders:', remindersCurrent);
+            setRemindersScheduled(remindersCurrent);
+            if (remindersCurrent >= targetCounts.reminders) {
+              clearInterval(remindersInterval);
+            }
+          }, remindersStep);
         }
-      }, stepDuration);
+      }, contactsDuration + (targetCounts.appointments * 150) + 600);
       
-      return () => clearInterval(interval);
-    }, [currentPhase, targetCounts.reminders]);
+      // Mark complete after all animations
+      const totalDuration = contactsDuration + (targetCounts.appointments * 150) + (targetCounts.reminders * 150) + 1000;
+      setTimeout(() => {
+        console.log('[ANIMATION] All complete');
+        setCurrentPhase('complete');
+        setIsImportComplete(true);
+      }, totalDuration);
+      
+    }, [targetCounts]);
 
     return (
       <TooltipProvider>
