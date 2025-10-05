@@ -2606,6 +2606,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     const [remindersScheduled, setRemindersScheduled] = useState(0);
     const [importErrors, setImportErrors] = useState<string[]>([]);
     const [createdContactIds, setCreatedContactIds] = useState<string[]>([]);
+    const hasStartedImport = useRef(false);
     
     const totalContacts = csvFile?.rowCount || 0;
     const appointmentData = csvFile ? csvFile.rows.map((row, index) => {
@@ -2716,9 +2717,11 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
       }
     }, [currentPhase]);
 
-    // Start import process when component mounts
+    // Start import process when component mounts - ONLY ONCE
     useEffect(() => {
-      if (currentPhase === 'contacts' && !importContactsMutation.isPending && contactsImported === 0) {
+      if (currentPhase === 'contacts' && !hasStartedImport.current && !importContactsMutation.isPending) {
+        hasStartedImport.current = true;
+        
         const contactsToImport = appointmentData.map(contact => ({
           name: contact.name,
           phone: contact.phone,

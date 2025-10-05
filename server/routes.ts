@@ -4248,7 +4248,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allGroupNames = new Set<string>();
       contactsData.forEach(contact => {
         if (contact.groups && contact.groups.length > 0) {
-          contact.groups.forEach(groupName => allGroupNames.add(groupName));
+          contact.groups.forEach(groupName => {
+            const trimmed = groupName.trim();
+            if (trimmed) allGroupNames.add(trimmed);
+          });
         }
       });
 
@@ -4292,7 +4295,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Step 3: Create contacts
       const result = await storage.bulkCreateContacts(tenantId, transformedContacts);
 
-      // Step 4: Assign contacts to groups
+      // Step 4: Assign contacts to groups  
       let groupAssignmentCount = 0;
       if (result.contactIds && result.contactIds.length > 0) {
         for (let i = 0; i < result.contactIds.length; i++) {
@@ -4300,7 +4303,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const originalContact = contactsData[i];
           
           if (originalContact.groups && originalContact.groups.length > 0) {
-            for (const groupName of originalContact.groups) {
+            for (const rawGroupName of originalContact.groups) {
+              const groupName = rawGroupName.trim();
+              if (!groupName) continue;
+              
               const groupId = groupNameToId.get(groupName.toLowerCase());
               if (groupId) {
                 try {
@@ -4309,6 +4315,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 } catch (err) {
                   console.error(`Failed to add contact ${contactId} to group ${groupName}:`, err);
                 }
+              } else {
+                console.error(`Group not found in map: "${groupName}" (lowercase: "${groupName.toLowerCase()}")`);
               }
             }
           }
