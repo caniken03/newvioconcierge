@@ -417,6 +417,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hasStartedImportRef = useRef(false);
 
   // Wizard state
   const [currentStep, setCurrentStep] = useState(1);
@@ -516,6 +517,9 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
       
       // Clear any previous validation errors when uploading new file
       setValidationErrors([]);
+      
+      // Reset import ref for new upload
+      hasStartedImportRef.current = false;
       
       toast({
         title: "CSV file uploaded successfully",
@@ -741,6 +745,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     setImportProgress(0);
     setIsProcessing(false);
     setIsImportComplete(false);
+    hasStartedImportRef.current = false;
     onClose();
   };
 
@@ -2606,7 +2611,6 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     const [remindersScheduled, setRemindersScheduled] = useState(0);
     const [importErrors, setImportErrors] = useState<string[]>([]);
     const [createdContactIds, setCreatedContactIds] = useState<string[]>([]);
-    const hasStartedImport = useRef(false);
     
     const totalContacts = csvFile?.rowCount || 0;
     const appointmentData = csvFile ? csvFile.rows.map((row, index) => {
@@ -2719,8 +2723,8 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
 
     // Start import process when component mounts - ONLY ONCE
     useEffect(() => {
-      if (currentPhase === 'contacts' && !hasStartedImport.current && !importContactsMutation.isPending) {
-        hasStartedImport.current = true;
+      if (currentPhase === 'contacts' && !hasStartedImportRef.current && !importContactsMutation.isPending) {
+        hasStartedImportRef.current = true;
         
         const contactsToImport = appointmentData.map(contact => ({
           name: contact.name,
