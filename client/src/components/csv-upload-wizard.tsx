@@ -2612,6 +2612,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     const [importErrors, setImportErrors] = useState<string[]>([]);
     const [createdContactIds, setCreatedContactIds] = useState<string[]>([]);
     const [targetCounts, setTargetCounts] = useState({ contacts: 0, appointments: 0, reminders: 0 });
+    const animationStartedRef = useRef(false); // Prevent animation from running multiple times
     
     const totalContacts = csvFile?.rowCount || 0;
     const appointmentData = csvFile ? csvFile.rows.map((row, index) => {
@@ -2775,7 +2776,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
 
     // Single animation effect - animate all counters when targetCounts changes
     useEffect(() => {
-      console.log('[ANIMATION] targetCounts changed:', targetCounts);
+      console.log('[ANIMATION] targetCounts changed:', targetCounts, 'animationStarted:', animationStartedRef.current);
       
       // If no targets set yet, skip
       if (targetCounts.contacts === 0 && targetCounts.appointments === 0 && targetCounts.reminders === 0) {
@@ -2783,7 +2784,18 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
         return;
       }
       
+      // Prevent running animation multiple times (React StrictMode causes double-mount)
+      if (animationStartedRef.current) {
+        console.log('[ANIMATION] Animation already started, skipping');
+        return;
+      }
+      
+      animationStartedRef.current = true;
       console.log('[ANIMATION] Starting animations');
+      
+      // Track all intervals and timeouts for cleanup
+      const intervals: NodeJS.Timeout[] = [];
+      const timeouts: NodeJS.Timeout[] = [];
       
       // Animate contacts (200ms per count)
       const contactsDuration = targetCounts.contacts * 200;
@@ -2798,9 +2810,10 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
           clearInterval(contactsInterval);
         }
       }, contactsStep);
+      intervals.push(contactsInterval);
       
       // Start appointments after a delay
-      setTimeout(() => {
+      const appointmentsTimeout = setTimeout(() => {
         setCurrentPhase('appointments');
         if (targetCounts.appointments > 0) {
           const appointmentsDuration = targetCounts.appointments * 150;
@@ -2815,11 +2828,13 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
               clearInterval(appointmentsInterval);
             }
           }, appointmentsStep);
+          intervals.push(appointmentsInterval);
         }
       }, contactsDuration + 300);
+      timeouts.push(appointmentsTimeout);
       
       // Start reminders after appointments
-      setTimeout(() => {
+      const remindersTimeout = setTimeout(() => {
         setCurrentPhase('reminders');
         if (targetCounts.reminders > 0) {
           const remindersDuration = targetCounts.reminders * 150;
@@ -2834,17 +2849,26 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
               clearInterval(remindersInterval);
             }
           }, remindersStep);
+          intervals.push(remindersInterval);
         }
       }, contactsDuration + (targetCounts.appointments * 150) + 600);
+      timeouts.push(remindersTimeout);
       
       // Mark complete after all animations
       const totalDuration = contactsDuration + (targetCounts.appointments * 150) + (targetCounts.reminders * 150) + 1000;
-      setTimeout(() => {
+      const completeTimeout = setTimeout(() => {
         console.log('[ANIMATION] All complete');
         setCurrentPhase('complete');
         setIsImportComplete(true);
       }, totalDuration);
+      timeouts.push(completeTimeout);
       
+      // Cleanup function - clear all timers if component unmounts
+      return () => {
+        console.log('[ANIMATION] Cleanup called - clearing', intervals.length, 'intervals and', timeouts.length, 'timeouts');
+        intervals.forEach(clearInterval);
+        timeouts.forEach(clearTimeout);
+      };
     }, [targetCounts]);
 
     return (
