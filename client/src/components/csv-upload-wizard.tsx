@@ -2653,30 +2653,46 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
         return apiRequest('POST', '/api/import/contacts', { contacts });
       },
       onSuccess: (data: any) => {
-        setContactsImported(data.created);
-        setCreatedContactIds(data.contactIds || []);
+        // Map the actual API response fields
+        const importedCount = data.contactsImported || data.created || 0;
+        const appointmentCount = data.appointmentsScheduled || 0;
+        const reminderCount = data.remindersScheduled || 0;
+        
+        setContactsImported(importedCount);
+        setAppointmentsCreated(appointmentCount);
+        setRemindersScheduled(reminderCount);
+        
+        // Store contact IDs if available
+        if (data.contactIds) {
+          setCreatedContactIds(data.contactIds);
+        }
+        
+        // Handle errors if any
         if (data.errors && data.errors.length > 0) {
           setImportErrors(prev => [...prev, ...data.errors.map((e: any) => e.error)]);
         }
-        
-        // Backend already handles appointments and reminders, so count them
-        const contactsWithAppointments = upcomingAppointments.length;
-        setAppointmentsCreated(contactsWithAppointments);
-        setRemindersScheduled(contactsWithAppointments);
         
         // Invalidate contacts and groups cache to trigger auto-refresh
         queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
         queryClient.invalidateQueries({ queryKey: ['/api/contact-groups'] });
         queryClient.invalidateQueries({ queryKey: ['/api/contacts/stats'] });
         
-        // Simulate progress through phases for UI feedback
-        setTimeout(() => setCurrentPhase('appointments'), 500);
-        setTimeout(() => setCurrentPhase('reminders'), 1000);
-        setTimeout(() => setCurrentPhase('complete'), 1500);
+        // Immediately transition through phases to show completion
+        setCurrentPhase('appointments');
+        setTimeout(() => setCurrentPhase('reminders'), 300);
+        setTimeout(() => setCurrentPhase('complete'), 600);
       },
       onError: (error: any) => {
         setImportErrors(prev => [...prev, 'Failed to import contacts: ' + error.message]);
         setCurrentPhase('complete');
+      },
+      onSettled: () => {
+        // Always reset the guard after the mutation completes (success or error)
+        // This happens after onSuccess/onError callbacks
+        // Using a slight delay to ensure state updates are processed
+        setTimeout(() => {
+          hasStartedImportRef.current = false;
+        }, 100);
       },
     });
 
@@ -2713,6 +2729,15 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
         setCurrentPhase('complete');
       },
     });
+
+    // Cleanup: Reset guard ref on mount and unmount to prevent stuck state
+    useEffect(() => {
+      // Reset on mount in case of stale state from previous navigation
+      return () => {
+        // Reset on unmount to ensure clean state if user navigates away
+        hasStartedImportRef.current = false;
+      };
+    }, []);
 
     // Signal parent component when import is complete
     useEffect(() => {
