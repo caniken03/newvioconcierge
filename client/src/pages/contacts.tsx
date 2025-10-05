@@ -31,6 +31,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { 
   Select,
   SelectContent,
@@ -74,7 +84,8 @@ import {
   Globe,
   MessageCircle,
   Activity,
-  Eye
+  Eye,
+  AlertTriangle
 } from "lucide-react";
 import type { Contact, ContactGroup, Location, ContactStats, GroupMembership } from "@/types";
 
@@ -188,6 +199,13 @@ export default function Contacts() {
   
   // CSV Upload Wizard state
   const [isCSVWizardOpen, setIsCSVWizardOpen] = useState(false);
+  
+  // Delete Group Confirmation Dialog state
+  const [deleteGroupDialog, setDeleteGroupDialog] = useState<{ isOpen: boolean; groupId: string | null; groupName: string | null }>({
+    isOpen: false,
+    groupId: null,
+    groupName: null
+  });
 
   // Enhanced filter state
   const [filters, setFilters] = useState<ContactFilters>(initialFilters);
@@ -537,8 +555,17 @@ export default function Contacts() {
   };
 
   const handleDeleteGroup = (groupId: string, groupName: string) => {
-    if (confirm(`Are you sure you want to delete the group "${groupName}"? This will remove all contacts from this group but not delete the contacts themselves.`)) {
-      deleteGroupMutation.mutate(groupId);
+    setDeleteGroupDialog({
+      isOpen: true,
+      groupId,
+      groupName
+    });
+  };
+
+  const confirmDeleteGroup = () => {
+    if (deleteGroupDialog.groupId) {
+      deleteGroupMutation.mutate(deleteGroupDialog.groupId);
+      setDeleteGroupDialog({ isOpen: false, groupId: null, groupName: null });
     }
   };
 
@@ -2289,6 +2316,42 @@ export default function Contacts() {
             isOpen={isCSVWizardOpen}
             onClose={() => setIsCSVWizardOpen(false)}
           />
+
+          {/* Delete Group Confirmation Dialog */}
+          <AlertDialog 
+            open={deleteGroupDialog.isOpen} 
+            onOpenChange={(open) => !open && setDeleteGroupDialog({ isOpen: false, groupId: null, groupName: null })}
+          >
+            <AlertDialogContent className="max-w-md">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2 text-xl">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  Delete Group
+                </AlertDialogTitle>
+                <AlertDialogDescription className="text-base pt-2">
+                  Are you sure you want to delete the group <strong className="text-foreground">"{deleteGroupDialog.groupName}"</strong>?
+                  <br /><br />
+                  This will remove all contacts from this group, but the contacts themselves will not be deleted.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="gap-2 sm:gap-2">
+                <AlertDialogCancel 
+                  className="mt-0"
+                  data-testid="button-cancel-delete-group"
+                >
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={confirmDeleteGroup}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  data-testid="button-confirm-delete-group"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Group
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </main>
       </div>
     </div>
