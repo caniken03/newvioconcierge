@@ -2654,9 +2654,12 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
       },
       onSuccess: (data: any) => {
         // Map the actual API response fields
-        const importedCount = data.contactsImported || data.created || 0;
-        const appointmentCount = data.appointmentsScheduled || 0;
-        const reminderCount = data.remindersScheduled || 0;
+        const importedCount = data.created || 0;
+        
+        // Backend schedules appointments/reminders automatically
+        // Count how many contacts have upcoming appointments
+        const appointmentCount = upcomingAppointments.length;
+        const reminderCount = upcomingAppointments.length; // Each appointment gets reminders
         
         setContactsImported(importedCount);
         setAppointmentsCreated(appointmentCount);
