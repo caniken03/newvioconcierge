@@ -2686,14 +2686,6 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
         setImportErrors(prev => [...prev, 'Failed to import contacts: ' + error.message]);
         setCurrentPhase('complete');
       },
-      onSettled: () => {
-        // Always reset the guard after the mutation completes (success or error)
-        // This happens after onSuccess/onError callbacks
-        // Using a slight delay to ensure state updates are processed
-        setTimeout(() => {
-          hasStartedImportRef.current = false;
-        }, 100);
-      },
     });
 
     const importAppointmentsMutation = useMutation({
@@ -2730,15 +2722,6 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
       },
     });
 
-    // Cleanup: Reset guard ref on mount and unmount to prevent stuck state
-    useEffect(() => {
-      // Reset on mount in case of stale state from previous navigation
-      return () => {
-        // Reset on unmount to ensure clean state if user navigates away
-        hasStartedImportRef.current = false;
-      };
-    }, []);
-
     // Signal parent component when import is complete
     useEffect(() => {
       if (currentPhase === 'complete') {
@@ -2747,8 +2730,17 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     }, [currentPhase]);
 
     // Start import process when component mounts - ONLY ONCE
+    // Using multiple guards to prevent duplicate calls
+    // Empty dependency array ensures this only runs once on mount
     useEffect(() => {
-      if (currentPhase === 'contacts' && !hasStartedImportRef.current && !importContactsMutation.isPending) {
+      const shouldStartImport = 
+        currentPhase === 'contacts' && 
+        !hasStartedImportRef.current && 
+        !importContactsMutation.isPending &&
+        !importContactsMutation.isSuccess &&
+        !importContactsMutation.isError;
+      
+      if (shouldStartImport) {
         hasStartedImportRef.current = true;
         
         const contactsToImport = appointmentData.map(contact => ({
@@ -2767,7 +2759,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
 
         importContactsMutation.mutate(contactsToImport);
       }
-    }, [currentPhase]);
+    }, []); // Empty array = run only once on mount
 
     // NOTE: Appointments and reminders are now handled by the backend during contact import
     // These useEffects are kept for reference but won't trigger since counts are already set
