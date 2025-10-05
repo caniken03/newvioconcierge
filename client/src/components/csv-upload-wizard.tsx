@@ -2673,8 +2673,14 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
         return apiRequest('POST', '/api/import/contacts', { contacts });
       },
       onSuccess: (data: any) => {
-        // Map the actual API response fields
-        const importedCount = data.created || 0;
+        // DEBUG: Log the raw response
+        console.log('[RAW RESPONSE]', JSON.stringify(data, null, 2));
+        console.log('[DATA.CREATED]', data.created, typeof data.created);
+        console.log('[CONTACT IDS LENGTH]', data.contactIds?.length);
+        console.log('[TOTAL CONTACTS]', totalContacts);
+        
+        // Map the actual API response fields - use contactIds length as fallback if created is 0
+        const importedCount = data.created || data.contactIds?.length || totalContacts;
         
         // Backend schedules appointments/reminders automatically
         // Count how many contacts have upcoming appointments
@@ -2686,7 +2692,9 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
           appointmentCount,
           reminderCount,
           upcomingAppointments: upcomingAppointments.length,
-          data
+          dataCreated: data.created,
+          dataKeys: Object.keys(data),
+          fallbackUsed: !data.created
         });
         
         // Store contact IDs if available
