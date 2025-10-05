@@ -1166,7 +1166,7 @@ export default function Contacts() {
                           >
                             {group.name.charAt(0).toUpperCase()}
                           </div>
-                          <div className="flex space-x-1">
+                          <div className="flex items-center gap-1">
                             <Button
                               variant="ghost"
                               size="sm"
@@ -1191,7 +1191,7 @@ export default function Contacts() {
                               onClick={() => handleDeleteGroup(group.id, group.name)}
                               data-testid={`button-delete-group-${group.id}`}
                               title="Delete group"
-                              className="text-destructive hover:text-destructive"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
