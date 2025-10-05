@@ -2611,6 +2611,7 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
     const [remindersScheduled, setRemindersScheduled] = useState(0);
     const [importErrors, setImportErrors] = useState<string[]>([]);
     const [createdContactIds, setCreatedContactIds] = useState<string[]>([]);
+    const [targetCounts, setTargetCounts] = useState({ contacts: 0, appointments: 0, reminders: 0 });
     
     const totalContacts = csvFile?.rowCount || 0;
     const appointmentData = csvFile ? csvFile.rows.map((row, index) => {
@@ -2661,10 +2662,6 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
         const appointmentCount = upcomingAppointments.length;
         const reminderCount = upcomingAppointments.length; // Each appointment gets reminders
         
-        setContactsImported(importedCount);
-        setAppointmentsCreated(appointmentCount);
-        setRemindersScheduled(reminderCount);
-        
         // Store contact IDs if available
         if (data.contactIds) {
           setCreatedContactIds(data.contactIds);
@@ -2680,16 +2677,12 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
         queryClient.invalidateQueries({ queryKey: ['/api/contact-groups'] });
         queryClient.invalidateQueries({ queryKey: ['/api/contacts/stats'] });
         
-        // Transition through phases with visual feedback, then mark complete
-        setCurrentPhase('appointments');
-        setTimeout(() => {
-          setCurrentPhase('reminders');
-          setTimeout(() => {
-            setCurrentPhase('complete');
-            // Directly set import complete to ensure button enables
-            setIsImportComplete(true);
-          }, 400);
-        }, 400);
+        // Set target counts for animation
+        setTargetCounts({
+          contacts: importedCount,
+          appointments: appointmentCount,
+          reminders: reminderCount
+        });
       },
       onError: (error: any) => {
         setImportErrors(prev => [...prev, 'Failed to import contacts: ' + error.message]);
@@ -2771,17 +2764,77 @@ export function CSVUploadWizard({ isOpen, onClose }: CSVUploadWizardProps) {
       }
     }, []); // Empty array = run only once on mount
 
-    // NOTE: Appointments and reminders are now handled by the backend during contact import
-    // These useEffects are kept for reference but won't trigger since counts are already set
+    // Animate contacts counter
     useEffect(() => {
-      // Appointments are already created by backend during contact import
-      // This phase just displays progress for user feedback
-    }, [currentPhase, createdContactIds]);
+      if (targetCounts.contacts === 0) return;
+      
+      const duration = 2000; // 2 seconds to count up
+      const steps = targetCounts.contacts;
+      const stepDuration = duration / steps;
+      
+      let current = 0;
+      const interval = setInterval(() => {
+        current++;
+        setContactsImported(current);
+        
+        if (current >= targetCounts.contacts) {
+          clearInterval(interval);
+          // Transition to appointments phase after contacts are done
+          setTimeout(() => setCurrentPhase('appointments'), 500);
+        }
+      }, stepDuration);
+      
+      return () => clearInterval(interval);
+    }, [targetCounts.contacts]);
 
+    // Animate appointments counter
     useEffect(() => {
-      // Reminders are already scheduled by backend during contact import
-      // This phase just displays progress for user feedback
-    }, [currentPhase, createdContactIds]);
+      if (currentPhase !== 'appointments' || targetCounts.appointments === 0) return;
+      
+      const duration = 1500; // 1.5 seconds
+      const steps = targetCounts.appointments;
+      const stepDuration = duration / steps;
+      
+      let current = 0;
+      const interval = setInterval(() => {
+        current++;
+        setAppointmentsCreated(current);
+        
+        if (current >= targetCounts.appointments) {
+          clearInterval(interval);
+          // Transition to reminders phase
+          setTimeout(() => setCurrentPhase('reminders'), 500);
+        }
+      }, stepDuration);
+      
+      return () => clearInterval(interval);
+    }, [currentPhase, targetCounts.appointments]);
+
+    // Animate reminders counter
+    useEffect(() => {
+      if (currentPhase !== 'reminders' || targetCounts.reminders === 0) return;
+      
+      const duration = 1500; // 1.5 seconds
+      const steps = targetCounts.reminders;
+      const stepDuration = duration / steps;
+      
+      let current = 0;
+      const interval = setInterval(() => {
+        current++;
+        setRemindersScheduled(current);
+        
+        if (current >= targetCounts.reminders) {
+          clearInterval(interval);
+          // Mark as complete
+          setTimeout(() => {
+            setCurrentPhase('complete');
+            setIsImportComplete(true);
+          }, 500);
+        }
+      }, stepDuration);
+      
+      return () => clearInterval(interval);
+    }, [currentPhase, targetCounts.reminders]);
 
     return (
       <TooltipProvider>
