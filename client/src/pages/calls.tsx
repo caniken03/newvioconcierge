@@ -326,23 +326,6 @@ export default function CallManagement() {
                                   </Button>
                                 </>
                               )}
-                              {call.status === "in_progress" && (
-                                <Button 
-                                  size="sm" 
-                                  variant="outline"
-                                  onClick={() => {
-                                    toast({
-                                      title: "Pause Not Available",
-                                      description: "Active calls cannot be paused. Please wait for the call to complete.",
-                                      variant: "destructive",
-                                    });
-                                  }}
-                                  data-testid={`button-pause-call-${call.id}`}
-                                >
-                                  <Pause className="w-4 h-4 mr-1" />
-                                  Pause
-                                </Button>
-                              )}
                               
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -430,11 +413,19 @@ export default function CallManagement() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Appointment Date & Time</p>
-                    <p className="font-medium">{new Date(selectedCall.appointmentDate).toLocaleString()}</p>
+                    <p className="font-medium">
+                      {selectedCall.appointmentDate 
+                        ? new Date(selectedCall.appointmentDate).toLocaleString() 
+                        : 'Not specified'}
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Duration</p>
-                    <p className="font-medium">{selectedCall.appointmentDuration} minutes</p>
+                    <p className="font-medium">
+                      {selectedCall.appointmentDuration 
+                        ? `${selectedCall.appointmentDuration} minutes` 
+                        : 'Not specified'}
+                    </p>
                   </div>
                   {selectedCall.appointmentType && (
                     <div className="col-span-2">
@@ -457,6 +448,18 @@ export default function CallManagement() {
                     <p className="text-sm text-muted-foreground">Attempts</p>
                     <p className="font-medium">{selectedCall.attempts}</p>
                   </div>
+                  {selectedCall.callOutcome && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Outcome</p>
+                      <p className="font-medium capitalize">{selectedCall.callOutcome.replace('_', ' ')}</p>
+                    </div>
+                  )}
+                  {selectedCall.appointmentAction && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Appointment Action</p>
+                      <p className="font-medium capitalize">{selectedCall.appointmentAction.replace('_', ' ')}</p>
+                    </div>
+                  )}
                   {selectedCall.scheduledFor && (
                     <div>
                       <p className="text-sm text-muted-foreground">Scheduled For</p>
@@ -469,25 +472,15 @@ export default function CallManagement() {
                       <p className="font-medium">{new Date(selectedCall.completedAt).toLocaleString()}</p>
                     </div>
                   )}
-                </div>
-              </div>
-
-              {/* Technical Information */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Technical Information</h3>
-                <div className="space-y-2">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Session ID</p>
-                    <p className="font-mono text-xs bg-muted p-2 rounded">{selectedCall.sessionId || selectedCall.id}</p>
-                  </div>
-                  {selectedCall.callId && (
+                  {selectedCall.durationSeconds && (
                     <div>
-                      <p className="text-sm text-muted-foreground">Call ID</p>
-                      <p className="font-mono text-xs bg-muted p-2 rounded">{selectedCall.callId}</p>
+                      <p className="text-sm text-muted-foreground">Call Duration</p>
+                      <p className="font-medium">{Math.floor(selectedCall.durationSeconds / 60)}:{(selectedCall.durationSeconds % 60).toString().padStart(2, '0')} minutes</p>
                     </div>
                   )}
                 </div>
               </div>
+
 
               {/* Notes and Instructions */}
               {(selectedCall.notes || selectedCall.specialInstructions) && (
