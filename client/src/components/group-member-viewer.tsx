@@ -48,6 +48,7 @@ import {
   Filter,
   ArrowUpDown,
   PhoneIcon,
+  UserPlus,
 } from "lucide-react";
 import { BulkCallConfigModal, type BulkCallConfig } from "@/components/modals/bulk-call-config-modal";
 import type { ContactGroup, Contact } from "@/types";
@@ -74,6 +75,9 @@ export function GroupMemberViewer({ group, isOpen, onClose }: GroupMemberViewerP
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
   const [showBulkCallConfig, setShowBulkCallConfig] = useState(false);
   const [bulkCallContactIds, setBulkCallContactIds] = useState<string[]>([]);
+  const [showAddMembersModal, setShowAddMembersModal] = useState(false);
+  const [contactsToAdd, setContactsToAdd] = useState<string[]>([]);
+  const [addMembersSearch, setAddMembersSearch] = useState('');
 
   // Fetch group members
   const { data: members = [], isLoading } = useQuery({
@@ -84,6 +88,12 @@ export function GroupMemberViewer({ group, isOpen, onClose }: GroupMemberViewerP
     },
     enabled: isOpen && !!group?.id,
   });
+
+  // Fetch all contacts for adding members
+  const { data: allContacts = [] } = useQuery({
+    queryKey: ['/api/contacts'],
+    enabled: showAddMembersModal,
+  }) as { data: Contact[] };
 
   // Bulk call mutation with configuration support
   const bulkCallMutation = useMutation({
@@ -125,6 +135,7 @@ export function GroupMemberViewer({ group, isOpen, onClose }: GroupMemberViewerP
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/contact-groups', group.id, 'contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/contact-groups'] });
       toast({
         title: "Contact removed",
         description: "Contact removed from group successfully",
@@ -133,6 +144,51 @@ export function GroupMemberViewer({ group, isOpen, onClose }: GroupMemberViewerP
     onError: (error: Error) => {
       toast({
         title: "Failed to remove contact",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Add contacts to group mutation
+  const addContactsMutation = useMutation({
+    mutationFn: async (contactIds: string[]) => {
+      const response = await apiRequest('POST', '/api/contact-group-memberships', {
+        groupId: group.id,
+        addContactIds: contactIds,
+        removeContactIds: []
+      });
+      return await response.json();
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/contact-groups', group.id, 'contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/contact-groups'] });
+      
+      const addedCount = result.added?.length || 0;
+      const errorCount = result.errors?.length || 0;
+      
+      if (addedCount > 0) {
+        toast({
+          title: "Success",
+          description: `Added ${addedCount} contact${addedCount !== 1 ? 's' : ''} to ${group.name}`,
+        });
+      }
+      
+      if (errorCount > 0) {
+        toast({
+          title: "Some contacts not added",
+          description: `${errorCount} contact${errorCount !== 1 ? 's were' : ' was'} already in the group`,
+          variant: "destructive",
+        });
+      }
+      
+      setContactsToAdd([]);
+      setShowAddMembersModal(false);
+      setAddMembersSearch('');
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to add contacts",
         description: error.message,
         variant: "destructive",
       });
@@ -149,6 +205,14 @@ export function GroupMemberViewer({ group, isOpen, onClose }: GroupMemberViewerP
       setStatusFilter('all');
     }
   }, [isOpen]);
+
+  // Reset add members modal state when closed
+  useEffect(() => {
+    if (!showAddMembersModal) {
+      setContactsToAdd([]);
+      setAddMembersSearch('');
+    }
+  }, [showAddMembersModal]);
 
   // Filter and sort members
   const filteredAndSortedMembers = members
@@ -230,6 +294,36 @@ export function GroupMemberViewer({ group, isOpen, onClose }: GroupMemberViewerP
     const allContactIds = members.map(m => m.id);
     setBulkCallContactIds(allContactIds);
     setShowBulkCallConfig(true);
+  };
+
+  // Get contacts that are not in the group
+  const memberIds = new Set(members.map(m => m.id));
+  const availableContacts = allContacts.filter(c => !memberIds.has(c.id));
+  
+  // Filter available contacts by search term
+  const filteredAvailableContacts = availableContacts.filter(contact =>
+    contact.name.toLowerCase().includes(addMembersSearch.toLowerCase()) ||
+    contact.phone?.toLowerCase().includes(addMembersSearch.toLowerCase())
+  );
+
+  const toggleContactToAdd = (contactId: string) => {
+    setContactsToAdd(prev =>
+      prev.includes(contactId)
+        ? prev.filter(id => id !== contactId)
+        : [...prev, contactId]
+    );
+  };
+
+  const handleAddMembers = () => {
+    if (contactsToAdd.length === 0) {
+      toast({
+        title: "No contacts selected",
+        description: "Please select contacts to add to the group",
+        variant: "destructive",
+      });
+      return;
+    }
+    addContactsMutation.mutate(contactsToAdd);
   };
 
   const getStatusIcon = (status: string) => {
@@ -386,9 +480,6 @@ export function GroupMemberViewer({ group, isOpen, onClose }: GroupMemberViewerP
               <div>
                 <h3 className="font-semibold">{contact.name}</h3>
                 <p className="text-sm text-muted-foreground">{contact.phone}</p>
-                {contact.email && (
-                  <p className="text-sm text-muted-foreground">{contact.email}</p>
-                )}
               </div>
             </div>
             <DropdownMenu>
@@ -555,6 +646,17 @@ export function GroupMemberViewer({ group, isOpen, onClose }: GroupMemberViewerP
                 >
                   <ArrowUpDown className="w-4 h-4" />
                 </Button>
+
+                {/* Add Members Button */}
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => setShowAddMembersModal(true)}
+                  data-testid="button-add-members"
+                >
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Add Members
+                </Button>
               </div>
             </div>
 
@@ -648,6 +750,119 @@ export function GroupMemberViewer({ group, isOpen, onClose }: GroupMemberViewerP
         groupName={group.name}
         isLoading={bulkCallMutation.isPending}
       />
+
+      {/* Add Members Modal */}
+      <Dialog open={showAddMembersModal} onOpenChange={(open) => !open && setShowAddMembersModal(false)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="w-5 h-5" />
+              Add Members to {group.name}
+            </DialogTitle>
+            <DialogDescription>
+              Select contacts to add to this group
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col space-y-4">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search contacts..."
+                value={addMembersSearch}
+                onChange={(e) => setAddMembersSearch(e.target.value)}
+                className="pl-10"
+                data-testid="input-search-add-members"
+              />
+            </div>
+
+            {/* Selected Count */}
+            {contactsToAdd.length > 0 && (
+              <div className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <span className="text-sm font-medium">
+                  {contactsToAdd.length} contact{contactsToAdd.length !== 1 ? 's' : ''} selected
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setContactsToAdd([])}
+                  data-testid="button-clear-selection"
+                >
+                  Clear
+                </Button>
+              </div>
+            )}
+
+            {/* Available Contacts List */}
+            <ScrollArea className="h-[400px]">
+              {filteredAvailableContacts.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  {addMembersSearch 
+                    ? "No contacts match your search" 
+                    : "All contacts are already in this group"
+                  }
+                </div>
+              ) : (
+                <div className="space-y-2 p-2">
+                  {filteredAvailableContacts.map((contact) => {
+                    const isSelected = contactsToAdd.includes(contact.id);
+                    return (
+                      <div
+                        key={contact.id}
+                        className={`flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors ${
+                          isSelected ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/20' : ''
+                        }`}
+                        onClick={() => toggleContactToAdd(contact.id)}
+                        data-testid={`contact-to-add-${contact.id}`}
+                      >
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleContactToAdd(contact.id)}
+                          data-testid={`checkbox-add-${contact.id}`}
+                        />
+                        <div className="flex-1">
+                          <p className="font-medium">{contact.name}</p>
+                          <p className="text-sm text-muted-foreground">{contact.phone}</p>
+                        </div>
+                        {contact.appointmentType && (
+                          <Badge variant="secondary" className="text-xs">
+                            {contact.appointmentType}
+                          </Badge>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </ScrollArea>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAddMembersModal(false);
+                setContactsToAdd([]);
+                setAddMembersSearch('');
+              }}
+              data-testid="button-cancel-add-members"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddMembers}
+              disabled={contactsToAdd.length === 0 || addContactsMutation.isPending}
+              data-testid="button-confirm-add-members"
+            >
+              {addContactsMutation.isPending 
+                ? "Adding..." 
+                : `Add ${contactsToAdd.length} Contact${contactsToAdd.length !== 1 ? 's' : ''}`
+              }
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
