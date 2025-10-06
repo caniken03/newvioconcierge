@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import Sidebar from '@/components/layout/sidebar';
@@ -36,6 +37,8 @@ export default function CallManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [activeTab, setActiveTab] = useState("active");
+  const [selectedCall, setSelectedCall] = useState<any>(null);
+  const [showCallDetails, setShowCallDetails] = useState(false);
 
   // Handle URL parameters for filtering
   useEffect(() => {
@@ -349,10 +352,8 @@ export default function CallManagement() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem onClick={() => {
-                                    toast({
-                                      title: "Call Details",
-                                      description: `Session ID: ${call.sessionId || call.id}`,
-                                    });
+                                    setSelectedCall(call);
+                                    setShowCallDetails(true);
                                   }}>
                                     View Details
                                   </DropdownMenuItem>
@@ -361,6 +362,7 @@ export default function CallManagement() {
                                       onClick={() => cancelCallMutation.mutate(call.id)}
                                       className="text-red-600"
                                     >
+                                      <XCircle className="w-4 h-4 mr-2" />
                                       Cancel Call
                                     </DropdownMenuItem>
                                   )}
@@ -394,6 +396,142 @@ export default function CallManagement() {
           </div>
         </main>
       </div>
+
+      {/* Call Details Dialog */}
+      <Dialog open={showCallDetails} onOpenChange={setShowCallDetails}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Call Details</DialogTitle>
+            <DialogDescription>
+              Complete information about this call session
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedCall && (
+            <div className="space-y-6">
+              {/* Contact Information */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Contact Information</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Name</p>
+                    <p className="font-medium">{selectedCall.contactName}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Phone Number</p>
+                    <p className="font-mono font-medium">{selectedCall.contactPhone}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Appointment Information */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Appointment Details</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Appointment Date & Time</p>
+                    <p className="font-medium">{new Date(selectedCall.appointmentDate).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Duration</p>
+                    <p className="font-medium">{selectedCall.appointmentDuration} minutes</p>
+                  </div>
+                  {selectedCall.appointmentType && (
+                    <div className="col-span-2">
+                      <p className="text-sm text-muted-foreground">Type</p>
+                      <p className="font-medium">{selectedCall.appointmentType}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Call Status Information */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Call Status</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Status</p>
+                    <div className="mt-1">{getStatusBadge(selectedCall.status)}</div>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Attempts</p>
+                    <p className="font-medium">{selectedCall.attempts}</p>
+                  </div>
+                  {selectedCall.scheduledFor && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Scheduled For</p>
+                      <p className="font-medium">{new Date(selectedCall.scheduledFor).toLocaleString()}</p>
+                    </div>
+                  )}
+                  {selectedCall.completedAt && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Completed At</p>
+                      <p className="font-medium">{new Date(selectedCall.completedAt).toLocaleString()}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Technical Information */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Technical Information</h3>
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Session ID</p>
+                    <p className="font-mono text-xs bg-muted p-2 rounded">{selectedCall.sessionId || selectedCall.id}</p>
+                  </div>
+                  {selectedCall.callId && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Call ID</p>
+                      <p className="font-mono text-xs bg-muted p-2 rounded">{selectedCall.callId}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Notes and Instructions */}
+              {(selectedCall.notes || selectedCall.specialInstructions) && (
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Additional Information</h3>
+                  {selectedCall.specialInstructions && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Special Instructions</p>
+                      <p className="text-sm mt-1 p-3 bg-muted rounded">{selectedCall.specialInstructions}</p>
+                    </div>
+                  )}
+                  {selectedCall.notes && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Notes</p>
+                      <p className="text-sm mt-1 p-3 bg-muted rounded">{selectedCall.notes}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                {(selectedCall.status === "scheduled" || selectedCall.status === "queued") && (
+                  <Button 
+                    variant="destructive" 
+                    onClick={() => {
+                      cancelCallMutation.mutate(selectedCall.id);
+                      setShowCallDetails(false);
+                    }}
+                    disabled={cancelCallMutation.isPending}
+                    data-testid="button-cancel-call-dialog"
+                  >
+                    <XCircle className="w-4 h-4 mr-2" />
+                    Cancel This Call
+                  </Button>
+                )}
+                <Button variant="outline" onClick={() => setShowCallDetails(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
