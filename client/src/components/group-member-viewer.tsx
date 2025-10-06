@@ -553,14 +553,25 @@ export function GroupMemberViewer({ group, isOpen, onClose }: GroupMemberViewerP
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-3">
-              <div 
-                className="w-4 h-4 rounded-full"
-                style={{ backgroundColor: group.color }}
-              />
-              {group.name} Members
-              <Badge variant="secondary">{members.length} contacts</Badge>
-            </DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="flex items-center gap-3">
+                <div 
+                  className="w-4 h-4 rounded-full"
+                  style={{ backgroundColor: group.color }}
+                />
+                {group.name} Members
+                <Badge variant="secondary">{members.length} contacts</Badge>
+              </DialogTitle>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setShowAddMembersModal(true)}
+                data-testid="button-add-members"
+              >
+                <UserPlus className="w-4 h-4 mr-2" />
+                Add Members
+              </Button>
+            </div>
             <DialogDescription>
               {group.description || "Manage and communicate with group members"}
             </DialogDescription>
@@ -645,17 +656,6 @@ export function GroupMemberViewer({ group, isOpen, onClose }: GroupMemberViewerP
                   onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
                 >
                   <ArrowUpDown className="w-4 h-4" />
-                </Button>
-
-                {/* Add Members Button */}
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => setShowAddMembersModal(true)}
-                  data-testid="button-add-members"
-                >
-                  <UserPlus className="w-4 h-4 mr-2" />
-                  Add Members
                 </Button>
               </div>
             </div>
