@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
@@ -590,6 +590,12 @@ export default function Contacts() {
     setIsGroupsModalOpen(false);
     setEditingGroup(null);
   };
+
+  // Stable handler for closing group assignment modal (prevents infinite loops)
+  const handleCloseGroupAssignment = useCallback(() => {
+    setIsGroupAssignmentOpen(false);
+    // DON'T clear selection here - let the user keep their selection
+  }, []);
 
   const handleSelectContact = (contactId: string, checked: boolean) => {
     if (checked) {
@@ -2248,7 +2254,7 @@ export default function Contacts() {
           {/* Group Assignment Modal */}
           <ContactGroupAssignment
             isOpen={isGroupAssignmentOpen}
-            onClose={() => setIsGroupAssignmentOpen(false)}
+            onClose={handleCloseGroupAssignment}
             selectedContactIds={selectedContacts}
             selectedContactNames={selectedContactNames}
           />
