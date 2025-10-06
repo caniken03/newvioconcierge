@@ -928,6 +928,15 @@ export default function Contacts() {
     return count;
   };
 
+  // Memoize selected contact names to prevent infinite loops
+  const selectedContactNames = useMemo(() => 
+    selectedContacts.map(id => {
+      const contact = contacts.find((c: Contact) => c.id === id);
+      return contact?.name || '';
+    }), 
+    [selectedContacts, contacts]
+  );
+
   if (!user) return null;
 
   return (
@@ -2240,10 +2249,7 @@ export default function Contacts() {
             isOpen={isGroupAssignmentOpen}
             onClose={() => setIsGroupAssignmentOpen(false)}
             selectedContactIds={selectedContacts}
-            selectedContactNames={selectedContacts.map(id => {
-              const contact = contacts.find((c: Contact) => c.id === id);
-              return contact?.name || '';
-            })}
+            selectedContactNames={selectedContactNames}
           />
 
           {/* Bulk Status Update Modal */}

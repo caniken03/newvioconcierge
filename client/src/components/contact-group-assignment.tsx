@@ -49,20 +49,28 @@ export function ContactGroupAssignment({
     enabled: isOpen,
   }) as { data: ContactGroup[] };
 
-  // Memoize group IDs to prevent infinite loop from array recreation
-  const groupIds = useMemo(() => contactGroups.map(g => g.id).sort().join(','), [contactGroups]);
-  const groupsArray = useMemo(() => contactGroups, [groupIds]);
-
   // Fetch current group memberships for selected contacts
+  // Use stable string of selected contact IDs to prevent infinite loops
+  const selectedContactIdsKey = useMemo(() => 
+    selectedContactIds.sort().join(','), 
+    [selectedContactIds]
+  );
+
   const { data: currentMemberships = [] } = useQuery({
-    queryKey: ['/api/contact-memberships', selectedContactIds, groupIds],
+    queryKey: ['/api/contact-memberships', selectedContactIdsKey],
     queryFn: async () => {
-      if (selectedContactIds.length === 0 || groupsArray.length === 0) return [];
+      if (selectedContactIds.length === 0) return [];
+      
+      // Fetch groups fresh inside the query function
+      const groupsResponse = await apiRequest('GET', '/api/contact-groups');
+      const groups = await groupsResponse.json() as ContactGroup[];
+      
+      if (groups.length === 0) return [];
       
       // Get memberships for all selected contacts
       const memberships: GroupMembership[] = [];
       
-      for (const group of groupsArray) {
+      for (const group of groups) {
         try {
           const response = await apiRequest('GET', `/api/contact-groups/${group.id}/contacts`);
           const groupContacts = await response.json() as any[];
@@ -89,7 +97,7 @@ export function ContactGroupAssignment({
       
       return memberships;
     },
-    enabled: isOpen && selectedContactIds.length > 0 && groupsArray.length > 0,
+    enabled: isOpen && selectedContactIds.length > 0,
   });
 
   // Add contacts to group mutation
