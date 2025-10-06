@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,18 +49,22 @@ export function ContactGroupAssignment({
     enabled: isOpen,
   }) as { data: ContactGroup[] };
 
+  // Memoize group IDs to prevent infinite loop from array recreation
+  const groupIds = useMemo(() => contactGroups.map(g => g.id).sort().join(','), [contactGroups]);
+  const groupsArray = useMemo(() => contactGroups, [groupIds]);
+
   // Fetch current group memberships for selected contacts
   const { data: currentMemberships = [] } = useQuery({
-    queryKey: ['/api/contact-memberships', selectedContactIds],
+    queryKey: ['/api/contact-memberships', selectedContactIds, groupIds],
     queryFn: async () => {
-      if (selectedContactIds.length === 0) return [];
+      if (selectedContactIds.length === 0 || groupsArray.length === 0) return [];
       
       // Get memberships for all selected contacts
       const memberships: GroupMembership[] = [];
       
-      for (const groupId of contactGroups.map(g => g.id)) {
+      for (const group of groupsArray) {
         try {
-          const response = await apiRequest('GET', `/api/contact-groups/${groupId}/contacts`);
+          const response = await apiRequest('GET', `/api/contact-groups/${group.id}/contacts`);
           const groupContacts = await response.json() as any[];
           
           // Check which of our selected contacts are in this group
@@ -68,8 +72,7 @@ export function ContactGroupAssignment({
             selectedContactIds.includes(contact.id)
           );
           
-          const group = contactGroups.find(g => g.id === groupId);
-          if (group && matchingContacts.length > 0) {
+          if (matchingContacts.length > 0) {
             matchingContacts.forEach((contact: any) => {
               memberships.push({
                 contactId: contact.id,
@@ -86,7 +89,7 @@ export function ContactGroupAssignment({
       
       return memberships;
     },
-    enabled: isOpen && selectedContactIds.length > 0 && contactGroups.length > 0,
+    enabled: isOpen && selectedContactIds.length > 0 && groupsArray.length > 0,
   });
 
   // Add contacts to group mutation
