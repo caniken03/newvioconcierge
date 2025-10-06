@@ -51,8 +51,9 @@ export function ContactGroupAssignment({
 
   // Fetch current group memberships for selected contacts
   // Use stable string of selected contact IDs to prevent infinite loops
+  // IMPORTANT: Clone before sort to avoid mutating the prop array
   const selectedContactIdsKey = useMemo(() => 
-    selectedContactIds.sort().join(','), 
+    [...selectedContactIds].sort().join(','), 
     [selectedContactIds]
   );
 
@@ -118,28 +119,21 @@ export function ContactGroupAssignment({
           });
         }
       }
-      return results;
+      return { results, groupId };
     },
-    onSuccess: (results) => {
+    onSuccess: ({ results, groupId }) => {
       const successful = results.filter(r => r.success);
       const failed = results.filter(r => !r.success);
       
-      // Invalidate related queries
-      queryClient.invalidateQueries({ queryKey: ['/api/contact-groups'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/contact-memberships'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/all-group-memberships'] });
-      
+      // Show success toasts
       if (successful.length > 0) {
         toast({
           title: "Contacts added to group",
           description: `${successful.length} contact${successful.length > 1 ? 's' : ''} added successfully.`,
         });
-        
-        // Invalidate specific group contacts query for real-time group filtering
-        queryClient.invalidateQueries({ queryKey: [`/api/contact-groups/${selectedGroupId}/contacts`] });
       }
       
+      // Show error toasts
       if (failed.length > 0) {
         const alreadyInGroup = failed.filter(f => f.error?.includes('already in'));
         const otherErrors = failed.filter(f => !f.error?.includes('already in'));
@@ -161,9 +155,19 @@ export function ContactGroupAssignment({
         }
       }
       
+      // Close modal FIRST to prevent feedback loops
       if (successful.length > 0) {
         onClose();
       }
+      
+      // THEN invalidate queries after a tick (let modal unmount first)
+      setTimeout(() => {
+        // Narrow invalidations to only affected queries
+        queryClient.invalidateQueries({ queryKey: ['/api/contact-groups'], exact: true });
+        queryClient.invalidateQueries({ queryKey: ['/api/contact-memberships', selectedContactIdsKey], exact: true });
+        queryClient.invalidateQueries({ queryKey: [`/api/contact-groups/${groupId}/contacts`], exact: true });
+        queryClient.invalidateQueries({ queryKey: ['/api/all-group-memberships'] });
+      }, 0);
     },
   });
 
@@ -183,18 +187,13 @@ export function ContactGroupAssignment({
           });
         }
       }
-      return results;
+      return { results, groupId };
     },
-    onSuccess: (results) => {
+    onSuccess: ({ results, groupId }) => {
       const successful = results.filter(r => r.success);
       const failed = results.filter(r => !r.success);
       
-      // Invalidate related queries
-      queryClient.invalidateQueries({ queryKey: ['/api/contact-groups'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/contact-memberships'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/all-group-memberships'] });
-      
+      // Show toasts
       if (successful.length > 0) {
         toast({
           title: "Contacts removed from group",
@@ -210,13 +209,14 @@ export function ContactGroupAssignment({
         });
       }
       
-      // Invalidate all group contacts queries for removed groups
-      if (successful.length > 0) {
-        queryClient.invalidateQueries({ 
-          queryKey: [`/api/contact-groups`], 
-          predicate: (query) => Boolean(query.queryKey[0]?.toString().includes('/api/contact-groups/') && query.queryKey[0]?.toString().includes('/contacts'))
-        });
-      }
+      // Delay invalidations to let UI update first
+      setTimeout(() => {
+        // Narrow invalidations to only affected queries
+        queryClient.invalidateQueries({ queryKey: ['/api/contact-groups'], exact: true });
+        queryClient.invalidateQueries({ queryKey: ['/api/contact-memberships', selectedContactIdsKey], exact: true });
+        queryClient.invalidateQueries({ queryKey: [`/api/contact-groups/${groupId}/contacts`], exact: true });
+        queryClient.invalidateQueries({ queryKey: ['/api/all-group-memberships'] });
+      }, 0);
     },
   });
 

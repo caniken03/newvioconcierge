@@ -1,0 +1,318 @@
+Thanks—this error is classic “effect → setState → re-render → effect …” recursion. Below is a practical, production-safe fix you can apply now, with targeted patches for each likely cause. If you apply A–D you’ll usually eliminate the loop entirely.
+
+---
+
+# TL;DR fix order
+
+1. **Stop selection-triggered effects from auto-opening/auto-setting state** (guard + diff).
+2. **Make modal open/close one-way** (parent controls; no feedback loop).
+3. **Narrow React Query invalidations** (or use `setQueryData` to avoid cascades).
+4. **Never mutate arrays/objects** (clone before `.sort()`, `.push()`, etc.).
+5. **Stabilise props & `enabled` flags** (`useCallback`, `useMemo`).
+6. **No `setState` in render** (move to `useEffect` or event handlers).
+
+---
+
+## A) Patch selection-triggered effect (MOST LIKELY)
+
+If you have something like:
+
+```tsx
+useEffect(() => {
+  if (selectedContacts.length) {
+    setOpenAssignModal(true); // Triggers render → effect fires again after refetch
+  }
+}, [selectedContacts, contactGroups]);
+```
+
+### Fix: guard + previous diff + one-shot
+
+```tsx
+const openedAssignRef = useRef(false);
+const prevSelected = useRef<string[]>([]);
+
+useEffect(() => {
+  // Avoid running on first render or when the selection hasn’t *actually* changed
+  const changed =
+    selectedContacts.length !== prevSelected.current.length ||
+    selectedContacts.some((id, i) => id !== prevSelected.current[i]);
+
+  if (!changed) return;
+
+  prevSelected.current = selectedContacts;
+
+  // Only auto-open once per distinct selection
+  if (selectedContacts.length > 0 && !openedAssignRef.current) {
+    openedAssignRef.current = true;
+    setOpenAssignModal(true);
+  }
+}, [selectedContacts]);
+
+// When you *intentionally* change selection (e.g., user clears it), also reset the guard:
+const clearSelection = useCallback(() => {
+  setSelectedContacts([]);
+  openedAssignRef.current = false;
+}, []);
+```
+
+**Why it works**: prevents the effect from re-firing on identical data and stops repeat modal opens.
+
+---
+
+## B) Break modal open/close feedback loops
+
+Typical problem:
+
+```tsx
+<Dialog open={open} onOpenChange={(o) => { setOpen(o); onClose(); }} />
+```
+
+This flips `open` while calling a parent state change that triggers effects → re-open.
+
+### Fix: single source of truth + idempotent close
+
+```tsx
+// Parent owns the state
+const [assignOpen, setAssignOpen] = useState(false);
+
+const handleAssignClose = useCallback(() => {
+  // 1) Clear selection and guards *before* closing
+  setSelectedContacts([]);
+  openedAssignRef.current = false;
+
+  // 2) Close modal last (reduces race windows)
+  setAssignOpen(false);
+}, []);
+
+<Dialog open={assignOpen} onOpenChange={(next) => {
+  // Only allow closing via user intent; opening is explicit only
+  if (!next) handleAssignClose();
+}}>
+  {/* ... */}
+</Dialog>
+```
+
+**Rule**: Don’t auto-open modals from effects that also react to data changes. Open them only from explicit user actions (button clicks). If you must auto-open, use the guard in A).
+
+---
+
+## C) Stop array/object mutation (e.g., `.sort()` on props)
+
+```tsx
+// BAD: mutates the incoming prop (same reference, different order)
+selectedContactIds.sort();
+
+// GOOD:
+const stableSelected = useMemo(
+  () => [...selectedContactIds].sort(), // new reference
+  [selectedContactIds]
+);
+```
+
+Apply the same discipline for `.push`, `.splice`, nested object edits—always clone first.
+
+---
+
+## D) Tame invalidation cascades (React Query)
+
+If you invalidate broad keys on every success, you re-fetch multiple lists → effects fire → state changes → more invalidations.
+
+### Prefer cache updates over blanket invalidation
+
+```tsx
+const qc = useQueryClient();
+const addToGroup = useMutation({
+  mutationFn: api.addContactToGroup,
+  onSuccess: (added) => {
+    // Update only the affected caches
+    qc.setQueryData(['group-members', added.groupId], (old: any) =>
+      old ? { ...old, members: [...old.members, added.contact] } : old
+    );
+
+    // Optionally, *targeted* invalidation for a single list:
+    qc.invalidateQueries({ queryKey: ['contacts'], exact: true });
+  },
+});
+```
+
+### If you must invalidate, narrow it
+
+```tsx
+// INSTEAD OF:
+// qc.invalidateQueries(); // or invalidate multiple broad roots
+
+qc.invalidateQueries({ queryKey: ['contact-groups', groupId], exact: true });
+qc.invalidateQueries({ queryKey: ['group-members', groupId], exact: true });
+```
+
+### Delay invalidation until UI is stable
+
+Close the modal and clear selection **before** invalidating to prevent immediate re-entry into effects:
+
+```tsx
+onSuccess: () => {
+  handleAssignClose();         // clears selection + closes modal
+  setTimeout(() => {           // let modal unmount first
+    qc.invalidateQueries({ queryKey: ['group-members', groupId], exact: true });
+  }, 0);
+}
+```
+
+---
+
+## E) Stabilise props & query `enabled` flags
+
+Recreated functions/objects can cause children to re-render and fire effects.
+
+```tsx
+const filters = useMemo(() => ({ groupId, search }), [groupId, search]);
+const onAssign = useCallback((ids: string[]) => addToGroup.mutate({ ids, groupId }), [addToGroup, groupId]);
+
+// Queries
+const enabled = !!groupId;                 // simple boolean
+const stableEnabled = useMemo(() => enabled, [enabled]); // if derived from complex logic
+
+useQuery(['contacts', filters], fetchContacts, { enabled: stableEnabled });
+```
+
+---
+
+## F) Eliminate any setState during render
+
+Search for patterns like:
+
+```tsx
+const Component = ({ selected }) => {
+  if (selected.length && !open) setOpen(true); // ❌ this is during render
+  return ...
+}
+```
+
+### Fix: move to an effect
+
+```tsx
+useEffect(() => {
+  if (selected.length && !open) setOpen(true);
+}, [selected, open]);
+```
+
+---
+
+## G) Example: Safe “Add Contact” mutation flow
+
+This shows all the guardrails together.
+
+```tsx
+function AddContactFlow() {
+  const qc = useQueryClient();
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
+  const openedAssignRef = useRef(false);
+
+  // EFFECT: only auto-open once per distinct non-empty selection
+  const prevSelected = useRef<string[]>([]);
+  useEffect(() => {
+    const changed =
+      selectedContacts.length !== prevSelected.current.length ||
+      selectedContacts.some((id, i) => id !== prevSelected.current[i]);
+
+    if (!changed) return;
+    prevSelected.current = selectedContacts;
+
+    if (selectedContacts.length > 0 && !openedAssignRef.current) {
+      openedAssignRef.current = true;
+      setAssignOpen(true);
+    }
+  }, [selectedContacts]);
+
+  const handleAssignClose = useCallback(() => {
+    setSelectedContacts([]);
+    openedAssignRef.current = false;
+    setAssignOpen(false);
+  }, []);
+
+  const addContact = useMutation({
+    mutationFn: api.addContact,
+    onSuccess: (contact) => {
+      // Update contact list cache precisely
+      qc.setQueryData(['contacts'], (old: any) =>
+        old ? { ...old, data: [contact, ...old.data] } : old
+      );
+
+      // Close modal & clear selection BEFORE any targeted invalidations
+      handleAssignClose();
+
+      // Optional: targeted invalidation if other lists depend on it
+      setTimeout(() => {
+        qc.invalidateQueries({ queryKey: ['contacts'], exact: true });
+      }, 0);
+    },
+  });
+
+  const onSubmit = useCallback((form: ContactForm) => {
+    addContact.mutate(form);
+  }, [addContact]);
+
+  return (
+    <>
+      {/* form → onSubmit */}
+      <Dialog open={assignOpen} onOpenChange={(next) => !next && handleAssignClose()}>
+        {/* content */}
+      </Dialog>
+    </>
+  );
+}
+```
+
+---
+
+## H) Quick diagnostics to confirm the loop source
+
+Add these temporarily:
+
+```tsx
+// 1) Log state transitions with stacks (dev only)
+const setSafeState = (setter: React.Dispatch<any>, label: string) => (v: any) => {
+  console.debug(`[STATE] ${label}`, v, new Error().stack?.split('\n').slice(0,3).join('\n'));
+  setter(v);
+};
+
+// 2) React Query observer
+useEffect(() => {
+  const unsub = queryClient.getQueryCache().subscribe((event) => {
+    if (event?.type === 'queryUpdated') {
+      console.debug('[RQ] updated', event.query.queryKey);
+    }
+  });
+  return unsub;
+}, [queryClient]);
+
+// 3) Freeze props in dev to catch mutation
+useEffect(() => {
+  if (process.env.NODE_ENV !== 'production') {
+    Object.freeze(selectedContacts);
+  }
+}, [selectedContacts]);
+```
+
+If you see `queryUpdated` → `effect` → `setState` → `queryUpdated` repeating, narrow invalidations and apply the guards above.
+
+---
+
+## I) About the Vite overlay
+
+Leave it enabled—it’s only reporting the loop. Disabling it (`server.hmr.overlay = false`) hides the symptom, not the cause.
+
+---
+
+### Final checklist (apply these and you’re done)
+
+* [ ] Effects that auto-open modals or change UI state are **guarded** (prev diff + one-shot ref).
+* [ ] Modal state is **parent-owned**; closing clears selection & guards first.
+* [ ] React Query **uses `setQueryData`** or **targeted invalidations** only.
+* [ ] **No array/object mutation** of props or external state; clone before sort.
+* [ ] **All functions passed as props are `useCallback`-ed**; objects/arrays `useMemo`-ised.
+* [ ] **No `setState` during render**; move to effects/handlers.
+* [ ] Query `enabled` flags are **stable booleans**, not derived from recreated objects.
+
+Implement A–D first; that typically resolves “Maximum update depth exceeded” in contact add/import flows.

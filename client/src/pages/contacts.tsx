@@ -669,6 +669,7 @@ export default function Contacts() {
   }) as { data: Contact[] };
 
   // Memoize group IDs to prevent infinite loop from array recreation
+  // IMPORTANT: sort() creates a new array, so no mutation here - this is safe
   const groupIds = useMemo(() => contactGroups.map(g => g.id).sort().join(','), [contactGroups]);
 
   // Get all group memberships for all contacts (we'll filter display later)
