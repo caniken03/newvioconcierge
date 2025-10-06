@@ -553,20 +553,21 @@ export function GroupMemberViewer({ group, isOpen, onClose }: GroupMemberViewerP
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
           <DialogHeader>
-            <div className="flex items-center justify-between">
-              <DialogTitle className="flex items-center gap-3">
+            <div className="flex items-center justify-between gap-4 mb-2">
+              <DialogTitle className="flex items-center gap-3 flex-1 min-w-0">
                 <div 
-                  className="w-4 h-4 rounded-full"
+                  className="w-4 h-4 rounded-full flex-shrink-0"
                   style={{ backgroundColor: group.color }}
                 />
-                {group.name} Members
-                <Badge variant="secondary">{members.length} contacts</Badge>
+                <span className="truncate">{group.name} Members</span>
+                <Badge variant="secondary" className="flex-shrink-0">{members.length} contacts</Badge>
               </DialogTitle>
               <Button
                 variant="default"
                 size="sm"
                 onClick={() => setShowAddMembersModal(true)}
                 data-testid="button-add-members"
+                className="flex-shrink-0"
               >
                 <UserPlus className="w-4 h-4 mr-2" />
                 Add Members
