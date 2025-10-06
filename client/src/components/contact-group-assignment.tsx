@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,14 +41,6 @@ export function ContactGroupAssignment({
   selectedContactIds,
   selectedContactNames = []
 }: ContactGroupAssignmentProps) {
-  // DEBUG: Log renders to find infinite loop source
-  console.log('[ContactGroupAssignment] RENDER', {
-    isOpen,
-    selectedContactIdsCount: selectedContactIds.length,
-    selectedContactIds: selectedContactIds.slice(0, 3),
-    stack: new Error().stack?.split('\n').slice(0, 5).join('\n')
-  });
-
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
 
   // Stable handler for dialog close (prevents infinite loop from recreating function)
@@ -58,18 +50,6 @@ export function ContactGroupAssignment({
     }
   }, [onClose]);
 
-  // DEBUG: React Query subscription to track query updates
-  useEffect(() => {
-    if (!isOpen) return;
-    
-    const unsub = queryClient.getQueryCache().subscribe((event) => {
-      if (event?.type === 'updated') {
-        console.log('[RQ] Query updated:', event.query.queryKey);
-      }
-    });
-    return unsub;
-  }, [isOpen]);
-
   // Fetch available contact groups
   const { data: contactGroups = [] } = useQuery({
     queryKey: ['/api/contact-groups'],
@@ -78,7 +58,6 @@ export function ContactGroupAssignment({
 
   // Fetch current group memberships for selected contacts
   // Use stable string of selected contact IDs to prevent infinite loops
-  // IMPORTANT: Clone before sort to avoid mutating the prop array
   const selectedContactIdsKey = useMemo(() => 
     [...selectedContactIds].sort().join(','), 
     [selectedContactIds]
@@ -89,13 +68,11 @@ export function ContactGroupAssignment({
     queryFn: async () => {
       if (selectedContactIds.length === 0) return [];
       
-      // Fetch groups fresh inside the query function
       const groupsResponse = await apiRequest('GET', '/api/contact-groups');
       const groups = await groupsResponse.json() as ContactGroup[];
       
       if (groups.length === 0) return [];
       
-      // Get memberships for all selected contacts
       const memberships: GroupMembership[] = [];
       
       for (const group of groups) {
@@ -103,7 +80,6 @@ export function ContactGroupAssignment({
           const response = await apiRequest('GET', `/api/contact-groups/${group.id}/contacts`);
           const groupContacts = await response.json() as any[];
           
-          // Check which of our selected contacts are in this group
           const matchingContacts = groupContacts.filter((contact: any) => 
             selectedContactIds.includes(contact.id)
           );
@@ -128,131 +104,98 @@ export function ContactGroupAssignment({
     enabled: isOpen && selectedContactIds.length > 0,
   });
 
-  // Add contacts to group mutation
-  const addToGroupMutation = useMutation({
-    mutationFn: async ({ groupId, contactIds }: { groupId: string; contactIds: string[] }) => {
-      const results = [];
-      for (const contactId of contactIds) {
-        try {
-          const result = await apiRequest('POST', `/api/contact-groups/${groupId}/contacts`, {
-            contactId
-          });
-          results.push({ contactId, success: true, result });
-        } catch (error) {
-          results.push({ 
-            contactId, 
-            success: false, 
-            error: error instanceof Error ? error.message : 'Unknown error' 
-          });
-        }
-      }
-      return { results, groupId };
+  // Bulk membership mutation using the new endpoint
+  const bulkMembershipMutation = useMutation({
+    mutationFn: async ({ 
+      groupId, 
+      addContactIds = [], 
+      removeContactIds = [] 
+    }: { 
+      groupId: string; 
+      addContactIds?: string[]; 
+      removeContactIds?: string[] 
+    }) => {
+      const response = await apiRequest('POST', '/api/contact-group-memberships', {
+        groupId,
+        addContactIds,
+        removeContactIds
+      });
+      return response.json();
     },
-    onSuccess: ({ results, groupId }) => {
-      const successful = results.filter(r => r.success);
-      const failed = results.filter(r => !r.success);
+    onSuccess: (results, variables) => {
+      const { added, removed, errors } = results;
+      const { groupId } = variables;
       
       // Show success toasts
-      if (successful.length > 0) {
+      if (added.length > 0) {
         toast({
           title: "Contacts added to group",
-          description: `${successful.length} contact${successful.length > 1 ? 's' : ''} added successfully.`,
+          description: `${added.length} contact${added.length > 1 ? 's' : ''} added successfully.`,
+        });
+      }
+      
+      if (removed.length > 0) {
+        toast({
+          title: "Contacts removed from group",
+          description: `${removed.length} contact${removed.length > 1 ? 's' : ''} removed successfully.`,
         });
       }
       
       // Show error toasts
-      if (failed.length > 0) {
-        const alreadyInGroup = failed.filter(f => f.error?.includes('already in'));
-        const otherErrors = failed.filter(f => !f.error?.includes('already in'));
-        
-        if (alreadyInGroup.length > 0) {
-          toast({
-            title: "Some contacts already in group",
-            description: `${alreadyInGroup.length} contact${alreadyInGroup.length > 1 ? 's were' : ' was'} already in this group.`,
-            variant: "destructive",
-          });
-        }
-        
-        if (otherErrors.length > 0) {
-          toast({
-            title: "Some additions failed",
-            description: `${otherErrors.length} contact${otherErrors.length > 1 ? 's' : ''} could not be added.`,
-            variant: "destructive",
-          });
-        }
-      }
-      
-      // Close modal FIRST to prevent feedback loops
-      if (successful.length > 0) {
-        onClose();
-      }
-      
-      // THEN invalidate queries after a tick (let modal unmount first)
-      setTimeout(() => {
-        // Narrow invalidations to only affected queries
-        queryClient.invalidateQueries({ queryKey: ['/api/contact-groups'], exact: true });
-        queryClient.invalidateQueries({ queryKey: ['/api/contact-memberships', selectedContactIdsKey], exact: true });
-        queryClient.invalidateQueries({ queryKey: [`/api/contact-groups/${groupId}/contacts`], exact: true });
-        queryClient.invalidateQueries({ queryKey: ['/api/all-group-memberships'] });
-      }, 0);
-    },
-  });
-
-  // Remove contacts from group mutation
-  const removeFromGroupMutation = useMutation({
-    mutationFn: async ({ groupId, contactIds }: { groupId: string; contactIds: string[] }) => {
-      const results = [];
-      for (const contactId of contactIds) {
-        try {
-          await apiRequest('DELETE', `/api/contact-groups/${groupId}/contacts/${contactId}`);
-          results.push({ contactId, success: true });
-        } catch (error) {
-          results.push({ 
-            contactId, 
-            success: false, 
-            error: error instanceof Error ? error.message : 'Unknown error' 
-          });
-        }
-      }
-      return { results, groupId };
-    },
-    onSuccess: ({ results, groupId }) => {
-      const successful = results.filter(r => r.success);
-      const failed = results.filter(r => !r.success);
-      
-      // Show toasts
-      if (successful.length > 0) {
+      if (errors.length > 0) {
         toast({
-          title: "Contacts removed from group",
-          description: `${successful.length} contact${successful.length > 1 ? 's' : ''} removed successfully.`,
-        });
-      }
-      
-      if (failed.length > 0) {
-        toast({
-          title: "Some removals failed",
-          description: `${failed.length} contact${failed.length > 1 ? 's' : ''} could not be removed.`,
+          title: "Some operations failed",
+          description: `${errors.length} operation${errors.length > 1 ? 's' : ''} could not be completed.`,
           variant: "destructive",
         });
       }
       
-      // Delay invalidations to let UI update first
-      setTimeout(() => {
-        // Narrow invalidations to only affected queries
-        queryClient.invalidateQueries({ queryKey: ['/api/contact-groups'], exact: true });
-        queryClient.invalidateQueries({ queryKey: ['/api/contact-memberships', selectedContactIdsKey], exact: true });
-        queryClient.invalidateQueries({ queryKey: [`/api/contact-groups/${groupId}/contacts`], exact: true });
-        queryClient.invalidateQueries({ queryKey: ['/api/all-group-memberships'] });
-      }, 0);
+      // Manually update query cache to avoid invalidation loops
+      // Update the specific group's contact list
+      const groupCacheKey = [`/api/contact-groups/${groupId}/contacts`];
+      const currentGroupContacts = queryClient.getQueryData(groupCacheKey) as any[] || [];
+      
+      if (added.length > 0) {
+        // We don't have full contact data, so just invalidate this specific query
+        queryClient.invalidateQueries({ queryKey: groupCacheKey, exact: true });
+      }
+      if (removed.length > 0) {
+        queryClient.invalidateQueries({ queryKey: groupCacheKey, exact: true });
+      }
+      
+      // Update the groups list to reflect new contact counts
+      const groupsKey = ['/api/contact-groups'];
+      const currentGroups = queryClient.getQueryData(groupsKey) as ContactGroup[] || [];
+      const updatedGroups = currentGroups.map(g => {
+        if (g.id === groupId) {
+          return {
+            ...g,
+            contactCount: g.contactCount + added.length - removed.length
+          };
+        }
+        return g;
+      });
+      queryClient.setQueryData(groupsKey, updatedGroups);
+      
+      // Update memberships cache
+      queryClient.invalidateQueries({ 
+        queryKey: ['/api/contact-memberships', selectedContactIdsKey], 
+        exact: true 
+      });
+      
+      // Close modal only after successful operations
+      if (added.length > 0 || removed.length > 0) {
+        onClose();
+      }
     },
   });
 
   const handleAddToGroup = () => {
     if (!selectedGroupId) return;
     
-    addToGroupMutation.mutate({
+    bulkMembershipMutation.mutate({
       groupId: selectedGroupId,
-      contactIds: selectedContactIds
+      addContactIds: selectedContactIds
     });
   };
 
@@ -263,9 +206,9 @@ export function ContactGroupAssignment({
     
     if (contactsInGroup.length === 0) return;
     
-    removeFromGroupMutation.mutate({
+    bulkMembershipMutation.mutate({
       groupId,
-      contactIds: contactsInGroup
+      removeContactIds: contactsInGroup
     });
   };
 
@@ -288,7 +231,7 @@ export function ContactGroupAssignment({
     return acc;
   }, [] as Array<{ groupId: string; groupName: string; groupColor: string; contactCount: number }>);
 
-  const isLoading = addToGroupMutation.isPending || removeFromGroupMutation.isPending;
+  const isLoading = bulkMembershipMutation.isPending;
 
   return (
     <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>

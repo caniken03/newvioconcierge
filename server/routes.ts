@@ -2110,6 +2110,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bulk group membership management endpoint
+  app.post('/api/contact-group-memberships', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      const bulkSchema = z.object({
+        groupId: z.string().uuid(),
+        addContactIds: z.array(z.string().uuid()).optional().default([]),
+        removeContactIds: z.array(z.string().uuid()).optional().default([]),
+      });
+
+      const { groupId, addContactIds, removeContactIds } = bulkSchema.parse(req.body);
+      
+      const results = {
+        added: [] as any[],
+        removed: [] as any[],
+        errors: [] as { contactId: string; operation: string; error: string }[],
+      };
+
+      // Process additions
+      for (const contactId of addContactIds) {
+        try {
+          const membership = await storage.addContactToGroup(contactId, groupId, req.user.tenantId, req.user.id);
+          results.added.push(membership);
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          // Silently skip if already in group
+          if (!errorMsg.includes('already in this group')) {
+            results.errors.push({ contactId, operation: 'add', error: errorMsg });
+          }
+        }
+      }
+
+      // Process removals
+      for (const contactId of removeContactIds) {
+        try {
+          await storage.removeContactFromGroup(contactId, groupId, req.user.tenantId);
+          results.removed.push({ contactId, groupId });
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          results.errors.push({ contactId, operation: 'remove', error: errorMsg });
+        }
+      }
+
+      res.status(200).json(results);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to process bulk membership changes';
+      res.status(400).json({ message: errorMessage });
+    }
+  });
+
   // Locations routes
   app.get('/api/locations', authenticateJWT, async (req: any, res) => {
     try {
