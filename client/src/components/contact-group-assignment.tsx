@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +50,13 @@ export function ContactGroupAssignment({
   });
 
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
+
+  // Stable handler for dialog close (prevents infinite loop from recreating function)
+  const handleDialogOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      onClose();
+    }
+  }, [onClose]);
 
   // DEBUG: React Query subscription to track query updates
   useEffect(() => {
@@ -284,7 +291,7 @@ export function ContactGroupAssignment({
   const isLoading = addToGroupMutation.isPending || removeFromGroupMutation.isPending;
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Manage Group Assignments</DialogTitle>
