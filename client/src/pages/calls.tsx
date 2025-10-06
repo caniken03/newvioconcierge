@@ -87,8 +87,30 @@ export default function CallManagement() {
     }
   });
 
+  const cancelCallMutation = useMutation({
+    mutationFn: async (callSessionId: string) => {
+      return apiRequest(`/api/call-sessions/${callSessionId}`, 'PATCH', { status: 'cancelled' });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Call Cancelled",
+        description: "Scheduled call has been cancelled successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/call-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/call-sessions/stats'] });
+    },
+    onError: () => {
+      toast({
+        title: "Cancellation Failed", 
+        description: "Unable to cancel call. Please try again.",
+        variant: "destructive",
+      });
+    }
+  });
+
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "destructive" | "outline" | "secondary"> = {
+      queued: "secondary",
       scheduled: "secondary",
       in_progress: "default", 
       completed: "secondary",
@@ -97,6 +119,7 @@ export default function CallManagement() {
     };
     
     const labels = {
+      queued: "Queued",
       scheduled: "Scheduled",
       in_progress: "In Progress",
       completed: "Completed", 
@@ -227,9 +250,11 @@ export default function CallManagement() {
                     <SelectContent>
                       <SelectItem value="all">All Status</SelectItem>
                       <SelectItem value="scheduled">Scheduled</SelectItem>
+                      <SelectItem value="queued">Queued</SelectItem>
                       <SelectItem value="in_progress">In Progress</SelectItem>
                       <SelectItem value="completed">Completed</SelectItem>
                       <SelectItem value="failed">Failed</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -273,17 +298,29 @@ export default function CallManagement() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
-                              {call.status === "scheduled" && (
-                                <Button 
-                                  size="sm" 
-                                  variant="outline"
-                                  onClick={() => initiateCallMutation.mutate(call.id)}
-                                  disabled={initiateCallMutation.isPending}
-                                  data-testid={`button-initiate-call-${call.id}`}
-                                >
-                                  <Play className="w-4 h-4 mr-1" />
-                                  Start
-                                </Button>
+                              {(call.status === "scheduled" || call.status === "queued") && (
+                                <>
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={() => initiateCallMutation.mutate(call.id)}
+                                    disabled={initiateCallMutation.isPending}
+                                    data-testid={`button-initiate-call-${call.id}`}
+                                  >
+                                    <Play className="w-4 h-4 mr-1" />
+                                    Start
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="destructive"
+                                    onClick={() => cancelCallMutation.mutate(call.id)}
+                                    disabled={cancelCallMutation.isPending}
+                                    data-testid={`button-cancel-call-${call.id}`}
+                                  >
+                                    <XCircle className="w-4 h-4 mr-1" />
+                                    Cancel
+                                  </Button>
+                                </>
                               )}
                               {call.status === "in_progress" && (
                                 <Button 

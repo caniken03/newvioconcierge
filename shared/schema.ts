@@ -178,7 +178,7 @@ export const callSessions = pgTable("call_sessions", {
   sessionId: varchar("session_id", { length: 255 }).unique(),
   contactId: uuid("contact_id"),
   tenantId: uuid("tenant_id").notNull(),
-  status: varchar("status", { length: 50 }).default("queued"), // queued, in_progress, completed, failed
+  status: varchar("status", { length: 50 }).default("queued"), // queued, in_progress, completed, failed, cancelled
   triggerTime: timestamp("trigger_time"),
   startTime: timestamp("start_time"),
   endTime: timestamp("end_time"),

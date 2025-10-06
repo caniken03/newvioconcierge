@@ -2698,7 +2698,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/call-sessions/:id', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req, res) => {
     try {
       const updateSchema = z.object({
-        status: z.enum(['queued', 'in_progress', 'completed', 'failed']).optional(),
+        status: z.enum(['queued', 'in_progress', 'completed', 'failed', 'cancelled']).optional(),
         callOutcome: z.enum(['confirmed', 'voicemail', 'no_answer', 'busy', 'failed']).optional(),
         durationSeconds: z.number().optional(),
         retellCallId: z.string().optional(),
