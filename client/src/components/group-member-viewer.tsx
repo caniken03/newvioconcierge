@@ -51,6 +51,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { BulkCallConfigModal, type BulkCallConfig } from "@/components/modals/bulk-call-config-modal";
+import CallNowModal from "@/components/call-now-modal";
 import type { ContactGroup, Contact } from "@/types";
 
 interface GroupMemberViewerProps {
@@ -78,6 +79,8 @@ export function GroupMemberViewer({ group, isOpen, onClose }: GroupMemberViewerP
   const [showAddMembersModal, setShowAddMembersModal] = useState(false);
   const [contactsToAdd, setContactsToAdd] = useState<string[]>([]);
   const [addMembersSearch, setAddMembersSearch] = useState('');
+  const [isCallNowModalOpen, setIsCallNowModalOpen] = useState(false);
+  const [callNowContact, setCallNowContact] = useState<Contact | null>(null);
 
   // Fetch group members
   const { data: members = [], isLoading } = useQuery({
@@ -366,17 +369,26 @@ export function GroupMemberViewer({ group, isOpen, onClose }: GroupMemberViewerP
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={(e) => {
+                    e.stopPropagation();
+                    setCallNowContact(contact);
+                    setIsCallNowModalOpen(true);
+                  }}>
                     <Phone className="w-3 h-3 mr-2" />
                     Call Now
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={(e) => {
+                    e.stopPropagation();
+                  }}>
                     <Edit className="w-3 h-3 mr-2" />
                     Edit Contact
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
-                    onClick={() => removeContactMutation.mutate(contact.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeContactMutation.mutate(contact.id);
+                    }}
                     className="text-red-600"
                   >
                     <UserMinus className="w-3 h-3 mr-2" />
@@ -437,7 +449,15 @@ export function GroupMemberViewer({ group, isOpen, onClose }: GroupMemberViewerP
               </Badge>
             </div>
             <div className="flex items-center space-x-1">
-              <Button variant="ghost" size="sm">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCallNowContact(contact);
+                  setIsCallNowModalOpen(true);
+                }}
+              >
                 <Phone className="w-3 h-3" />
               </Button>
               <DropdownMenu>
@@ -447,12 +467,17 @@ export function GroupMemberViewer({ group, isOpen, onClose }: GroupMemberViewerP
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={(e) => {
+                    e.stopPropagation();
+                  }}>
                     <Edit className="w-3 h-3 mr-2" />
                     Edit Contact
                   </DropdownMenuItem>
                   <DropdownMenuItem 
-                    onClick={() => removeContactMutation.mutate(contact.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeContactMutation.mutate(contact.id);
+                    }}
                     className="text-red-600"
                   >
                     <UserMinus className="w-3 h-3 mr-2" />
@@ -489,11 +514,14 @@ export function GroupMemberViewer({ group, isOpen, onClose }: GroupMemberViewerP
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => {
+                  setCallNowContact(contact);
+                  setIsCallNowModalOpen(true);
+                }}>
                   <Phone className="w-4 h-4 mr-2" />
                   Call Now
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => {}}>
                   <Edit className="w-4 h-4 mr-2" />
                   Edit Contact
                 </DropdownMenuItem>
@@ -750,6 +778,16 @@ export function GroupMemberViewer({ group, isOpen, onClose }: GroupMemberViewerP
         contactCount={bulkCallContactIds.length}
         groupName={group.name}
         isLoading={bulkCallMutation.isPending}
+      />
+
+      {/* Call Now Modal */}
+      <CallNowModal
+        isOpen={isCallNowModalOpen}
+        onClose={() => {
+          setIsCallNowModalOpen(false);
+          setCallNowContact(null);
+        }}
+        contact={callNowContact}
       />
 
       {/* Add Members Modal */}

@@ -35,6 +35,7 @@ Authentication is JWT-based with role-based middleware. The system enforces mult
 - **Tenant Isolation**: Enhanced cache management and dynamic API calls ensure strict tenant data isolation, eliminating hardcoded values.
 - **Admin Tenant Creation Wizard**: A 7-step wizard for super admins to create tenants with template-driven setup, advanced feature control, and robust validation.
 - **Group Member Management**: Contact groups support two workflows for adding members: (1) From Contacts page: use the UserPlus button in the contacts table to add individual contacts to any group via SimpleGroupAssignment dropdown. (2) From Group Viewer: click "Add Members" button in the GroupMemberViewer toolbar to open a modal showing all contacts not in the group, with search/filter capabilities and multi-select checkboxes for bulk additions. Both workflows use the `/api/contact-group-memberships` bulk endpoint for consistent handling, automatic cache invalidation, and comprehensive error feedback via toast notifications.
+- **Call Now Functionality**: Implemented consistent "Call Now" functionality across all GroupMemberViewer view modes (grid, list, detailed). Grid and detailed views use dropdown menu items, while list view uses a direct Phone button. All implementations properly handle event propagation to prevent unintended contact selection toggles and share the same CallNowModal component with proper state management.
 
 # External Dependencies
 
