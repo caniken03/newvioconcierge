@@ -19,7 +19,7 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { ContactGroup } from "@/types";
-import { Users, Plus, X } from "lucide-react";
+import { Users, Plus } from "lucide-react";
 
 interface ContactGroupAssignmentProps {
   isOpen: boolean;
@@ -55,54 +55,6 @@ export function ContactGroupAssignment({
     queryKey: ['/api/contact-groups'],
     enabled: isOpen,
   }) as { data: ContactGroup[] };
-
-  // Fetch current group memberships for selected contacts
-  // Use stable string of selected contact IDs to prevent infinite loops
-  const selectedContactIdsKey = useMemo(() => 
-    [...selectedContactIds].sort().join(','), 
-    [selectedContactIds]
-  );
-
-  const { data: currentMemberships = [] } = useQuery({
-    queryKey: ['/api/contact-memberships', selectedContactIdsKey],
-    queryFn: async () => {
-      if (selectedContactIds.length === 0) return [];
-      
-      const groupsResponse = await apiRequest('GET', '/api/contact-groups');
-      const groups = await groupsResponse.json() as ContactGroup[];
-      
-      if (groups.length === 0) return [];
-      
-      const memberships: GroupMembership[] = [];
-      
-      for (const group of groups) {
-        try {
-          const response = await apiRequest('GET', `/api/contact-groups/${group.id}/contacts`);
-          const groupContacts = await response.json() as any[];
-          
-          const matchingContacts = groupContacts.filter((contact: any) => 
-            selectedContactIds.includes(contact.id)
-          );
-          
-          if (matchingContacts.length > 0) {
-            matchingContacts.forEach((contact: any) => {
-              memberships.push({
-                contactId: contact.id,
-                groupId: group.id,
-                groupName: group.name,
-                groupColor: group.color
-              });
-            });
-          }
-        } catch (error) {
-          // Skip groups we can't access
-        }
-      }
-      
-      return memberships;
-    },
-    enabled: isOpen && selectedContactIds.length > 0,
-  });
 
   // Bulk membership mutation using the new endpoint
   const bulkMembershipMutation = useMutation({
@@ -176,11 +128,6 @@ export function ContactGroupAssignment({
           queryKey: [`/api/contact-groups/${groupId}/contacts`], 
           exact: true 
         });
-        
-        queryClient.invalidateQueries({ 
-          queryKey: ['/api/contact-memberships', selectedContactIdsKey], 
-          exact: true 
-        });
       }, 100);
     },
   });
@@ -194,37 +141,9 @@ export function ContactGroupAssignment({
     });
   };
 
-  const handleRemoveFromGroup = (groupId: string) => {
-    const contactsInGroup = selectedContactIds.filter(contactId =>
-      currentMemberships.some(m => m.contactId === contactId && m.groupId === groupId)
-    );
-    
-    if (contactsInGroup.length === 0) return;
-    
-    bulkMembershipMutation.mutate({
-      groupId,
-      removeContactIds: contactsInGroup
-    });
-  };
-
   const selectedContactsText = selectedContactIds.length === 1 && selectedContactNames.length > 0
     ? selectedContactNames[0]
     : `${selectedContactIds.length} contact${selectedContactIds.length > 1 ? 's' : ''}`;
-
-  // Get unique groups that contain any of the selected contacts
-  const groupsWithSelectedContacts = currentMemberships.reduce((acc, membership) => {
-    const existing = acc.find(g => g.groupId === membership.groupId);
-    if (!existing) {
-      const contactCount = currentMemberships.filter(m => m.groupId === membership.groupId).length;
-      acc.push({
-        groupId: membership.groupId,
-        groupName: membership.groupName,
-        groupColor: membership.groupColor,
-        contactCount
-      });
-    }
-    return acc;
-  }, [] as Array<{ groupId: string; groupName: string; groupColor: string; contactCount: number }>);
 
   const isLoading = bulkMembershipMutation.isPending;
 
@@ -232,47 +151,14 @@ export function ContactGroupAssignment({
     <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Manage Group Assignments</DialogTitle>
+          <DialogTitle>Add to Group</DialogTitle>
           <DialogDescription>
-            Add or remove {selectedContactsText} from contact groups
+            Add {selectedContactsText} to a contact group
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Current Group Memberships */}
-          {groupsWithSelectedContacts.length > 0 && (
-            <div>
-              <h4 className="text-sm font-medium text-foreground mb-3">Current Groups</h4>
-              <div className="flex flex-wrap gap-2">
-                {groupsWithSelectedContacts.map(group => (
-                  <Badge
-                    key={group.groupId}
-                    style={{ backgroundColor: group.groupColor }}
-                    className="text-white flex items-center gap-1 pr-1"
-                  >
-                    {group.groupName}
-                    {group.contactCount < selectedContactIds.length && (
-                      <span className="text-xs opacity-75">
-                        ({group.contactCount}/{selectedContactIds.length})
-                      </span>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-4 w-4 p-0 ml-1 hover:bg-black/20"
-                      onClick={() => handleRemoveFromGroup(group.groupId)}
-                      disabled={isLoading}
-                      data-testid={`button-remove-group-${group.groupId}`}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Add to New Group */}
+          {/* Add to Group */}
           <div>
             <h4 className="text-sm font-medium text-foreground mb-3">Add to Group</h4>
             <div className="flex gap-2">
