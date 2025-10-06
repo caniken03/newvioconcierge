@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -14,12 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Users, Search, Plus } from "lucide-react";
-import type { ContactGroup, Contact } from "@/types";
+import { Users } from "lucide-react";
+import type { ContactGroup } from "@/types";
 
 interface ContactGroupsModalProps {
   isOpen: boolean;
@@ -50,17 +47,7 @@ export default function ContactGroupsModal({
     name: "",
     description: "",
     color: DEFAULT_COLORS[0].value,
-    initialContactIds: [] as string[],
   });
-  
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
-  
-  // Fetch contacts for initial member selection
-  const { data: contacts = [] } = useQuery({
-    queryKey: ['/api/contacts'],
-    enabled: isOpen && !editingGroup, // Only fetch when creating new group
-  }) as { data: Contact[] };
   
   // Update form data when editing group changes or modal opens
   useEffect(() => {
@@ -69,10 +56,7 @@ export default function ContactGroupsModal({
         name: editingGroup?.name || "",
         description: editingGroup?.description || "",
         color: editingGroup?.color || DEFAULT_COLORS[0].value,
-        initialContactIds: [],
       });
-      setSelectedContactIds([]);
-      setSearchTerm("");
     }
   }, [isOpen, editingGroup]);
   
@@ -82,14 +66,14 @@ export default function ContactGroupsModal({
 
   // Create contact group mutation
   const createGroupMutation = useMutation({
-    mutationFn: async (data: { name: string; description?: string; color: string; initialContactIds?: string[] }) => {
+    mutationFn: async (data: { name: string; description?: string; color: string }) => {
       return await apiRequest('POST', '/api/contact-groups', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/contact-groups'] });
       toast({
         title: "Success",
-        description: "Contact group created successfully",
+        description: "Contact group created successfully. Add members using the UserPlus button in the contacts table.",
       });
       handleClose();
     },
@@ -125,10 +109,8 @@ export default function ContactGroupsModal({
   });
 
   const handleClose = () => {
-    setFormData({ name: "", description: "", color: DEFAULT_COLORS[0].value, initialContactIds: [] });
+    setFormData({ name: "", description: "", color: DEFAULT_COLORS[0].value });
     setErrors({ name: "" });
-    setSelectedContactIds([]);
-    setSearchTerm("");
     onClose();
   };
 
@@ -151,7 +133,6 @@ export default function ContactGroupsModal({
       name: formData.name.trim(),
       description: formData.description.trim() || undefined,
       color: formData.color,
-      initialContactIds: selectedContactIds.length > 0 ? selectedContactIds : undefined,
     };
     
     if (editingGroup) {
@@ -162,29 +143,6 @@ export default function ContactGroupsModal({
   };
 
   const isLoading = createGroupMutation.isPending || updateGroupMutation.isPending;
-
-  // Filter contacts based on search term
-  const filteredContacts = contacts.filter(contact =>
-    contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    contact.phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    contact.appointmentType?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-  
-  const toggleContactSelection = (contactId: string) => {
-    setSelectedContactIds(prev => 
-      prev.includes(contactId) 
-        ? prev.filter(id => id !== contactId)
-        : [...prev, contactId]
-    );
-  };
-  
-  const selectAllContacts = () => {
-    if (selectedContactIds.length === filteredContacts.length) {
-      setSelectedContactIds([]);
-    } else {
-      setSelectedContactIds(filteredContacts.map(c => c.id));
-    }
-  };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
@@ -203,13 +161,7 @@ export default function ContactGroupsModal({
             </DialogDescription>
           </DialogHeader>
           
-          <Tabs defaultValue="basic" className="flex-1">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="basic">Basic Information</TabsTrigger>
-              <TabsTrigger value="members" disabled={!!editingGroup}>Initial Members</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="basic" className="space-y-6 py-4">
+          <div className="space-y-6 py-4">
             {/* Group Name */}
             <div className="space-y-2">
               <Label htmlFor="group-name">Group Name*</Label>
@@ -325,103 +277,18 @@ export default function ContactGroupsModal({
                   >
                     {editingGroup?.contactCount !== undefined 
                       ? `${editingGroup.contactCount} contacts`
-                      : `${selectedContactIds.length} contacts`
+                      : "0 contacts"
                     }
                   </Badge>
                 </div>
               </div>
-            </TabsContent>
-            
-            <TabsContent value="members" className="space-y-4 py-4">
-              {/* Initial Member Selection */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-base font-medium">Add Initial Members</Label>
-                    <p className="text-sm text-muted-foreground">Select contacts to add to this group immediately</p>
-                  </div>
-                  <Badge variant="secondary">
-                    {selectedContactIds.length} selected
-                  </Badge>
-                </div>
-                
-                {/* Search */}
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search contacts by name, phone, or appointment type..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                    data-testid="input-contact-search"
-                  />
-                </div>
-                
-                {/* Bulk Selection */}
-                {filteredContacts.length > 0 && (
-                  <div className="flex items-center space-x-2 p-2 border rounded-lg bg-gray-50 dark:bg-gray-800">
-                    <Checkbox
-                      checked={selectedContactIds.length === filteredContacts.length && filteredContacts.length > 0}
-                      onCheckedChange={selectAllContacts}
-                      data-testid="checkbox-select-all"
-                    />
-                    <Label className="text-sm">
-                      Select all {filteredContacts.length} contacts
-                      {searchTerm && " (filtered)"}
-                    </Label>
-                  </div>
-                )}
-                
-                {/* Contact List */}
-                <ScrollArea className="h-64 border rounded-lg">
-                  <div className="p-2 space-y-2">
-                    {filteredContacts.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        {searchTerm ? "No contacts match your search" : "No contacts available"}
-                      </div>
-                    ) : (
-                      filteredContacts.map((contact) => (
-                        <div
-                          key={contact.id}
-                          className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer border"
-                          onClick={() => toggleContactSelection(contact.id)}
-                        >
-                          <Checkbox
-                            checked={selectedContactIds.includes(contact.id)}
-                            data-testid={`checkbox-contact-${contact.id}`}
-                            className="pointer-events-none"
-                          />
-                          <div className="flex-1">
-                            <p className="font-medium">{contact.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {contact.phone} • {contact.appointmentType || 'No appointment type'}
-                            </p>
-                            {contact.appointmentTime && (
-                              <p className="text-xs text-muted-foreground">
-                                Next: {new Date(contact.appointmentTime).toLocaleDateString()}
-                              </p>
-                            )}
-                          </div>
-                          <Badge 
-                            variant={contact.appointmentStatus === 'confirmed' ? 'default' : 'secondary'}
-                            className="text-xs"
-                          >
-                            {contact.appointmentStatus || 'pending'}
-                          </Badge>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </ScrollArea>
-              </div>
-            </TabsContent>
-          </Tabs>
+          </div>
           
           <DialogFooter className="flex justify-between items-center">
             <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-              {!editingGroup && selectedContactIds.length > 0 && (
+              {!editingGroup && (
                 <span>
-                  Ready to create group with {selectedContactIds.length} member{selectedContactIds.length === 1 ? '' : 's'}
+                  Add members after creating the group using the UserPlus button
                 </span>
               )}
             </div>
