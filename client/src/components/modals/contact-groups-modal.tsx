@@ -147,7 +147,7 @@ export default function ContactGroupsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -210,30 +210,27 @@ export default function ContactGroupsModal({
               <p className="text-xs text-muted-foreground mb-3">
                 Choose a color that represents the purpose or priority of this group
               </p>
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 {DEFAULT_COLORS.map((colorOption, index) => (
                   <button
                     key={colorOption.value}
                     type="button"
-                    className={`flex items-center space-x-3 p-3 rounded-lg border-2 transition-all hover:scale-[1.02] ${
+                    className={`flex flex-col items-center space-y-1 p-2 rounded-lg border-2 transition-all ${
                       formData.color === colorOption.value 
-                        ? "border-gray-900 dark:border-gray-100 shadow-lg bg-gray-50 dark:bg-gray-800" 
+                        ? "border-gray-900 dark:border-gray-100 shadow-md bg-gray-50 dark:bg-gray-800" 
                         : "border-gray-200 dark:border-gray-700 hover:border-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
                     }`}
                     onClick={() => setFormData(prev => ({ ...prev, color: colorOption.value }))}
                     data-testid={`color-option-${index}`}
                   >
                     <div 
-                      className="w-6 h-6 rounded-full border border-gray-300"
+                      className="w-8 h-8 rounded-full border border-gray-300"
                       style={{ backgroundColor: colorOption.value }}
                     />
-                    <div className="flex-1 text-left">
-                      <p className="font-medium text-sm">{colorOption.label}</p>
-                      <p className="text-xs text-muted-foreground">{colorOption.description}</p>
-                    </div>
+                    <p className="font-medium text-xs text-center">{colorOption.label}</p>
                     {formData.color === colorOption.value && (
-                      <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
-                        <div className="w-2 h-2 bg-white rounded-full" />
+                      <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+                        <div className="w-1.5 h-1.5 bg-white rounded-full" />
                       </div>
                     )}
                   </button>
