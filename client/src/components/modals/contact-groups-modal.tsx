@@ -388,7 +388,7 @@ export default function ContactGroupsModal({
                         >
                           <Checkbox
                             checked={selectedContactIds.includes(contact.id)}
-                            onCheckedChange={() => toggleContactSelection(contact.id)}
+                            onClick={(e) => e.stopPropagation()}
                             data-testid={`checkbox-contact-${contact.id}`}
                           />
                           <div className="flex-1">
