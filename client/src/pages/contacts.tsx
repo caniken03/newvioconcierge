@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
@@ -668,9 +668,12 @@ export default function Contacts() {
     enabled: !!user && filters.groupId !== "all" && typeof filters.groupId === 'string' && filters.groupId.length > 0,
   }) as { data: Contact[] };
 
+  // Memoize group IDs to prevent infinite loop from array recreation
+  const groupIds = useMemo(() => contactGroups.map(g => g.id).sort().join(','), [contactGroups]);
+
   // Get all group memberships for all contacts (we'll filter display later)
   const { data: allGroupMemberships = [] } = useQuery({
-    queryKey: ['/api/all-group-memberships', contactGroups.map(g => g.id)],
+    queryKey: ['/api/all-group-memberships', groupIds],
     queryFn: async () => {
       if (!contactGroups.length) return [];
       
