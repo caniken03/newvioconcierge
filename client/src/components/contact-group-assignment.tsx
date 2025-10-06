@@ -150,43 +150,38 @@ export function ContactGroupAssignment({
         });
       }
       
-      // Manually update query cache to avoid invalidation loops
-      // Update the specific group's contact list
-      const groupCacheKey = [`/api/contact-groups/${groupId}/contacts`];
-      const currentGroupContacts = queryClient.getQueryData(groupCacheKey) as any[] || [];
-      
-      if (added.length > 0) {
-        // We don't have full contact data, so just invalidate this specific query
-        queryClient.invalidateQueries({ queryKey: groupCacheKey, exact: true });
-      }
-      if (removed.length > 0) {
-        queryClient.invalidateQueries({ queryKey: groupCacheKey, exact: true });
-      }
-      
-      // Update the groups list to reflect new contact counts
-      const groupsKey = ['/api/contact-groups'];
-      const currentGroups = queryClient.getQueryData(groupsKey) as ContactGroup[] || [];
-      const updatedGroups = currentGroups.map(g => {
-        if (g.id === groupId) {
-          return {
-            ...g,
-            contactCount: g.contactCount + added.length - removed.length
-          };
-        }
-        return g;
-      });
-      queryClient.setQueryData(groupsKey, updatedGroups);
-      
-      // Update memberships cache
-      queryClient.invalidateQueries({ 
-        queryKey: ['/api/contact-memberships', selectedContactIdsKey], 
-        exact: true 
-      });
-      
-      // Close modal only after successful operations
+      // CRITICAL: Close modal FIRST before any cache operations
       if (added.length > 0 || removed.length > 0) {
         onClose();
       }
+      
+      // Schedule cache updates AFTER modal closes (prevent invalidation loops)
+      setTimeout(() => {
+        // Update the groups list contact counts manually
+        const groupsKey = ['/api/contact-groups'];
+        const currentGroups = queryClient.getQueryData(groupsKey) as ContactGroup[] || [];
+        const updatedGroups = currentGroups.map(g => {
+          if (g.id === groupId) {
+            return {
+              ...g,
+              contactCount: g.contactCount + added.length - removed.length
+            };
+          }
+          return g;
+        });
+        queryClient.setQueryData(groupsKey, updatedGroups);
+        
+        // Invalidate only the specific queries that need fresh data
+        queryClient.invalidateQueries({ 
+          queryKey: [`/api/contact-groups/${groupId}/contacts`], 
+          exact: true 
+        });
+        
+        queryClient.invalidateQueries({ 
+          queryKey: ['/api/contact-memberships', selectedContactIdsKey], 
+          exact: true 
+        });
+      }, 100);
     },
   });
 
