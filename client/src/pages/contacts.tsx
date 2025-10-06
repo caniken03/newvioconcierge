@@ -9,6 +9,7 @@ import Header from "@/components/layout/header";
 import ContactModal from "@/components/modals/contact-modal";
 import ContactGroupsModal from "@/components/modals/contact-groups-modal";
 import ContactGroupAssignment from "@/components/contact-group-assignment";
+import { SimpleGroupAssignment } from "@/components/simple-group-assignment";
 import BulkStatusUpdateModal from "@/components/modals/bulk-status-update-modal";
 import BulkPriorityUpdateModal from "@/components/modals/bulk-priority-update-modal";
 import BulkContactMethodUpdateModal from "@/components/modals/bulk-contact-method-update-modal";
@@ -2125,6 +2126,18 @@ export default function Contacts() {
                           {/* Actions */}
                           <td className="px-4 py-4 text-center">
                             <div className="flex items-center justify-center space-x-2">
+                              <SimpleGroupAssignment
+                                contactId={contact.id}
+                                contactName={contact.name}
+                                groups={contactGroups}
+                                onSuccess={() => {
+                                  // Simple refresh - no complex state management
+                                  queryClient.invalidateQueries({ 
+                                    queryKey: ['/api/contact-groups'], 
+                                    exact: true 
+                                  });
+                                }}
+                              />
                               <button
                                 onClick={() => handleCallNow(contact)}
                                 className="text-muted-foreground hover:text-primary transition-colors"
