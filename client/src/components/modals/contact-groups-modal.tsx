@@ -162,8 +162,8 @@ export default function ContactGroupsModal({
             </DialogDescription>
           </DialogHeader>
           
-          <ScrollArea className="max-h-[60vh] pr-4">
-            <div className="space-y-6 py-4">
+          <ScrollArea className="h-[400px] pr-4">
+            <div className="space-y-4 py-4">
             {/* Group Name */}
             <div className="space-y-2">
               <Label htmlFor="group-name">Group Name*</Label>
@@ -196,7 +196,7 @@ export default function ContactGroupsModal({
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                 data-testid="textarea-group-description"
-                rows={3}
+                rows={2}
                 maxLength={500}
               />
               <p className="text-xs text-muted-foreground">
@@ -205,9 +205,9 @@ export default function ContactGroupsModal({
             </div>
             
             {/* Enhanced Color Selection */}
-            <div className="space-y-3">
+            <div className="space-y-2">
               <Label>Group Color & Category</Label>
-              <p className="text-xs text-muted-foreground mb-3">
+              <p className="text-xs text-muted-foreground">
                 Choose a color that represents the purpose or priority of this group
               </p>
               <div className="grid grid-cols-2 gap-2">
