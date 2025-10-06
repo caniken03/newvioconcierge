@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +41,27 @@ export function ContactGroupAssignment({
   selectedContactIds,
   selectedContactNames = []
 }: ContactGroupAssignmentProps) {
+  // DEBUG: Log renders to find infinite loop source
+  console.log('[ContactGroupAssignment] RENDER', {
+    isOpen,
+    selectedContactIdsCount: selectedContactIds.length,
+    selectedContactIds: selectedContactIds.slice(0, 3),
+    stack: new Error().stack?.split('\n').slice(0, 5).join('\n')
+  });
+
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
+
+  // DEBUG: React Query subscription to track query updates
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const unsub = queryClient.getQueryCache().subscribe((event) => {
+      if (event?.type === 'updated') {
+        console.log('[RQ] Query updated:', event.query.queryKey);
+      }
+    });
+    return unsub;
+  }, [isOpen]);
 
   // Fetch available contact groups
   const { data: contactGroups = [] } = useQuery({
