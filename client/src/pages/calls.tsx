@@ -460,18 +460,22 @@ export default function CallManagement() {
                       <p className="font-medium capitalize">{selectedCall.appointmentAction.replace('_', ' ')}</p>
                     </div>
                   )}
-                  {selectedCall.scheduledFor && (
-                    <div>
-                      <p className="text-sm text-muted-foreground">Scheduled For</p>
-                      <p className="font-medium">{new Date(selectedCall.scheduledFor).toLocaleString()}</p>
-                    </div>
-                  )}
-                  {selectedCall.completedAt && (
-                    <div>
-                      <p className="text-sm text-muted-foreground">Completed At</p>
-                      <p className="font-medium">{new Date(selectedCall.completedAt).toLocaleString()}</p>
-                    </div>
-                  )}
+                  <div>
+                    <p className="text-sm text-muted-foreground">Scheduled For</p>
+                    <p className="font-medium">
+                      {selectedCall.scheduledFor 
+                        ? new Date(selectedCall.scheduledFor).toLocaleString() 
+                        : 'Not scheduled yet'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Completed At</p>
+                    <p className="font-medium">
+                      {selectedCall.completedAt 
+                        ? new Date(selectedCall.completedAt).toLocaleString() 
+                        : 'Not completed yet'}
+                    </p>
+                  </div>
                   {selectedCall.durationSeconds && (
                     <div>
                       <p className="text-sm text-muted-foreground">Call Duration</p>
