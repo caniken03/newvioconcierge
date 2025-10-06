@@ -678,6 +678,7 @@ export default function Contacts() {
   // IMPORTANT: sort() creates a new array, so no mutation here - this is safe
   const groupIds = useMemo(() => contactGroups.map(g => g.id).sort().join(','), [contactGroups]);
 
+  // DISABLED: This N+1 query was causing infinite loops when adding contacts to groups
   // Get all group memberships for all contacts (we'll filter display later)
   const { data: allGroupMemberships = [] } = useQuery({
     queryKey: ['/api/all-group-memberships', groupIds],
@@ -710,8 +711,8 @@ export default function Contacts() {
       
       return allMemberships;
     },
-    // Temporarily enable for testing - in production, should be enabled: !!user && contactGroups.length > 0
-    enabled: contactGroups.length > 0,
+    // DISABLED to prevent infinite loop - was triggering N+1 fetches on every contactGroups change
+    enabled: false,
   }) as { data: GroupMembership[] };
 
   // Enhanced filtering logic
