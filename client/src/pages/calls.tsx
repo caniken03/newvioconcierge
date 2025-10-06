@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import Sidebar from '@/components/layout/sidebar';
@@ -326,15 +327,55 @@ export default function CallManagement() {
                                 <Button 
                                   size="sm" 
                                   variant="outline"
+                                  onClick={() => {
+                                    toast({
+                                      title: "Pause Not Available",
+                                      description: "Active calls cannot be paused. Please wait for the call to complete.",
+                                      variant: "destructive",
+                                    });
+                                  }}
                                   data-testid={`button-pause-call-${call.id}`}
                                 >
                                   <Pause className="w-4 h-4 mr-1" />
                                   Pause
                                 </Button>
                               )}
-                              <Button size="sm" variant="ghost" data-testid={`button-call-details-${call.id}`}>
-                                <MoreHorizontal className="w-4 h-4" />
-                              </Button>
+                              
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button size="sm" variant="ghost" data-testid={`button-call-details-${call.id}`}>
+                                    <MoreHorizontal className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => {
+                                    toast({
+                                      title: "Call Details",
+                                      description: `Session ID: ${call.sessionId || call.id}`,
+                                    });
+                                  }}>
+                                    View Details
+                                  </DropdownMenuItem>
+                                  {(call.status === "scheduled" || call.status === "queued") && (
+                                    <DropdownMenuItem 
+                                      onClick={() => cancelCallMutation.mutate(call.id)}
+                                      className="text-red-600"
+                                    >
+                                      Cancel Call
+                                    </DropdownMenuItem>
+                                  )}
+                                  {call.status === "completed" && (
+                                    <DropdownMenuItem onClick={() => {
+                                      toast({
+                                        title: "Call Transcript",
+                                        description: "Transcript feature coming soon",
+                                      });
+                                    }}>
+                                      View Transcript
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </TableCell>
                         </TableRow>
