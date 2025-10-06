@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Users } from "lucide-react";
 import type { ContactGroup } from "@/types";
 
@@ -161,7 +162,8 @@ export default function ContactGroupsModal({
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-6 py-4">
+          <ScrollArea className="max-h-[60vh] pr-4">
+            <div className="space-y-6 py-4">
             {/* Group Name */}
             <div className="space-y-2">
               <Label htmlFor="group-name">Group Name*</Label>
@@ -282,7 +284,8 @@ export default function ContactGroupsModal({
                   </Badge>
                 </div>
               </div>
-          </div>
+            </div>
+          </ScrollArea>
           
           <DialogFooter className="flex justify-between items-center">
             <div className="flex items-center space-x-2 text-sm text-muted-foreground">
