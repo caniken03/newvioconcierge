@@ -116,6 +116,7 @@ export default function CallManagement() {
     const variants: Record<string, "default" | "destructive" | "outline" | "secondary"> = {
       queued: "secondary",
       scheduled: "secondary",
+      initiated: "default",
       in_progress: "default",
       active: "default",
       completed: "secondary",
@@ -126,6 +127,7 @@ export default function CallManagement() {
     const labels = {
       queued: "Queued",
       scheduled: "Scheduled",
+      initiated: "In Progress",
       in_progress: "In Progress",
       active: "In Progress",
       completed: "Completed", 

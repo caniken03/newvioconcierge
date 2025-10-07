@@ -2047,11 +2047,46 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCallSessionsByTenant(tenantId: string): Promise<CallSession[]> {
-    return await db
-      .select()
+    const sessions = await db
+      .select({
+        id: callSessions.id,
+        sessionId: callSessions.sessionId,
+        contactId: callSessions.contactId,
+        tenantId: callSessions.tenantId,
+        status: callSessions.status,
+        triggerTime: callSessions.triggerTime,
+        startTime: callSessions.startTime,
+        endTime: callSessions.endTime,
+        durationSeconds: callSessions.durationSeconds,
+        callOutcome: callSessions.callOutcome,
+        appointmentAction: callSessions.appointmentAction,
+        customerResponse: callSessions.customerResponse,
+        customerSentiment: callSessions.customerSentiment,
+        sentimentScore: callSessions.sentimentScore,
+        retellCallId: callSessions.retellCallId,
+        errorMessage: callSessions.errorMessage,
+        createdAt: callSessions.createdAt,
+        // Contact information
+        contactName: contacts.name,
+        contactPhone: contacts.phone,
+        // Appointment information from contact
+        appointmentDate: contacts.appointmentTime,
+        appointmentDuration: contacts.appointmentDuration,
+        appointmentType: contacts.appointmentType,
+        specialInstructions: contacts.specialInstructions,
+        notes: contacts.notes,
+        // Scheduled for and completion time (using triggerTime as scheduledFor)
+        scheduledFor: callSessions.triggerTime,
+        completedAt: callSessions.endTime,
+        // Attempts (default to 1 if not tracked separately)
+        attempts: sql<number>`1`.as('attempts'),
+      })
       .from(callSessions)
+      .leftJoin(contacts, eq(callSessions.contactId, contacts.id))
       .where(eq(callSessions.tenantId, tenantId))
       .orderBy(desc(callSessions.createdAt));
+    
+    return sessions as any;
   }
 
   async createCallSession(session: InsertCallSession): Promise<CallSession> {
