@@ -42,6 +42,7 @@ Authentication is JWT-based with role-based middleware. The system enforces mult
   - **Edit Functionality**: Edit button opens ContactModal for updating appointment details, fetching full contact data via `/api/contacts/:id` endpoint.
   - **Call Reminder Display**: Shows scheduled call reminder time calculated from tenant's `reminderHoursBefore` configuration, displaying when the contact will receive their automated reminder call before the appointment.
   - **Removed Reschedule Button**: Streamlined UI by removing unused reschedule functionality in favor of direct editing.
+- **Analytics Dashboard Metrics**: The Analytics dashboard displays four key performance metrics: Call Success Rate (answered calls/total calls), Appointment Confirmation (confirmed/answered calls), No-Show Reduction (improvement over 20% baseline), and Daily Call Volume (calls processed today). Each metric includes comparison to previous periods for tracking performance trends.
 
 # External Dependencies
 
