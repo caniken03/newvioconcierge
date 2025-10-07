@@ -1,0 +1,142 @@
+{
+  "type": "object",
+  "properties": {
+    "to_number": {
+      "type": "string"
+    },
+    "recording_url": {
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "tenantId": {
+          "type": "string"
+        },
+        "appointmentType": {
+          "type": "string"
+        },
+        "appointmentTime": {
+          "type": "string"
+        },
+        "contactId": {
+          "type": "string"
+        },
+        "callSessionId": {
+          "type": "string"
+        },
+        "contactName": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenantId"
+      ]
+    },
+    "call_status": {
+      "type": "string"
+    },
+    "transcript": {
+      "type": "string"
+    },
+    "agent_id": {
+      "type": "string"
+    },
+    "from_number": {
+      "type": "string"
+    },
+    "call_analysis": {
+      "type": "object",
+      "properties": {
+        "call_outcome": {
+          "type": "string"
+        },
+        "voice_analytics": {
+          "type": "object",
+          "properties": {
+            "interruptions_count": {
+              "type": "number"
+            },
+            "silence_duration": {
+              "type": "number"
+            },
+            "speech_pace": {
+              "type": "string"
+            },
+            "voice_quality": {
+              "type": "string"
+            }
+          }
+        },
+        "sentiment_analysis": {
+          "type": "object",
+          "properties": {
+            "emotions_detected": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "tone_analysis": {
+              "type": "string"
+            },
+            "sentiment_score": {
+              "type": "number"
+            },
+            "engagement_level": {
+              "type": "string"
+            },
+            "overall_sentiment": {
+              "type": "string"
+            }
+          }
+        },
+        "conversation_analytics": {
+          "type": "object",
+          "properties": {
+            "customer_questions_count": {
+              "type": "number"
+            },
+            "conversation_flow": {
+              "type": "string"
+            },
+            "agent_clarifications_count": {
+              "type": "number"
+            },
+            "topics_discussed": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "call_summary": {
+          "type": "string"
+        }
+      }
+    },
+    "event": {
+      "type": "string",
+      "enum": [
+        "call_ended",
+        "call_completed"
+      ]
+    },
+    "call_type": {
+      "type": "string"
+    },
+    "call_id": {
+      "type": "string"
+    },
+    "direction": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "event",
+    "call_id",
+    "call_status",
+    "metadata"
+  ]
+}
