@@ -455,14 +455,6 @@ export default function CallManagement() {
                     </div>
                   )}
                   <div>
-                    <p className="text-sm text-muted-foreground">Scheduled For</p>
-                    <p className="font-medium">
-                      {selectedCall.scheduledFor 
-                        ? new Date(selectedCall.scheduledFor).toLocaleString() 
-                        : 'Not scheduled yet'}
-                    </p>
-                  </div>
-                  <div>
                     <p className="text-sm text-muted-foreground">Completed At</p>
                     <p className="font-medium">
                       {selectedCall.completedAt 
