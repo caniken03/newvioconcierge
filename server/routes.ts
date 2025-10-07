@@ -2644,6 +2644,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/call-sessions/:id', authenticateJWT, async (req: any, res) => {
+    try {
+      const sessions = await storage.getCallSessionsByTenant(req.user.tenantId);
+      const session = sessions.find(s => s.id === req.params.id);
+      
+      if (!session) {
+        return res.status(404).json({ message: 'Call session not found' });
+      }
+      
+      res.json(session);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch call session' });
+    }
+  });
+
   app.post('/api/call-sessions', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
     try {
       const sessionSchema = z.object({
