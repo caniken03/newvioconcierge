@@ -275,6 +275,7 @@ export default function CallManagement() {
                         <TableHead>Contact</TableHead>
                         <TableHead>Phone</TableHead>
                         <TableHead>Appointment</TableHead>
+                        <TableHead>Reminder Call</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Attempts</TableHead>
                         <TableHead>Actions</TableHead>
@@ -297,6 +298,18 @@ export default function CallManagement() {
                                 {call.appointmentDate 
                                   ? new Date(call.appointmentDate).toLocaleString() 
                                   : 'Not specified'}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-4 h-4 text-muted-foreground" />
+                              <span className="text-sm">
+                                {call.reminderTime 
+                                  ? new Date(call.reminderTime).toLocaleString() 
+                                  : call.appointmentDate && call.callBeforeHours
+                                    ? new Date(new Date(call.appointmentDate).getTime() - call.callBeforeHours * 60 * 60 * 1000).toLocaleString()
+                                    : '-'}
                               </span>
                             </div>
                           </TableCell>
