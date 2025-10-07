@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import Sidebar from '@/components/layout/sidebar';
@@ -39,6 +40,7 @@ export default function CallManagement() {
   const [activeTab, setActiveTab] = useState("active");
   const [selectedCall, setSelectedCall] = useState<any>(null);
   const [showCallDetails, setShowCallDetails] = useState(false);
+  const [callToCancel, setCallToCancel] = useState<string | null>(null);
 
   // Handle URL parameters for filtering
   useEffect(() => {
@@ -325,7 +327,7 @@ export default function CallManagement() {
                                   <Button 
                                     size="sm" 
                                     variant="destructive"
-                                    onClick={() => cancelCallMutation.mutate(call.id)}
+                                    onClick={() => setCallToCancel(call.id)}
                                     disabled={cancelCallMutation.isPending}
                                     data-testid={`button-cancel-call-${call.id}`}
                                   >
@@ -488,7 +490,7 @@ export default function CallManagement() {
                   <Button 
                     variant="destructive" 
                     onClick={() => {
-                      cancelCallMutation.mutate(selectedCall.id);
+                      setCallToCancel(selectedCall.id);
                       setShowCallDetails(false);
                     }}
                     disabled={cancelCallMutation.isPending}
@@ -506,6 +508,32 @@ export default function CallManagement() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Cancel Confirmation Dialog */}
+      <AlertDialog open={!!callToCancel} onOpenChange={(open) => !open && setCallToCancel(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Call?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel this scheduled call? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>No, Keep Call</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (callToCancel) {
+                  cancelCallMutation.mutate(callToCancel);
+                  setCallToCancel(null);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Yes, Cancel Call
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
