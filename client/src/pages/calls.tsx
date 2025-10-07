@@ -326,41 +326,18 @@ export default function CallManagement() {
                                   </Button>
                                 </>
                               )}
-                              
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button size="sm" variant="ghost" data-testid={`button-call-details-${call.id}`}>
-                                    <MoreHorizontal className="w-4 h-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => {
-                                    setSelectedCall(call);
-                                    setShowCallDetails(true);
-                                  }}>
-                                    View Details
-                                  </DropdownMenuItem>
-                                  {(call.status === "scheduled" || call.status === "queued") && (
-                                    <DropdownMenuItem 
-                                      onClick={() => cancelCallMutation.mutate(call.id)}
-                                      className="text-red-600"
-                                    >
-                                      <XCircle className="w-4 h-4 mr-2" />
-                                      Cancel Call
-                                    </DropdownMenuItem>
-                                  )}
-                                  {call.status === "completed" && (
-                                    <DropdownMenuItem onClick={() => {
-                                      toast({
-                                        title: "Call Transcript",
-                                        description: "Transcript feature coming soon",
-                                      });
-                                    }}>
-                                      View Transcript
-                                    </DropdownMenuItem>
-                                  )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => {
+                                  setSelectedCall(call);
+                                  setShowCallDetails(true);
+                                }}
+                                data-testid={`button-view-details-${call.id}`}
+                              >
+                                View Details
+                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>
