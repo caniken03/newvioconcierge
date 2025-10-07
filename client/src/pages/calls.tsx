@@ -290,28 +290,18 @@ export default function CallManagement() {
                               {call.contactName}
                             </div>
                           </TableCell>
-                          <TableCell className="font-mono text-sm">{call.contactPhone}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Calendar className="w-4 h-4 text-muted-foreground" />
-                              <span className="text-sm">
-                                {call.appointmentDate 
-                                  ? new Date(call.appointmentDate).toLocaleString() 
-                                  : 'Not specified'}
-                              </span>
-                            </div>
+                          <TableCell className="font-mono text-sm text-xs">{call.contactPhone}</TableCell>
+                          <TableCell className="text-sm whitespace-nowrap">
+                            {call.appointmentDate 
+                              ? new Date(call.appointmentDate).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                              : 'Not specified'}
                           </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Clock className="w-4 h-4 text-muted-foreground" />
-                              <span className="text-sm">
-                                {call.reminderTime 
-                                  ? new Date(call.reminderTime).toLocaleString() 
-                                  : call.appointmentDate && call.callBeforeHours
-                                    ? new Date(new Date(call.appointmentDate).getTime() - call.callBeforeHours * 60 * 60 * 1000).toLocaleString()
-                                    : '-'}
-                              </span>
-                            </div>
+                          <TableCell className="text-sm whitespace-nowrap">
+                            {call.reminderTime 
+                              ? new Date(call.reminderTime).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                              : call.appointmentDate && call.callBeforeHours
+                                ? new Date(new Date(call.appointmentDate).getTime() - call.callBeforeHours * 60 * 60 * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                : '-'}
                           </TableCell>
                           <TableCell>{getStatusBadge(call.status)}</TableCell>
                           <TableCell>

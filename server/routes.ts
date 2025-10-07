@@ -2621,6 +2621,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/call-sessions/stats', authenticateJWT, async (req: any, res) => {
+    try {
+      const sessions = await storage.getCallSessionsByTenant(req.user.tenantId);
+      
+      const active = sessions.filter(s => s.status && ['in_progress', 'active', 'initiated'].includes(s.status)).length;
+      const scheduled = sessions.filter(s => s.status && ['queued', 'scheduled'].includes(s.status)).length;
+      const completed = sessions.filter(s => s.status === 'completed').length;
+      const failed = sessions.filter(s => s.status === 'failed').length;
+      
+      const totalFinished = completed + failed;
+      const successRate = totalFinished > 0 ? Math.round((completed / totalFinished) * 100) : 0;
+      
+      res.json({
+        active,
+        scheduled,
+        completed,
+        successRate
+      });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch call stats' });
+    }
+  });
+
   app.post('/api/call-sessions', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
     try {
       const sessionSchema = z.object({
