@@ -3551,7 +3551,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Retell AI webhook endpoint with proper raw-body verification
-  app.post('/api/webhooks/retell', express.raw({ type: 'application/json' }), async (req, res) => {
+  app.post('/api/webhooks/retell', async (req, res) => {
     try {
       const signature = req.headers['x-retell-signature'];
       
@@ -3561,12 +3561,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: 'Webhook signature required' });
       }
       
-      // Parse the raw body safely
-      let parsedBody;
-      try {
-        parsedBody = JSON.parse(req.body.toString());
-      } catch (error) {
-        console.warn('Invalid JSON in Retell webhook payload');
+      // Body is already parsed by express.json() middleware
+      const parsedBody = req.body;
+      
+      if (!parsedBody || typeof parsedBody !== 'object') {
+        console.warn('Invalid webhook payload - not a valid object');
         return res.status(400).json({ message: 'Invalid JSON payload' });
       }
       
