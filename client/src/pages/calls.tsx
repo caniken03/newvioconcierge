@@ -73,7 +73,7 @@ export default function CallManagement() {
 
   const initiateCallMutation = useMutation({
     mutationFn: async (callSessionId: string) => {
-      return apiRequest(`/api/call-sessions/${callSessionId}/start`, 'POST', {});
+      return apiRequest('POST', `/api/call-sessions/${callSessionId}/start`, {});
     },
     onSuccess: () => {
       toast({
@@ -94,7 +94,7 @@ export default function CallManagement() {
 
   const cancelCallMutation = useMutation({
     mutationFn: async (callSessionId: string) => {
-      return apiRequest(`/api/call-sessions/${callSessionId}`, 'PATCH', { status: 'cancelled' });
+      return apiRequest('PATCH', `/api/call-sessions/${callSessionId}`, { status: 'cancelled' });
     },
     onSuccess: () => {
       toast({
