@@ -276,7 +276,6 @@ export default function CallManagement() {
                         <TableHead>Phone</TableHead>
                         <TableHead>Appointment</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead>Scheduled For</TableHead>
                         <TableHead>Attempts</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
@@ -302,9 +301,6 @@ export default function CallManagement() {
                             </div>
                           </TableCell>
                           <TableCell>{getStatusBadge(call.status)}</TableCell>
-                          <TableCell className="text-sm">
-                            {call.scheduledFor ? new Date(call.scheduledFor).toLocaleString() : '-'}
-                          </TableCell>
                           <TableCell>
                             <Badge variant="outline">{call.attempts}</Badge>
                           </TableCell>
