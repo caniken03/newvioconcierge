@@ -2936,6 +2936,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Process valid contacts for calling (with delay to prevent Retell AI conflicts)
       for (let i = 0; i < validContacts.length; i++) {
         const contact = validContacts[i];
+        let session: any = null;
         
         // Add 2-second delay between calls to prevent Retell AI service conflicts
         if (i > 0) {
@@ -2945,7 +2946,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           // Create call session
           const sessionId = `bulk_call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          const session = await storage.createCallSession({
+          session = await storage.createCallSession({
             contactId: contact.id,
             tenantId: req.user.tenantId,
             sessionId,
@@ -2992,6 +2993,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         } catch (error) {
           console.error(`❌ Failed to create call for contact ${contact.id} (${contact.name}):`, error);
+          
+          // Update call session to failed if it was created
+          if (session) {
+            try {
+              await storage.updateCallSession(session.id, {
+                status: 'failed',
+                callOutcome: 'failed',
+                endTime: new Date()
+              });
+            } catch (updateError) {
+              console.error('Failed to update call session status:', updateError);
+            }
+          }
+          
           callErrors.push({ 
             contactId: contact.id,
             contactName: contact.name,
@@ -3363,7 +3378,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create call session record
-      const callSession = await storage.createCallSession({
+      let callSession: any = null;
+      callSession = await storage.createCallSession({
         contactId,
         tenantId,
         status: 'queued',
@@ -3414,6 +3430,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error) {
       console.error('Call Now error:', error);
+      
+      // Update call session to failed if it was created
+      if (callSession) {
+        try {
+          await storage.updateCallSession(callSession.id, {
+            status: 'failed',
+            callOutcome: 'failed',
+            endTime: new Date()
+          });
+          console.log(`❌ Marked call session ${callSession.id} as failed due to error`);
+        } catch (updateError) {
+          console.error('Failed to update call session status:', updateError);
+        }
+      }
       
       // CRITICAL: Release reservation on failure to prevent quota leak
       if (protectionCheck?.reservationId) {

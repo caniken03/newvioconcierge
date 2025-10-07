@@ -356,6 +356,7 @@ export interface IStorage {
   
   // TTL Cleanup for Production Stability
   cleanupExpiredReservations(): Promise<{ cleaned: number; errors: string[] }>;
+  cleanupStaleCallSessions(): Promise<{ cleaned: number; errors: string[] }>;
   
   // Admin Dashboard Analytics
   getAbuseProtectionDashboard(): Promise<{
@@ -3578,6 +3579,49 @@ export class DatabaseStorage implements IStorage {
       return { cleaned, errors };
     } catch (error) {
       errors.push(`Cleanup transaction failed: ${error}`);
+      return { cleaned: 0, errors };
+    }
+  }
+
+  // Cleanup stale call sessions (in_progress for >10 minutes)
+  async cleanupStaleCallSessions(): Promise<{ cleaned: number; errors: string[] }> {
+    const errors: string[] = [];
+    let cleaned = 0;
+
+    try {
+      // Find stale in_progress calls (older than 10 minutes)
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+      
+      const staleCalls = await db
+        .select()
+        .from(callSessions)
+        .where(
+          and(
+            eq(callSessions.status, 'in_progress'),
+            lt(callSessions.createdAt, tenMinutesAgo)
+          )
+        );
+
+      for (const call of staleCalls) {
+        try {
+          await db
+            .update(callSessions)
+            .set({
+              status: 'failed',
+              callOutcome: 'no_answer',
+              endTime: new Date()
+            })
+            .where(eq(callSessions.id, call.id));
+
+          cleaned++;
+        } catch (error) {
+          errors.push(`Failed to cleanup stale call ${call.id}: ${error}`);
+        }
+      }
+
+      return { cleaned, errors };
+    } catch (error) {
+      errors.push(`Stale call cleanup failed: ${error}`);
       return { cleaned: 0, errors };
     }
   }

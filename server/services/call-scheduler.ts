@@ -255,7 +255,7 @@ export class CallSchedulerService {
   }
 
   /**
-   * Perform cleanup of expired reservations
+   * Perform cleanup of expired reservations and stale calls
    */
   private async performCleanup(): Promise<void> {
     try {
@@ -267,6 +267,13 @@ export class CallSchedulerService {
       
       if (result.errors.length > 0) {
         console.error('⚠️ Cleanup errors:', result.errors);
+      }
+      
+      // Clean up stale in_progress calls (older than 10 minutes)
+      const staleCallsResult = await storage.cleanupStaleCallSessions();
+      
+      if (staleCallsResult.cleaned > 0) {
+        console.log(`🧹 Cleaned up ${staleCallsResult.cleaned} stale call sessions`);
       }
     } catch (error) {
       console.error('❌ TTL cleanup service error:', error);
