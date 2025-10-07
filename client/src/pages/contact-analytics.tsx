@@ -205,7 +205,7 @@ function PerformanceOverviewSection() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title="Call Success Rate"
           value={performance.callSuccessRate}
@@ -247,12 +247,6 @@ function PerformanceOverviewSection() {
             isIncrease: performance.dailyCallVolume > performance.previousPeriodComparison.dailyCallVolume,
             timePeriod: "daily avg"
           }}
-        />
-        <MetricCard
-          title="Revenue Protection"
-          value={`$${performance.revenueProtection.toLocaleString()}`}
-          description="Protected through confirmations"
-          icon={DollarSign}
         />
       </div>
     </div>
