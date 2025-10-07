@@ -157,16 +157,16 @@ export default function CallManagement() {
     const labels = {
       queued: "Queued",
       scheduled: "Scheduled",
-      initiated: "In Progress",
-      in_progress: "In Progress",
-      active: "In Progress",
+      initiated: "Calling",
+      in_progress: "Calling",
+      active: "Calling",
       completed: "Completed", 
       failed: "Failed",
       cancelled: "Cancelled"
     };
 
     return (
-      <Badge variant={variants[status] || "secondary"}>
+      <Badge variant={variants[status] || "secondary"} className="whitespace-nowrap text-xs">
         {labels[status as keyof typeof labels] || status}
       </Badge>
     );
