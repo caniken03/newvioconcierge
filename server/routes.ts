@@ -3615,7 +3615,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: 'Signature verification failed' });
       }
       
-      if (payload.event === 'call_ended' || payload.event === 'call_completed') {
+      if (payload.event === 'call_ended' || payload.event === 'call_completed' || payload.event === 'call_failed') {
         // Find the call session by retellCallId with tenant isolation
         const session = await storage.getCallSessionByRetellId(payload.call_id);
         
@@ -3640,9 +3640,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           durationSeconds = Math.floor((Date.now() - session.startTime.getTime()) / 1000);
         }
         
+        // Determine final status based on outcome
+        // Map call outcomes to status: confirmed = completed, all others = failed
+        const finalStatus = (callOutcome === 'confirmed' && payload.event !== 'call_failed') ? 'completed' : 'failed';
+        
         // Update call session with comprehensive sentiment analysis
         await storage.updateCallSession(session.id, {
-          status: 'completed',
+          status: finalStatus,
           endTime: new Date(),
           callOutcome,
           appointmentAction,
