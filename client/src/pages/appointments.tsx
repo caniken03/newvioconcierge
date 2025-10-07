@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
-import { Calendar, Clock, User, Search, CheckCircle, XCircle, AlertCircle, PhoneOff, Phone, Loader2, PhoneCall } from "lucide-react";
+import { Calendar, Clock, User, Search, CheckCircle, XCircle, AlertCircle, PhoneOff, Phone, Loader2, PhoneCall, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,8 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import Sidebar from "@/components/layout/sidebar";
 import Header from "@/components/layout/header";
+import ContactModal from "@/components/modals/contact-modal";
+import type { Contact } from "@/types";
 
 interface Appointment {
   id: string;
@@ -38,6 +40,7 @@ export default function Appointments() {
   const [sortBy, setSortBy] = useState("date");
   const [callInProgress, setCallInProgress] = useState<string | null>(null);
   const [callToCancel, setCallToCancel] = useState<string | null>(null);
+  const [editingContact, setEditingContact] = useState<Contact | null>(null);
 
   // Handle URL parameters for filtering
   useEffect(() => {
@@ -66,6 +69,12 @@ export default function Appointments() {
     staleTime: 0,
     gcTime: 0,
   }) as { data: Appointment[], isLoading: boolean };
+
+  // Fetch tenant config for reminder hours
+  const { data: tenantConfig } = useQuery({
+    queryKey: ['/api/tenant/config'],
+    enabled: !!user,
+  }) as { data: any };
 
   // Mutation to initiate a manual call
   const initiateCallMutation = useMutation({
@@ -214,6 +223,44 @@ export default function Appointments() {
   // Check if appointment has passed
   const hasAppointmentPassed = (appointmentTime: string) => {
     return new Date(appointmentTime) < new Date();
+  };
+
+  // Handle edit appointment - fetch full contact details and open modal
+  const handleEdit = async (contactId: string) => {
+    try {
+      const response = await apiRequest('GET', `/api/contacts/${contactId}`);
+      const contact = await response.json();
+      setEditingContact(contact);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load contact details",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Calculate call reminder time
+  const getCallReminderTime = (appointmentTime: string) => {
+    if (!tenantConfig?.reminderHoursBefore || tenantConfig.reminderHoursBefore.length === 0) {
+      return null;
+    }
+    
+    // Get the first reminder time (earliest)
+    const hoursBeforeArray = tenantConfig.reminderHoursBefore;
+    const earliestHoursBefore = Math.max(...hoursBeforeArray);
+    
+    const appointmentDate = new Date(appointmentTime);
+    const reminderDate = new Date(appointmentDate.getTime() - (earliestHoursBefore * 60 * 60 * 1000));
+    
+    return reminderDate.toLocaleString('en-US', { 
+      weekday: 'short',
+      month: 'short', 
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
   };
 
   // Calculate stats
@@ -410,6 +457,14 @@ export default function Appointments() {
                                   <Clock className="h-4 w-4 text-muted-foreground" />
                                   <span className="font-medium" data-testid={`appointment-time-${appointment.id}`}>{time}</span>
                                 </div>
+                                {getCallReminderTime(appointment.appointmentTime) && (
+                                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                                    <Bell className="h-4 w-4" />
+                                    <span className="text-xs" data-testid={`call-reminder-${appointment.id}`}>
+                                      Call: {getCallReminderTime(appointment.appointmentTime)}
+                                    </span>
+                                  </div>
+                                )}
                                 {appointment.appointmentType && (
                                   <Badge variant="outline" className="text-xs">
                                     {appointment.appointmentType}
@@ -458,10 +513,12 @@ export default function Appointments() {
                                   </Button>
                                 </>
                               )}
-                              <Button variant="outline" size="sm" data-testid={`button-reschedule-${appointment.id}`}>
-                                Reschedule
-                              </Button>
-                              <Button variant="outline" size="sm" data-testid={`button-edit-${appointment.id}`}>
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => handleEdit(appointment.id)}
+                                data-testid={`button-edit-${appointment.id}`}
+                              >
                                 Edit
                               </Button>
                             </div>
@@ -607,6 +664,16 @@ export default function Appointments() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Contact Modal */}
+      <ContactModal
+        isOpen={!!editingContact}
+        onClose={() => {
+          setEditingContact(null);
+          queryClient.invalidateQueries({ queryKey: ['/api/appointments'] });
+        }}
+        contact={editingContact}
+      />
     </div>
   );
 }
