@@ -43,6 +43,7 @@ Authentication is JWT-based with role-based middleware. The system enforces mult
   - **Call Reminder Display**: Shows scheduled call reminder time calculated from tenant's `reminderHoursBefore` configuration, displaying when the contact will receive their automated reminder call before the appointment.
   - **Removed Reschedule Button**: Streamlined UI by removing unused reschedule functionality in favor of direct editing.
 - **Analytics Dashboard Metrics**: The Analytics dashboard displays four key performance metrics: Call Success Rate (answered calls/total calls), Appointment Confirmation (confirmed/answered calls), No-Show Reduction (improvement over 20% baseline), and Daily Call Volume (calls processed today). Each metric includes comparison to previous periods for tracking performance trends.
+- **Call Lifecycle Management**: Comprehensive error handling and cleanup system ensures calls never remain stuck in incorrect states. Manual and bulk call endpoints mark failed calls with proper status/outcome when errors occur. Automated cleanup service runs every 5 minutes to mark stale in_progress calls (>10 minutes old) as failed, preventing abandoned sessions from persisting indefinitely. Recent Call Activity displays accurate real-time statuses (failed/cancelled/active) instead of defaulting to "pending".
 
 # External Dependencies
 
