@@ -2718,6 +2718,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post('/api/call-sessions/:id/start', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      // Get the call session
+      const sessions = await storage.getCallSessionsByTenant(req.user.tenantId);
+      const session = sessions.find(s => s.id === req.params.id);
+      
+      if (!session) {
+        return res.status(404).json({ message: 'Call session not found' });
+      }
+
+      if (!session.status || !['queued', 'scheduled'].includes(session.status)) {
+        return res.status(400).json({ message: `Cannot start call with status: ${session.status || 'unknown'}` });
+      }
+
+      if (!session.contactId) {
+        return res.status(400).json({ message: 'Call session has no associated contact' });
+      }
+
+      // Get contact details
+      const contact = await storage.getContact(session.contactId);
+      if (!contact) {
+        return res.status(404).json({ message: 'Contact not found' });
+      }
+
+      // Get tenant configuration
+      const tenantConfig = await storage.getTenantConfig(req.user.tenantId);
+      if (!tenantConfig?.retellApiKey || !tenantConfig?.retellAgentId || !tenantConfig?.retellAgentNumber) {
+        return res.status(400).json({ message: 'Retell AI configuration missing. Please configure your voice AI settings.' });
+      }
+
+      try {
+        // Trigger Retell call
+        const retellCall = await retellService.createCall(tenantConfig.retellApiKey, {
+          from_number: tenantConfig.retellAgentNumber,
+          to_number: contact.phone,
+          agent_id: tenantConfig.retellAgentId,
+          metadata: {
+            contactId: contact.id,
+            tenantId: req.user.tenantId,
+            appointmentTime: contact.appointmentTime?.toISOString(),
+            appointmentType: contact.appointmentType || '',
+          },
+        });
+
+        // Update session with Retell call ID and status
+        const updatedSession = await storage.updateCallSession(session.id, {
+          retellCallId: retellCall.call_id,
+          status: 'in_progress',
+          startTime: new Date(),
+        });
+
+        res.json(updatedSession);
+      } catch (retellError) {
+        // Update session with error
+        await storage.updateCallSession(session.id, {
+          status: 'failed',
+          errorMessage: retellError instanceof Error ? retellError.message : 'Failed to create call',
+        });
+
+        res.status(500).json({ 
+          message: 'Failed to start call', 
+          error: retellError instanceof Error ? retellError.message : 'Unknown error' 
+        });
+      }
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to start call session' });
+    }
+  });
+
   app.patch('/api/call-sessions/:id', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req, res) => {
     try {
       const updateSchema = z.object({

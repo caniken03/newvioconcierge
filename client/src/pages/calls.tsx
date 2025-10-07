@@ -72,20 +72,21 @@ export default function CallManagement() {
   });
 
   const initiateCallMutation = useMutation({
-    mutationFn: async (contactId: string) => {
-      return apiRequest(`/api/calls/initiate`, 'POST', { contactId });
+    mutationFn: async (callSessionId: string) => {
+      return apiRequest(`/api/call-sessions/${callSessionId}/start`, 'POST', {});
     },
     onSuccess: () => {
       toast({
-        title: "Call Initiated",
-        description: "Voice call has been started successfully",
+        title: "Call Started",
+        description: "Voice call has been initiated successfully",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/call-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/call-sessions/stats'] });
     },
-    onError: () => {
+    onError: (error: any) => {
       toast({
         title: "Call Failed", 
-        description: "Unable to initiate call. Please try again.",
+        description: error?.message || "Unable to start call. Please try again.",
         variant: "destructive",
       });
     }
