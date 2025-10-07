@@ -2076,8 +2076,6 @@ export class DatabaseStorage implements IStorage {
         specialInstructions: contacts.specialInstructions,
         notes: contacts.notes,
         callBeforeHours: contacts.callBeforeHours,
-        // Calculate reminder time: appointment time - call_before_hours
-        reminderTime: sql<Date>`${contacts.appointmentTime} - (${contacts.callBeforeHours} || ' hours')::interval`.as('reminder_time'),
         // Scheduled for and completion time (using triggerTime as scheduledFor)
         scheduledFor: callSessions.triggerTime,
         completedAt: callSessions.endTime,
