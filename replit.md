@@ -37,6 +37,11 @@ Authentication is JWT-based with role-based middleware. The system enforces mult
 - **Group Member Management**: Contact groups support two workflows for adding members: (1) From Contacts page: use the UserPlus button in the contacts table to add individual contacts to any group via SimpleGroupAssignment dropdown. (2) From Group Viewer: click "Add Members" button in the GroupMemberViewer toolbar to open a modal showing all contacts not in the group, with search/filter capabilities and multi-select checkboxes for bulk additions. Both workflows use the `/api/contact-group-memberships` bulk endpoint for consistent handling, automatic cache invalidation, and comprehensive error feedback via toast notifications.
 - **Call Now Functionality**: Implemented consistent "Call Now" functionality across all GroupMemberViewer view modes (grid, list, detailed). Grid and detailed views use dropdown menu items, while list view uses a direct Phone button. All implementations properly handle event propagation to prevent unintended contact selection toggles and share the same CallNowModal component with proper state management.
 - **Call Cancellation**: Users can cancel scheduled or queued calls directly from the Calls page. A red "Cancel" button appears next to the "Start" button for calls with 'scheduled' or 'queued' status. Cancellation updates the call status to 'cancelled' and immediately refreshes the UI. Cancelled calls can be filtered and viewed using the status filter dropdown.
+- **Appointments Page Enhancements**: 
+  - **Call Action Center**: Appointments page serves as the primary action center for call management, with "Call Now" and "Cancel Call" buttons that only appear for future appointments and persist even after failed call attempts.
+  - **Edit Functionality**: Edit button opens ContactModal for updating appointment details, fetching full contact data via `/api/contacts/:id` endpoint.
+  - **Call Reminder Display**: Shows scheduled call reminder time calculated from tenant's `reminderHoursBefore` configuration, displaying when the contact will receive their automated reminder call before the appointment.
+  - **Removed Reschedule Button**: Streamlined UI by removing unused reschedule functionality in favor of direct editing.
 
 # External Dependencies
 
