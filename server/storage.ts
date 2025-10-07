@@ -162,7 +162,6 @@ export interface IStorage {
     appointmentConfirmationRate: number;
     noShowReduction: number;
     dailyCallVolume: number;
-    revenueProtection: number;
     previousPeriodComparison: {
       callSuccessRate: number;
       appointmentConfirmationRate: number;
@@ -1575,7 +1574,6 @@ export class DatabaseStorage implements IStorage {
     appointmentConfirmationRate: number;
     noShowReduction: number;
     dailyCallVolume: number;
-    revenueProtection: number;
     previousPeriodComparison: {
       callSuccessRate: number;
       appointmentConfirmationRate: number;
@@ -1644,16 +1642,11 @@ export class DatabaseStorage implements IStorage {
     // No-show reduction calculation (simplified - could be enhanced with baseline data)
     const noShowReduction = Math.max(0, appointmentConfirmationRate - 20); // Assuming 20% baseline
 
-    // Revenue protection (simplified calculation)
-    const averageAppointmentValue = 100; // Could be configurable per tenant
-    const revenueProtection = Math.round(currentConfirmed * averageAppointmentValue);
-
     return {
       callSuccessRate,
       appointmentConfirmationRate,
       noShowReduction,
       dailyCallVolume,
-      revenueProtection,
       previousPeriodComparison: {
         callSuccessRate: previousCallSuccessRate,
         appointmentConfirmationRate: previousConfirmationRate,
