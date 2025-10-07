@@ -148,6 +148,9 @@ export default function Appointments() {
       const matchesSearch = appointment.contactName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            appointment.contactPhone.includes(searchQuery);
       
+      // Exclude past appointments
+      const isFuture = new Date(appointment.appointmentTime) >= new Date();
+      
       // Handle status filtering including special 'today' filter
       let matchesStatus = true;
       if (statusFilter === "today") {
@@ -158,7 +161,7 @@ export default function Appointments() {
         matchesStatus = appointment.status === statusFilter;
       }
       
-      return matchesSearch && matchesStatus;
+      return matchesSearch && matchesStatus && isFuture;
     })
     .sort((a, b) => {
       if (sortBy === "date") {
