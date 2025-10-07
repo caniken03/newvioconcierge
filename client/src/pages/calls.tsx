@@ -116,7 +116,8 @@ export default function CallManagement() {
     const variants: Record<string, "default" | "destructive" | "outline" | "secondary"> = {
       queued: "secondary",
       scheduled: "secondary",
-      in_progress: "default", 
+      in_progress: "default",
+      active: "default",
       completed: "secondary",
       failed: "destructive",
       cancelled: "outline"
@@ -126,6 +127,7 @@ export default function CallManagement() {
       queued: "Queued",
       scheduled: "Scheduled",
       in_progress: "In Progress",
+      active: "In Progress",
       completed: "Completed", 
       failed: "Failed",
       cancelled: "Cancelled"
@@ -290,7 +292,11 @@ export default function CallManagement() {
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <Calendar className="w-4 h-4 text-muted-foreground" />
-                              <span className="text-sm">{new Date(call.appointmentDate).toLocaleString()}</span>
+                              <span className="text-sm">
+                                {call.appointmentDate 
+                                  ? new Date(call.appointmentDate).toLocaleString() 
+                                  : 'Not specified'}
+                              </span>
                             </div>
                           </TableCell>
                           <TableCell>{getStatusBadge(call.status)}</TableCell>
