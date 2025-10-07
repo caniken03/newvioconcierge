@@ -1754,7 +1754,7 @@ export class DatabaseStorage implements IStorage {
       id: call.id,
       contactName: call.contactName || 'Unknown Contact',
       status: call.status || 'unknown',
-      outcome: call.outcome || 'pending',
+      outcome: call.outcome || call.status || 'unknown',
       timestamp: call.triggerTime || new Date(),
       duration: call.duration || undefined
     }));
