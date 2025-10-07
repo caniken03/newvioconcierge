@@ -3645,6 +3645,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Invalid JSON payload' });
       }
       
+      // 🔍 DEBUG: Log complete webhook payload to identify custom function call location
+      console.log('📥 RETELL WEBHOOK RECEIVED - Full Payload:');
+      console.log(JSON.stringify(parsedBody, null, 2));
+      console.log('📥 Payload Keys:', Object.keys(parsedBody));
+      if (parsedBody.call_analysis) {
+        console.log('📊 Call Analysis Keys:', Object.keys(parsedBody.call_analysis));
+      }
+      
       // Extract tenant ID from webhook metadata for early validation
       const payload = retellService.parseWebhookPayload(parsedBody);
       let tenantId = extractTenantIdFromWebhook(payload.metadata, payload);
