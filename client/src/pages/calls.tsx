@@ -5,11 +5,9 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";
@@ -24,13 +22,13 @@ import {
   CheckCircle, 
   XCircle, 
   Play, 
-  Pause, 
   Search,
   Filter,
-  MoreHorizontal,
-  Calendar,
   User,
-  Loader2
+  Loader2,
+  Calendar,
+  PhoneOff,
+  AlertCircle
 } from "lucide-react";
 
 export default function CallManagement() {
@@ -39,7 +37,6 @@ export default function CallManagement() {
   const [location] = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [activeTab, setActiveTab] = useState("active");
   const [selectedCall, setSelectedCall] = useState<any>(null);
   const [showCallDetails, setShowCallDetails] = useState(false);
   const [callToCancel, setCallToCancel] = useState<string | null>(null);
@@ -51,7 +48,6 @@ export default function CallManagement() {
     const statusParam = params.get('status');
     if (statusParam && ['scheduled', 'in_progress', 'completed', 'failed', 'recent'].includes(statusParam)) {
       if (statusParam === 'recent') {
-        // For recent activity, show completed calls
         setStatusFilter('completed');
       } else {
         setStatusFilter(statusParam);
@@ -172,13 +168,46 @@ export default function CallManagement() {
     );
   };
 
+  const getOutcomeBadge = (outcome?: string) => {
+    if (!outcome) return <span className="text-xs text-muted-foreground">-</span>;
+
+    const variants: Record<string, "default" | "destructive" | "outline" | "secondary"> = {
+      confirmed: "default",
+      voicemail: "outline",
+      no_answer: "destructive",
+      busy: "outline",
+      failed: "destructive"
+    };
+
+    const labels = {
+      confirmed: "Confirmed",
+      voicemail: "Voicemail",
+      no_answer: "No Answer",
+      busy: "Busy",
+      failed: "Failed"
+    };
+
+    return (
+      <Badge variant={variants[outcome] || "outline"} className="text-xs">
+        {labels[outcome as keyof typeof labels] || outcome}
+      </Badge>
+    );
+  };
+
   const filteredCalls = callSessions.filter(call => {
     if (statusFilter !== "all" && call.status !== statusFilter) return false;
     if (searchTerm && !call.contactName?.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     return true;
   });
 
-  // Use real data from API stats instead of filtering mock data
+  const formatDuration = (seconds?: number) => {
+    if (!seconds) return '-';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Use real data from API stats
   const activeCallsCount = callStats.active || 0;
   const scheduledCallsCount = callStats.scheduled || 0;
   const completedCallsCount = callStats.completed || 0;
@@ -194,6 +223,14 @@ export default function CallManagement() {
         <main className="flex-1 overflow-auto bg-background p-6">
           <div className="space-y-6" data-testid="call-management-page">
             
+            {/* Page Header */}
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Call Management</h1>
+              <p className="text-muted-foreground">
+                Monitor and manage AI-powered appointment reminder calls
+              </p>
+            </div>
+
             {/* Call Overview Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <Card 
@@ -207,7 +244,7 @@ export default function CallManagement() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-green-600">{activeCallsCount}</div>
-                  <p className="text-xs text-muted-foreground">Currently in progress</p>
+                  <p className="text-xs text-muted-foreground">In progress right now</p>
                 </CardContent>
               </Card>
               
@@ -222,7 +259,7 @@ export default function CallManagement() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-blue-600">{scheduledCallsCount}</div>
-                  <p className="text-xs text-muted-foreground">Waiting to call</p>
+                  <p className="text-xs text-muted-foreground">Queued to call</p>
                 </CardContent>
               </Card>
               
@@ -237,7 +274,7 @@ export default function CallManagement() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-green-600">{completedCallsCount}</div>
-                  <p className="text-xs text-muted-foreground">Successfully finished</p>
+                  <p className="text-xs text-muted-foreground">Calls finished</p>
                 </CardContent>
               </Card>
               
@@ -261,7 +298,7 @@ export default function CallManagement() {
                   Call Sessions
                 </CardTitle>
                 <CardDescription>
-                  Monitor and manage voice appointment reminder calls
+                  Real-time monitoring of automated reminder calls
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -298,15 +335,17 @@ export default function CallManagement() {
                 </div>
 
                 {/* Call Sessions Table */}
-                <div className="border rounded-lg">
+                <div className="border rounded-lg overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Contact</TableHead>
                         <TableHead>Phone</TableHead>
-                        <TableHead>Appointment</TableHead>
-                        <TableHead>Reminder Call</TableHead>
+                        <TableHead>Reminder Call Time</TableHead>
+                        <TableHead className="text-xs text-muted-foreground">Appt Date</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Outcome</TableHead>
+                        <TableHead>Duration</TableHead>
                         <TableHead>Attempts</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
@@ -317,25 +356,27 @@ export default function CallManagement() {
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
                               <User className="w-4 h-4 text-muted-foreground" />
-                              {call.contactName}
+                              <span className="max-w-[150px] truncate">{call.contactName}</span>
                             </div>
                           </TableCell>
-                          <TableCell className="font-mono text-sm text-xs">{call.contactPhone}</TableCell>
-                          <TableCell className="text-sm whitespace-nowrap">
-                            {call.appointmentDate 
-                              ? new Date(call.appointmentDate).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-                              : 'Not specified'}
-                          </TableCell>
-                          <TableCell className="text-sm whitespace-nowrap">
+                          <TableCell className="font-mono text-xs">{call.contactPhone}</TableCell>
+                          <TableCell className="text-sm font-medium whitespace-nowrap">
                             {call.reminderTime 
                               ? new Date(call.reminderTime).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
                               : call.appointmentDate && call.callBeforeHours
                                 ? new Date(new Date(call.appointmentDate).getTime() - call.callBeforeHours * 60 * 60 * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
                                 : '-'}
                           </TableCell>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {call.appointmentDate 
+                              ? new Date(call.appointmentDate).toLocaleString(undefined, { month: 'short', day: 'numeric' })
+                              : '-'}
+                          </TableCell>
                           <TableCell>{getStatusBadge(call.status)}</TableCell>
+                          <TableCell>{getOutcomeBadge(call.callOutcome)}</TableCell>
+                          <TableCell className="text-sm font-mono">{formatDuration(call.durationSeconds)}</TableCell>
                           <TableCell>
-                            <Badge variant="outline">{call.attempts}</Badge>
+                            <Badge variant="outline" className="text-xs">{call.attempts || 0}</Badge>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
@@ -366,14 +407,14 @@ export default function CallManagement() {
 
                               <Button 
                                 size="sm" 
-                                variant="outline"
+                                variant="ghost"
                                 onClick={() => {
                                   setSelectedCall(call);
                                   setShowCallDetails(true);
                                 }}
                                 data-testid={`button-view-details-${call.id}`}
                               >
-                                View Details
+                                Details
                               </Button>
                             </div>
                           </TableCell>
@@ -384,7 +425,7 @@ export default function CallManagement() {
                   
                   {filteredCalls.length === 0 && (
                     <div className="text-center py-8 text-muted-foreground" data-testid="no-calls-message">
-                      No calls found matching your criteria
+                      No call sessions found matching your criteria
                     </div>
                   )}
                 </div>
@@ -398,9 +439,9 @@ export default function CallManagement() {
       <Dialog open={showCallDetails} onOpenChange={setShowCallDetails}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Call Details</DialogTitle>
+            <DialogTitle>Call Session Details</DialogTitle>
             <DialogDescription>
-              Complete information about this call session
+              Technical details and analytics for this call
             </DialogDescription>
           </DialogHeader>
           
@@ -408,7 +449,7 @@ export default function CallManagement() {
             <div className="space-y-6">
               {/* Contact Information */}
               <div className="space-y-3">
-                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Contact Information</h3>
+                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Contact</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Name</p>
@@ -421,116 +462,77 @@ export default function CallManagement() {
                 </div>
               </div>
 
-              {/* Appointment Information */}
+              {/* Call Information */}
               <div className="space-y-3">
-                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Appointment Details</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Appointment Date & Time</p>
-                    <p className="font-medium">
-                      {selectedCall.appointmentDate 
-                        ? new Date(selectedCall.appointmentDate).toLocaleString() 
-                        : 'Not specified'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Duration</p>
-                    <p className="font-medium">
-                      {selectedCall.appointmentDuration 
-                        ? `${selectedCall.appointmentDuration} minutes` 
-                        : 'Not specified'}
-                    </p>
-                  </div>
-                  {selectedCall.appointmentType && (
-                    <div className="col-span-2">
-                      <p className="text-sm text-muted-foreground">Type</p>
-                      <p className="font-medium">{selectedCall.appointmentType}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Call Status Information */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Call Status</h3>
+                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Call Details</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Status</p>
                     <div className="mt-1">{getStatusBadge(selectedCall.status)}</div>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Attempts</p>
-                    <p className="font-medium">{selectedCall.attempts}</p>
+                    <p className="text-sm text-muted-foreground">Outcome</p>
+                    <div className="mt-1">{getOutcomeBadge(selectedCall.callOutcome)}</div>
                   </div>
-                  {selectedCall.callOutcome && (
-                    <div>
-                      <p className="text-sm text-muted-foreground">Outcome</p>
-                      <p className="font-medium capitalize">{selectedCall.callOutcome.replace('_', ' ')}</p>
-                    </div>
-                  )}
-                  {selectedCall.appointmentAction && (
-                    <div>
-                      <p className="text-sm text-muted-foreground">Appointment Action</p>
-                      <p className="font-medium capitalize">{selectedCall.appointmentAction.replace('_', ' ')}</p>
-                    </div>
-                  )}
                   <div>
-                    <p className="text-sm text-muted-foreground">Completed At</p>
+                    <p className="text-sm text-muted-foreground">Reminder Call Time</p>
                     <p className="font-medium">
-                      {selectedCall.completedAt 
-                        ? new Date(selectedCall.completedAt).toLocaleString() 
-                        : 'Not completed yet'}
+                      {selectedCall.reminderTime 
+                        ? new Date(selectedCall.reminderTime).toLocaleString()
+                        : selectedCall.appointmentDate && selectedCall.callBeforeHours
+                          ? new Date(new Date(selectedCall.appointmentDate).getTime() - selectedCall.callBeforeHours * 60 * 60 * 1000).toLocaleString()
+                          : 'Not set'}
                     </p>
                   </div>
-                  {selectedCall.durationSeconds && (
-                    <div>
-                      <p className="text-sm text-muted-foreground">Call Duration</p>
-                      <p className="font-medium">{Math.floor(selectedCall.durationSeconds / 60)}:{(selectedCall.durationSeconds % 60).toString().padStart(2, '0')} minutes</p>
-                    </div>
-                  )}
+                  <div>
+                    <p className="text-sm text-muted-foreground">Appointment Date</p>
+                    <p className="font-medium">
+                      {selectedCall.appointmentDate 
+                        ? new Date(selectedCall.appointmentDate).toLocaleString()
+                        : 'Not specified'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Duration</p>
+                    <p className="font-mono font-medium">{formatDuration(selectedCall.durationSeconds)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Attempts</p>
+                    <p className="font-medium">{selectedCall.attempts || 0}</p>
+                  </div>
                 </div>
               </div>
 
-
-              {/* Notes and Instructions */}
-              {(selectedCall.notes || selectedCall.specialInstructions) && (
+              {/* Timing */}
+              {(selectedCall.startTime || selectedCall.endTime) && (
                 <div className="space-y-3">
-                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Additional Information</h3>
-                  {selectedCall.specialInstructions && (
-                    <div>
-                      <p className="text-sm text-muted-foreground">Special Instructions</p>
-                      <p className="text-sm mt-1 p-3 bg-muted rounded">{selectedCall.specialInstructions}</p>
-                    </div>
-                  )}
-                  {selectedCall.notes && (
-                    <div>
-                      <p className="text-sm text-muted-foreground">Notes</p>
-                      <p className="text-sm mt-1 p-3 bg-muted rounded">{selectedCall.notes}</p>
-                    </div>
-                  )}
+                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Timing</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {selectedCall.startTime && (
+                      <div>
+                        <p className="text-sm text-muted-foreground">Started At</p>
+                        <p className="font-medium">{new Date(selectedCall.startTime).toLocaleString()}</p>
+                      </div>
+                    )}
+                    {selectedCall.endTime && (
+                      <div>
+                        <p className="text-sm text-muted-foreground">Ended At</p>
+                        <p className="font-medium">{new Date(selectedCall.endTime).toLocaleString()}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
-              {/* Action Buttons */}
-              <div className="flex justify-end gap-2 pt-4 border-t">
-                {(selectedCall.status === "scheduled" || selectedCall.status === "queued") && (
-                  <Button 
-                    variant="destructive" 
-                    onClick={() => {
-                      setCallToCancel(selectedCall.id);
-                      setShowCallDetails(false);
-                    }}
-                    disabled={cancelCallMutation.isPending}
-                    data-testid="button-cancel-call-dialog"
-                  >
-                    <XCircle className="w-4 h-4 mr-2" />
-                    Cancel This Call
-                  </Button>
-                )}
-                <Button variant="outline" onClick={() => setShowCallDetails(false)}>
-                  Close
-                </Button>
-              </div>
+              {selectedCall.retellCallId && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">System</h3>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Retell Call ID</p>
+                    <p className="font-mono text-sm">{selectedCall.retellCallId}</p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
@@ -540,9 +542,9 @@ export default function CallManagement() {
       <AlertDialog open={!!callToCancel} onOpenChange={(open) => !open && setCallToCancel(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancel Call?</AlertDialogTitle>
+            <AlertDialogTitle>Cancel Scheduled Call?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to cancel this scheduled call? This action cannot be undone.
+              Are you sure you want to cancel this scheduled reminder call? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -631,7 +633,7 @@ export default function CallManagement() {
                         {activeCallSession.status === 'failed' && (
                           <>
                             <XCircle className="h-4 w-4 text-red-500" />
-                            <span>Call failed to connect</span>
+                            <span>Call failed - {activeCallSession.callOutcome || 'Connection error'}</span>
                           </>
                         )}
                       </div>
@@ -639,7 +641,7 @@ export default function CallManagement() {
                       {activeCallSession.durationSeconds && (
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <Clock className="h-3 w-3" />
-                          <span>Duration: {Math.floor(activeCallSession.durationSeconds / 60)}:{(activeCallSession.durationSeconds % 60).toString().padStart(2, '0')}</span>
+                          <span>Duration: {formatDuration(activeCallSession.durationSeconds)}</span>
                         </div>
                       )}
 

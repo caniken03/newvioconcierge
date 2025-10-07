@@ -1712,8 +1712,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         contactName: contact.name,
         contactPhone: contact.phone,
         appointmentTime: contact.appointmentTime ? contact.appointmentTime.toISOString() : null,
+        appointmentType: contact.appointmentType,
         status: contact.appointmentStatus || 'pending',
-        notes: contact.notes
+        notes: contact.notes,
+        lastCallOutcome: contact.lastCallOutcome,
+        callAttempts: contact.callAttempts || 0
       })).filter((apt: any) => apt.appointmentTime); // Only include contacts with appointment times
 
       res.json(serializedAppointments);

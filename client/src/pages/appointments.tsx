@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
-import { Calendar, Clock, Phone, User, Filter, Search } from "lucide-react";
+import { Calendar, Clock, User, Search, CheckCircle, XCircle, AlertCircle, PhoneOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,8 +17,11 @@ interface Appointment {
   contactName: string;
   contactPhone: string;
   appointmentTime: string;
+  appointmentType?: string;
   status: string;
   notes?: string;
+  lastCallOutcome?: string;
+  callAttempts?: number;
 }
 
 export default function Appointments() {
@@ -36,7 +39,6 @@ export default function Appointments() {
     
     if (statusParam && ['confirmed', 'pending', 'completed', 'cancelled', 'no_show', 'today'].includes(statusParam)) {
       if (statusParam === 'today') {
-        // For today filter, we'll filter by date in the filtering logic
         setStatusFilter('today');
       } else {
         setStatusFilter(statusParam);
@@ -95,6 +97,29 @@ export default function Appointments() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
+  const getLastCallIndicator = (outcome?: string) => {
+    if (!outcome) return null;
+
+    const indicators = {
+      confirmed: { icon: CheckCircle, label: "Confirmed", color: "text-green-600" },
+      voicemail: { icon: PhoneOff, label: "Voicemail", color: "text-yellow-600" },
+      no_answer: { icon: XCircle, label: "No answer", color: "text-red-600" },
+      busy: { icon: AlertCircle, label: "Busy", color: "text-orange-600" },
+      failed: { icon: XCircle, label: "Failed", color: "text-red-600" },
+    };
+
+    const indicator = indicators[outcome as keyof typeof indicators];
+    if (!indicator) return null;
+
+    const Icon = indicator.icon;
+    return (
+      <div className={`flex items-center gap-1 text-xs ${indicator.color}`}>
+        <Icon className="h-3 w-3" />
+        <span>Last call: {indicator.label}</span>
+      </div>
+    );
+  };
+
   const formatDateTime = (dateTime: string) => {
     const date = new Date(dateTime);
     return {
@@ -137,7 +162,7 @@ export default function Appointments() {
               <div>
                 <h1 className="text-3xl font-bold tracking-tight">Appointments</h1>
                 <p className="text-muted-foreground">
-                  Manage and track all your scheduled appointments
+                  Manage your scheduled appointments and client bookings
                 </p>
               </div>
             </div>
@@ -155,6 +180,7 @@ export default function Appointments() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{stats.total}</div>
+                  <p className="text-xs text-muted-foreground">All scheduled</p>
                 </CardContent>
               </Card>
               <Card 
@@ -163,11 +189,12 @@ export default function Appointments() {
                 data-testid="stats-card-today"
               >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Today</CardTitle>
+                  <CardTitle className="text-sm font-medium">Today's Appointments</CardTitle>
                   <Clock className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{stats.today}</div>
+                  <p className="text-xs text-muted-foreground">Due today</p>
                 </CardContent>
               </Card>
               <Card 
@@ -177,10 +204,11 @@ export default function Appointments() {
               >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Confirmed</CardTitle>
-                  <User className="h-4 w-4 text-muted-foreground" />
+                  <CheckCircle className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{stats.confirmed}</div>
+                  <p className="text-xs text-muted-foreground">Ready to go</p>
                 </CardContent>
               </Card>
               <Card 
@@ -189,21 +217,19 @@ export default function Appointments() {
                 data-testid="stats-card-pending"
               >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Pending</CardTitle>
-                  <Phone className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-medium">Pending Confirmation</CardTitle>
+                  <AlertCircle className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{stats.pending}</div>
+                  <p className="text-xs text-muted-foreground">Awaiting response</p>
                 </CardContent>
               </Card>
             </div>
 
             {/* Filters */}
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Filter & Search</CardTitle>
-              </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
                 <div className="flex flex-col sm:flex-row gap-4">
                   <div className="flex-1">
                     <div className="relative">
@@ -248,7 +274,7 @@ export default function Appointments() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">
-                  Appointments ({filteredAppointments.length})
+                  Scheduled Appointments ({filteredAppointments.length})
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -268,62 +294,75 @@ export default function Appointments() {
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-4" data-testid="appointments-list">
+                  <div className="space-y-3" data-testid="appointments-list">
                     {filteredAppointments.map((appointment) => {
                       const { date, time } = formatDateTime(appointment.appointmentTime);
                       return (
                         <div 
                           key={appointment.id} 
-                          className="border rounded-lg p-4 space-y-3"
+                          className="border rounded-lg p-4 hover:bg-accent/50 transition-colors"
                           data-testid={`appointment-${appointment.id}`}
                         >
                           <div className="flex items-start justify-between">
-                            <div className="space-y-1">
-                              <div className="flex items-center space-x-2">
-                                <h3 className="font-semibold text-lg" data-testid={`appointment-name-${appointment.id}`}>
-                                  {appointment.contactName}
-                                </h3>
-                                {getStatusBadge(appointment.status)}
-                              </div>
-                              <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                                <div className="flex items-center space-x-1">
-                                  <Phone className="h-4 w-4" />
-                                  <span data-testid={`appointment-phone-${appointment.id}`}>
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                                  <User className="h-5 w-5 text-primary" />
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <h3 className="font-semibold text-base" data-testid={`appointment-name-${appointment.id}`}>
+                                      {appointment.contactName}
+                                    </h3>
+                                    {getStatusBadge(appointment.status)}
+                                  </div>
+                                  <p className="text-sm text-muted-foreground" data-testid={`appointment-phone-${appointment.id}`}>
                                     {appointment.contactPhone}
-                                  </span>
-                                </div>
-                                <div className="flex items-center space-x-1">
-                                  <Calendar className="h-4 w-4" />
-                                  <span data-testid={`appointment-date-${appointment.id}`}>
-                                    {date}
-                                  </span>
-                                </div>
-                                <div className="flex items-center space-x-1">
-                                  <Clock className="h-4 w-4" />
-                                  <span data-testid={`appointment-time-${appointment.id}`}>
-                                    {time}
-                                  </span>
+                                  </p>
                                 </div>
                               </div>
+
+                              <div className="flex flex-wrap items-center gap-4 text-sm ml-13">
+                                <div className="flex items-center gap-1.5">
+                                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                                  <span className="font-medium" data-testid={`appointment-date-${appointment.id}`}>{date}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <Clock className="h-4 w-4 text-muted-foreground" />
+                                  <span className="font-medium" data-testid={`appointment-time-${appointment.id}`}>{time}</span>
+                                </div>
+                                {appointment.appointmentType && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {appointment.appointmentType}
+                                  </Badge>
+                                )}
+                              </div>
+
+                              {appointment.lastCallOutcome && (
+                                <div className="ml-13">
+                                  {getLastCallIndicator(appointment.lastCallOutcome)}
+                                </div>
+                              )}
+
+                              {appointment.notes && (
+                                <>
+                                  <Separator className="ml-13" />
+                                  <div className="text-sm text-muted-foreground ml-13">
+                                    <strong>Notes:</strong> {appointment.notes}
+                                  </div>
+                                </>
+                              )}
                             </div>
-                            <div className="flex space-x-2">
-                              <Button variant="outline" size="sm" data-testid={`button-call-${appointment.id}`}>
-                                <Phone className="h-4 w-4 mr-1" />
-                                Call
-                              </Button>
+
+                            <div className="flex gap-2 ml-4">
                               <Button variant="outline" size="sm" data-testid={`button-reschedule-${appointment.id}`}>
                                 Reschedule
                               </Button>
+                              <Button variant="outline" size="sm" data-testid={`button-edit-${appointment.id}`}>
+                                Edit
+                              </Button>
                             </div>
                           </div>
-                          {appointment.notes && (
-                            <>
-                              <Separator />
-                              <div className="text-sm text-muted-foreground">
-                                <strong>Notes:</strong> {appointment.notes}
-                              </div>
-                            </>
-                          )}
                         </div>
                       );
                     })}
