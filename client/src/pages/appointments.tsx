@@ -1,14 +1,19 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
-import { Calendar, Clock, User, Search, CheckCircle, XCircle, AlertCircle, PhoneOff } from "lucide-react";
+import { Calendar, Clock, User, Search, CheckCircle, XCircle, AlertCircle, PhoneOff, Phone, Loader2, PhoneCall } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Progress } from "@/components/ui/progress";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import Sidebar from "@/components/layout/sidebar";
 import Header from "@/components/layout/header";
 
@@ -26,10 +31,13 @@ interface Appointment {
 
 export default function Appointments() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [location] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("date");
+  const [callInProgress, setCallInProgress] = useState<string | null>(null);
+  const [callToCancel, setCallToCancel] = useState<string | null>(null);
 
   // Handle URL parameters for filtering
   useEffect(() => {
@@ -58,6 +66,72 @@ export default function Appointments() {
     staleTime: 0,
     gcTime: 0,
   }) as { data: Appointment[], isLoading: boolean };
+
+  // Mutation to initiate a manual call
+  const initiateCallMutation = useMutation({
+    mutationFn: async (contactId: string) => {
+      const response = await apiRequest('POST', `/api/contacts/${contactId}/call`, {});
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setCallInProgress(data.callSessionId);
+      toast({
+        title: "Call Started",
+        description: "Voice call has been initiated successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/appointments'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Call Failed", 
+        description: error?.message || "Unable to start call. Please try again.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Poll for active call status
+  const { data: activeCallSession } = useQuery<any>({
+    queryKey: ['/api/calls', callInProgress],
+    enabled: !!callInProgress,
+    refetchInterval: (query) => {
+      const data = query.state.data as any;
+      if (!data || data.status === 'completed' || data.status === 'failed') {
+        return false;
+      }
+      return 2000; // Poll every 2 seconds
+    },
+  });
+
+  // Auto-close modal when call completes
+  useEffect(() => {
+    if (activeCallSession && (activeCallSession.status === 'completed' || activeCallSession.status === 'failed')) {
+      queryClient.invalidateQueries({ queryKey: ['/api/appointments'] });
+      setTimeout(() => setCallInProgress(null), 3000); // Auto-close after 3 seconds
+    }
+  }, [activeCallSession?.status, queryClient]);
+
+  // Mutation to cancel a call
+  const cancelCallMutation = useMutation({
+    mutationFn: async (contactId: string) => {
+      return apiRequest('POST', `/api/contacts/${contactId}/cancel-call`, {});
+    },
+    onSuccess: () => {
+      toast({
+        title: "Call Cancelled",
+        description: "Scheduled call has been cancelled successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/appointments'] });
+      setCallToCancel(null);
+    },
+    onError: () => {
+      toast({
+        title: "Cancellation Failed", 
+        description: "Unable to cancel call. Please try again.",
+        variant: "destructive",
+      });
+    }
+  });
 
   // Filter and sort appointments
   const filteredAppointments = appointments
@@ -135,6 +209,11 @@ export default function Appointments() {
         hour12: true
       })
     };
+  };
+
+  // Check if appointment has passed
+  const hasAppointmentPassed = (appointmentTime: string) => {
+    return new Date(appointmentTime) < new Date();
   };
 
   // Calculate stats
@@ -355,6 +434,30 @@ export default function Appointments() {
                             </div>
 
                             <div className="flex gap-2 ml-4">
+                              {!hasAppointmentPassed(appointment.appointmentTime) && (
+                                <>
+                                  <Button 
+                                    variant="default" 
+                                    size="sm" 
+                                    onClick={() => initiateCallMutation.mutate(appointment.id)}
+                                    disabled={initiateCallMutation.isPending}
+                                    data-testid={`button-call-now-${appointment.id}`}
+                                  >
+                                    <Phone className="w-4 h-4 mr-1" />
+                                    Call Now
+                                  </Button>
+                                  <Button 
+                                    variant="destructive" 
+                                    size="sm" 
+                                    onClick={() => setCallToCancel(appointment.id)}
+                                    disabled={cancelCallMutation.isPending}
+                                    data-testid={`button-cancel-call-${appointment.id}`}
+                                  >
+                                    <XCircle className="w-4 h-4 mr-1" />
+                                    Cancel Call
+                                  </Button>
+                                </>
+                              )}
                               <Button variant="outline" size="sm" data-testid={`button-reschedule-${appointment.id}`}>
                                 Reschedule
                               </Button>
@@ -373,6 +476,137 @@ export default function Appointments() {
           </div>
         </main>
       </div>
+
+      {/* Call in Progress Modal */}
+      <Dialog open={!!callInProgress} onOpenChange={(open) => !open && setCallInProgress(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Phone className="h-5 w-5" />
+              Call in Progress
+            </DialogTitle>
+            <DialogDescription>
+              AI agent is making the call
+            </DialogDescription>
+          </DialogHeader>
+
+          {activeCallSession && (
+            <div className="space-y-4">
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                      <User className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium">{activeCallSession.contactName}</h3>
+                      <p className="text-sm text-muted-foreground">{activeCallSession.contactPhone}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Call Status</span>
+                      <Badge variant={activeCallSession.status === 'completed' ? 'default' : 'secondary'}>
+                        {activeCallSession.status === 'queued' ? 'Queued' : 
+                         activeCallSession.status === 'in_progress' ? 'Calling' :
+                         activeCallSession.status === 'completed' ? 'Completed' :
+                         activeCallSession.status === 'failed' ? 'Failed' : activeCallSession.status}
+                      </Badge>
+                    </div>
+
+                    <Progress 
+                      value={
+                        activeCallSession.status === 'queued' ? 25 :
+                        activeCallSession.status === 'in_progress' ? 50 :
+                        (activeCallSession.status === 'completed' || activeCallSession.status === 'failed') ? 100 : 0
+                      } 
+                      className="h-2"
+                    />
+
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        {activeCallSession.status === 'queued' && (
+                          <>
+                            <Clock className="h-4 w-4 text-yellow-500" />
+                            <span>Call is being initiated...</span>
+                          </>
+                        )}
+                        {activeCallSession.status === 'in_progress' && (
+                          <>
+                            <PhoneCall className="h-4 w-4 text-blue-500 animate-pulse" />
+                            <span>AI agent is calling contact...</span>
+                          </>
+                        )}
+                        {activeCallSession.status === 'completed' && (
+                          <>
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                            <span>Call completed - {activeCallSession.callOutcome || 'Success'}</span>
+                          </>
+                        )}
+                        {activeCallSession.status === 'failed' && (
+                          <>
+                            <XCircle className="h-4 w-4 text-red-500" />
+                            <span>Call failed - {activeCallSession.callOutcome || 'Connection error'}</span>
+                          </>
+                        )}
+                      </div>
+
+                      {activeCallSession.startTime && (
+                        <div className="text-xs text-muted-foreground">
+                          Started: {new Date(activeCallSession.startTime).toLocaleTimeString()}
+                        </div>
+                      )}
+                    </div>
+
+                    {(activeCallSession.status === 'queued' || activeCallSession.status === 'in_progress') && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span>Monitoring call status...</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {(activeCallSession.status === 'completed' || activeCallSession.status === 'failed') && (
+                <Button onClick={() => setCallInProgress(null)} className="w-full">
+                  Close
+                </Button>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Confirmation Dialog */}
+      <AlertDialog open={!!callToCancel} onOpenChange={(open) => !open && setCallToCancel(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Scheduled Call?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will cancel any scheduled reminder call for this appointment. The contact will not receive an automated call.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>No, Keep Call</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (callToCancel) {
+                  cancelCallMutation.mutate(callToCancel);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Yes, Cancel Call
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

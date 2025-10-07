@@ -3437,6 +3437,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Cancel scheduled call for a contact
+  app.post('/api/contacts/:id/cancel-call', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      const contactId = req.params.id;
+      const tenantId = req.user.tenantId;
+
+      // Get contact to verify ownership
+      const contact = await storage.getContact(contactId);
+      if (!contact || contact.tenantId !== tenantId) {
+        return res.status(404).json({ message: 'Contact not found' });
+      }
+
+      // Find scheduled or queued call sessions for this contact
+      const callSessions = await storage.getCallSessionsByTenant(tenantId);
+      const scheduledCalls = callSessions.filter(
+        (session: any) => 
+          session.contactId === contactId && 
+          (session.status === 'scheduled' || session.status === 'queued')
+      );
+
+      if (scheduledCalls.length === 0) {
+        return res.status(404).json({ 
+          message: 'No scheduled calls found for this contact' 
+        });
+      }
+
+      // Cancel all scheduled calls for this contact
+      const cancelledCalls = [];
+      for (const session of scheduledCalls) {
+        const updated = await storage.updateCallSession(session.id, {
+          status: 'cancelled',
+        });
+        cancelledCalls.push(updated);
+      }
+
+      res.json({
+        success: true,
+        message: `Cancelled ${cancelledCalls.length} scheduled call(s)`,
+        cancelledCalls: cancelledCalls.length,
+      });
+    } catch (error) {
+      console.error('Cancel call error:', error);
+      res.status(500).json({ message: 'Failed to cancel scheduled call' });
+    }
+  });
+
   // Get call status endpoint
   app.get('/api/calls/:sessionId', authenticateJWT, async (req: any, res) => {
     try {
