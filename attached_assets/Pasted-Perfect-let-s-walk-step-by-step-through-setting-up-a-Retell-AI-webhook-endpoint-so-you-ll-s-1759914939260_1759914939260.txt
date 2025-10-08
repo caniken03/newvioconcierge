@@ -1,0 +1,100 @@
+Perfect 👍 — let’s walk step-by-step through setting up a **Retell AI webhook endpoint** so you’ll start receiving signed events that you can verify with your API key.
+
+---
+
+## 🔹 Step 1. Get your API Key
+
+1. Log in to [Retell Dashboard](https://dashboard.retellai.com).
+2. Go to **Developers → API Keys**.
+3. Create a new key (give it a name like `Webhook Verification Key`).
+4. Enable the **Webhook badge** when creating it.
+5. Copy the key and store it in your `.env` file, e.g.:
+
+```bash
+RETELL_API_KEY=rk_xxxxxxxx
+```
+
+---
+
+## 🔹 Step 2. Prepare a Webhook Endpoint in Your App
+
+Your server needs an endpoint (e.g. `/retell/webhook`) that accepts `POST` requests.
+
+Example in **Express (Node.js)**:
+
+```ts
+import express from "express";
+import { Retell } from "retell-sdk";
+
+const app = express();
+app.use(express.json()); // parse JSON body
+
+app.post("/retell/webhook", (req, res) => {
+  const signature = req.headers["x-retell-signature"] as string;
+  const body = JSON.stringify(req.body);
+
+  // Verify webhook authenticity
+  const valid = Retell.verify(body, process.env.RETELL_API_KEY!, signature);
+  if (!valid) {
+    console.error("❌ Invalid webhook signature");
+    return res.status(403).send("Forbidden");
+  }
+
+  // ✅ Process the event
+  const { event, call } = req.body;
+  console.log("Received webhook:", event, call);
+
+  res.status(200).send("OK");
+});
+
+app.listen(3000, () => {
+  console.log("Listening on port 3000");
+});
+```
+
+---
+
+## 🔹 Step 3. Register Your Webhook URL in Retell
+
+1. In the Retell dashboard, go to **Integrations → Webhooks**.
+2. Click **Add Webhook**.
+3. Enter your **public URL** (e.g. `https://yourdomain.com/retell/webhook`).
+
+   * If testing locally, use [ngrok](https://ngrok.com/) or [Cloudflare Tunnel] to expose `http://localhost:3000`.
+   * Example: `https://random-id.ngrok.io/retell/webhook`
+4. Select which **events** you want to receive (e.g. inbound calls, call status, analysis results).
+5. Save.
+
+---
+
+## 🔹 Step 4. Test the Webhook
+
+* Use the **Test Webhook** button in the dashboard to send a sample event.
+* Check your server logs.
+* You should see the event payload, e.g.:
+
+```json
+{
+  "event": "call.ended",
+  "call": {
+    "id": "call_abc123",
+    "duration": 125,
+    "status": "completed"
+  }
+}
+```
+
+---
+
+## 🔹 Step 5. Handle Retries (recommended)
+
+* Retell retries webhooks if your endpoint doesn’t respond in ~10 seconds.
+* Always return a **200 OK** quickly, even if you still need to process the data asynchronously.
+
+---
+
+✅ After this, you’ll have a **fully verified Retell AI webhook** with your API key acting as the “secret.”
+
+---
+
+Would you like me to also draft a **Supabase Edge Function** version of this webhook handler, so you can plug it directly into your Supabase setup instead of Express?

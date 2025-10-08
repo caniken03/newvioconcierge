@@ -3736,24 +3736,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Missing tenant context' });
       }
 
-      // Get tenant configuration for Retell webhook secret
+      // Get tenant configuration for Retell API key (used for webhook verification)
       const tenantConfig = await storage.getTenantConfig(tenantId);
       
-      if (!tenantConfig?.retellWebhookSecret) {
-        console.error(`❌ Webhook secret not configured for tenant ${tenantId}`);
-        console.error(`📋 Webhook payload contains custom_analysis_data but cannot be processed without proper security setup`);
-        console.error(`🔧 To fix: Configure retellWebhookSecret in tenant_config for tenant ${tenantId}`);
+      if (!tenantConfig?.retellApiKey) {
+        console.error(`❌ Retell API key not configured for tenant ${tenantId}`);
+        console.error(`📋 Webhook payload contains custom_analysis_data but cannot be processed without API key`);
+        console.error(`🔧 To fix: Configure retellApiKey in tenant_config for tenant ${tenantId}`);
         return res.status(400).json({ 
-          message: 'Webhook secret not configured',
-          detail: 'Configure retellWebhookSecret in tenant settings to enable webhook processing'
+          message: 'Retell API key not configured',
+          detail: 'Configure retellApiKey in tenant settings to enable webhook processing'
         });
       }
 
-      // SECURITY: Proper HMAC verification using raw body and tenant's WEBHOOK SECRET
-      const rawPayload = req.body.toString();
+      // SECURITY: Retell uses the API key itself for webhook signature verification
+      // Reference: https://docs.retellai.com/webhooks
+      const rawPayload = JSON.stringify(parsedBody);
       
       try {
-        if (!verifyRetellWebhookSignature(rawPayload, signature as string, tenantConfig.retellWebhookSecret)) {
+        // Retell.verify(body, apiKey, signature) pattern
+        if (!verifyRetellWebhookSignature(rawPayload, signature as string, tenantConfig.retellApiKey)) {
           console.warn(`Invalid Retell webhook signature for tenant ${tenantId}`);
           return res.status(401).json({ message: 'Invalid webhook signature' });
         }
