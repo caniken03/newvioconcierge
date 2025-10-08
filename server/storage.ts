@@ -1734,21 +1734,21 @@ export class DatabaseStorage implements IStorage {
       percentage: totalOutcomes > 0 ? Math.round((item.count / totalOutcomes) * 100) : 0
     }));
 
-    // Recent call activity (last 20 calls)
+    // Recent call activity (last 20 calls) - ordered by actual call time
     const recentCalls = await db
       .select({
         id: callSessions.id,
         contactId: callSessions.contactId,
         status: callSessions.status,
         outcome: callSessions.callOutcome,
-        triggerTime: callSessions.triggerTime,
+        startTime: callSessions.startTime,
         duration: callSessions.durationSeconds,
         contactName: contacts.name
       })
       .from(callSessions)
       .leftJoin(contacts, eq(callSessions.contactId, contacts.id))
       .where(eq(callSessions.tenantId, tenantId))
-      .orderBy(desc(callSessions.triggerTime))
+      .orderBy(desc(callSessions.startTime))
       .limit(20);
 
     const recentCallActivity = recentCalls.map(call => ({
@@ -1756,7 +1756,7 @@ export class DatabaseStorage implements IStorage {
       contactName: call.contactName || 'Unknown Contact',
       status: call.status || 'unknown',
       outcome: call.outcome || call.status || 'unknown',
-      timestamp: call.triggerTime || new Date(),
+      timestamp: call.startTime || new Date(),
       duration: call.duration || undefined
     }));
 
