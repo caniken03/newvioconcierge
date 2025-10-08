@@ -3736,23 +3736,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Missing tenant context' });
       }
 
-      // Get tenant configuration for Retell webhook secret (SECURITY FIX)
+      // Get tenant configuration for Retell webhook secret
       const tenantConfig = await storage.getTenantConfig(tenantId);
       
       if (!tenantConfig?.retellWebhookSecret) {
-        console.warn(`Retell webhook secret not configured for tenant ${tenantId}`);
-        return res.status(400).json({ message: 'Retell webhook secret not configured' });
+        console.error(`❌ Webhook secret not configured for tenant ${tenantId}`);
+        console.error(`📋 Webhook payload contains custom_analysis_data but cannot be processed without proper security setup`);
+        console.error(`🔧 To fix: Configure retellWebhookSecret in tenant_config for tenant ${tenantId}`);
+        return res.status(400).json({ 
+          message: 'Webhook secret not configured',
+          detail: 'Configure retellWebhookSecret in tenant settings to enable webhook processing'
+        });
       }
 
-      // SECURITY: Proper HMAC verification using raw body and tenant's WEBHOOK SECRET (not API key)
+      // SECURITY: Proper HMAC verification using raw body and tenant's WEBHOOK SECRET
       const rawPayload = req.body.toString();
       
-      // Defensive signature verification with proper error handling
       try {
         if (!verifyRetellWebhookSignature(rawPayload, signature as string, tenantConfig.retellWebhookSecret)) {
           console.warn(`Invalid Retell webhook signature for tenant ${tenantId}`);
           return res.status(401).json({ message: 'Invalid webhook signature' });
         }
+        console.log(`✅ Webhook signature verified for tenant ${tenantId}`);
       } catch (error) {
         console.error(`Webhook signature verification error for tenant ${tenantId}:`, error);
         return res.status(401).json({ message: 'Signature verification failed' });
