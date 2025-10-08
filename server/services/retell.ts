@@ -202,9 +202,9 @@ export class RetellService {
     
     return {
       event: payload.event,
-      call_id: callData.call_id,
+      call_id: callData.call_id || callData.id, // Retell uses 'id' field in some webhooks
       agent_id: callData.agent_id,
-      call_status: callData.call_status,
+      call_status: callData.call_status || callData.status, // Also check 'status'
       call_type: callData.call_type,
       from_number: callData.from_number,
       to_number: callData.to_number,
