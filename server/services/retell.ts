@@ -41,6 +41,9 @@ interface RetellWebhookPayload {
   call_analysis?: {
     call_summary?: string;
     call_outcome?: string;
+    in_voicemail?: boolean;
+    user_sentiment?: string;
+    call_successful?: boolean;
     sentiment_analysis?: {
       overall_sentiment?: string; // 'positive', 'negative', 'neutral'
       sentiment_score?: number; // -1 to 1
@@ -59,6 +62,26 @@ interface RetellWebhookPayload {
       customer_questions_count?: number;
       agent_clarifications_count?: number;
       conversation_flow?: string; // 'smooth', 'difficult', 'confused'
+    };
+    custom_analysis_data?: {
+      appointment_confirmed?: boolean;
+      appointment_cancelled?: boolean;
+      appointment_rescheduled?: boolean;
+      new_appointment_details?: string;
+      customer_engaged?: boolean;
+      call_completed_successfully?: boolean;
+      customer_sentiment?: string;
+      wrong_person?: boolean;
+      reached_voicemail?: boolean;
+      callback_requested?: boolean;
+      followup_required?: boolean;
+      customer_response_summary?: string;
+      appointment_purpose?: string;
+      preferred_call_time?: string;
+      transfer_requested?: boolean;
+      transfer_reason?: string;
+      transferred_to?: string;
+      department?: string;
     };
     inbound_phone_call_debugging_log?: any;
   };
