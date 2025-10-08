@@ -50,14 +50,19 @@ export async function apiRequest(
       }
     }
     const text = (await res.text()) || res.statusText;
-    let errorMessage = text;
+    let errorData: any = { message: text };
     try {
-      const json = JSON.parse(text);
-      errorMessage = json.message || text;
+      errorData = JSON.parse(text);
     } catch {
-      // If not JSON, use text as-is
+      // If not JSON, use text as-is in message
     }
-    throw new Error(errorMessage);
+    
+    // Create custom error with additional data
+    const error: any = new Error(errorData.message || text);
+    error.violations = errorData.violations;
+    error.code = errorData.code;
+    error.statusCode = res.status;
+    throw error;
   }
   
   return res;

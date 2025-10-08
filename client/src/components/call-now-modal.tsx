@@ -127,24 +127,15 @@ export default function CallNowModal({ isOpen, onClose, contact }: CallNowModalP
         description: "Voice call has been started successfully.",
       });
     },
-    onError: async (error: any) => {
-      // Try to parse the error response to get detailed violation info
+    onError: (error: any) => {
+      // Extract detailed error info including abuse protection violations
       let errorMessage = "Failed to initiate call. Please try again.";
       let errorTitle = "Call Failed";
       
-      if (error instanceof Response) {
-        try {
-          const errorData = await error.json();
-          if (errorData.violations && Array.isArray(errorData.violations)) {
-            // Show specific violations from abuse protection
-            errorMessage = errorData.violations.join('. ');
-            errorTitle = "Call Blocked";
-          } else if (errorData.message) {
-            errorMessage = errorData.message;
-          }
-        } catch {
-          errorMessage = error.statusText || errorMessage;
-        }
+      // Check if error has violations array from abuse protection
+      if (error.violations && Array.isArray(error.violations)) {
+        errorMessage = error.violations.join('. ');
+        errorTitle = "Call Blocked";
       } else if (error.message) {
         errorMessage = error.message;
       }
