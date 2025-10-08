@@ -3675,47 +3675,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // 🔓 TEMPORARY DEBUG: Allow webhook through even without tenant to see payload
       if (!tenantId) {
-        console.warn(`⚠️ DEBUG MODE: Processing webhook without tenant context to inspect payload structure`);
-        console.warn(`Payload call_id: ${payload.call_id || 'none'}, has metadata: ${!!payload.metadata}`);
-        // Continue processing instead of returning error
-        tenantId = 'DEBUG_MODE'; // Temporary placeholder
+        console.warn(`No tenant ID found in webhook metadata or call session for call_id: ${payload.call_id}`);
+        return res.status(400).json({ message: 'Missing tenant context' });
       }
 
       // Get tenant configuration for Retell webhook secret (SECURITY FIX)
       const tenantConfig = await storage.getTenantConfig(tenantId);
       
-      // 🔓 TEMPORARY DEBUG: Skip signature verification to see payload
-      if (tenantId === 'DEBUG_MODE') {
-        console.warn(`⚠️ DEBUG MODE: Skipping signature verification to inspect payload`);
-      } else {
-        if (!tenantConfig?.retellWebhookSecret) {
-          console.warn(`Retell webhook secret not configured for tenant ${tenantId}`);
-          return res.status(400).json({ message: 'Retell webhook secret not configured' });
-        }
+      if (!tenantConfig?.retellWebhookSecret) {
+        console.warn(`Retell webhook secret not configured for tenant ${tenantId}`);
+        return res.status(400).json({ message: 'Retell webhook secret not configured' });
+      }
 
-        // SECURITY: Proper HMAC verification using raw body and tenant's WEBHOOK SECRET (not API key)
-        const rawPayload = req.body.toString();
-        
-        // Defensive signature verification with proper error handling
-        try {
-          if (!verifyRetellWebhookSignature(rawPayload, signature as string, tenantConfig.retellWebhookSecret)) {
-            console.warn(`Invalid Retell webhook signature for tenant ${tenantId}`);
-            return res.status(401).json({ message: 'Invalid webhook signature' });
-          }
-        } catch (error) {
-          console.error(`Webhook signature verification error for tenant ${tenantId}:`, error);
-          return res.status(401).json({ message: 'Signature verification failed' });
+      // SECURITY: Proper HMAC verification using raw body and tenant's WEBHOOK SECRET (not API key)
+      const rawPayload = req.body.toString();
+      
+      // Defensive signature verification with proper error handling
+      try {
+        if (!verifyRetellWebhookSignature(rawPayload, signature as string, tenantConfig.retellWebhookSecret)) {
+          console.warn(`Invalid Retell webhook signature for tenant ${tenantId}`);
+          return res.status(401).json({ message: 'Invalid webhook signature' });
         }
+      } catch (error) {
+        console.error(`Webhook signature verification error for tenant ${tenantId}:`, error);
+        return res.status(401).json({ message: 'Signature verification failed' });
       }
       
       if (payload.event === 'call_ended' || payload.event === 'call_completed' || payload.event === 'call_failed') {
-        // 🔓 TEMPORARY DEBUG: Skip processing in debug mode, just log and return
-        if (tenantId === 'DEBUG_MODE') {
-          console.warn(`⚠️ DEBUG MODE: Webhook payload inspection complete. Returning success without processing.`);
-          return res.status(200).json({ received: true, debug: true });
-        }
         
         // Find the call session by retellCallId with tenant isolation
         const session = await storage.getCallSessionByRetellId(payload.call_id);
