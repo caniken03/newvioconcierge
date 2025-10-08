@@ -3185,6 +3185,69 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+  // Read-only abuse protection check (no counter increments)
+  async checkAbuseProtection(tenantId: string, phoneNumber?: string, scheduledTime?: Date): Promise<{
+    allowed: boolean;
+    violations: string[];
+    protectionStatus: {
+      rateLimits: any;
+      businessHours: any;
+      contactLimits: any;
+      tenantStatus: any;
+    };
+  }> {
+    const callTime = scheduledTime || new Date();
+    const violations: string[] = [];
+
+    // 1. Check if tenant is suspended (read-only check)
+    const activeSuspensions = await db
+      .select()
+      .from(tenantSuspensions)
+      .where(and(eq(tenantSuspensions.tenantId, tenantId), eq(tenantSuspensions.isActive, true)));
+    
+    const isCurrentlySuspended = activeSuspensions.length > 0;
+    const tenantStatus = {
+      suspended: isCurrentlySuspended,
+      suspensionReason: isCurrentlySuspended ? activeSuspensions[0]?.reason : null
+    };
+
+    if (isCurrentlySuspended) {
+      violations.push('Tenant is currently suspended');
+    }
+
+    // 2. Check business hours (read-only check)
+    const businessHoursCheck = await this.validateBusinessHours(tenantId, callTime);
+    if (!businessHoursCheck.allowed) {
+      violations.push(businessHoursCheck.reason || 'Outside business hours');
+    }
+
+    // 3. Check rate limits (read-only, no increments)
+    const rateLimitCheck = await this.checkRateLimits(tenantId);
+    if (!rateLimitCheck.allowed) {
+      violations.push(...rateLimitCheck.violations);
+    }
+
+    // 4. Check contact-specific limits (read-only, no increments)
+    let contactLimitsCheck: { allowed: boolean; reason?: string; blockedUntil?: Date } = { allowed: true };
+    if (phoneNumber) {
+      contactLimitsCheck = await this.checkContactCallLimits(phoneNumber);
+      if (!contactLimitsCheck.allowed) {
+        violations.push(contactLimitsCheck.reason || 'Contact call limit exceeded');
+      }
+    }
+
+    return {
+      allowed: violations.length === 0,
+      violations,
+      protectionStatus: {
+        rateLimits: rateLimitCheck,
+        businessHours: businessHoursCheck,
+        contactLimits: contactLimitsCheck,
+        tenantStatus
+      }
+    };
+  }
+
   // ATOMIC: Check and Reserve Call (Race Condition Safe)
   async checkAndReserveCall(tenantId: string, phoneNumber?: string, scheduledTime?: Date): Promise<{
     allowed: boolean;
@@ -3453,6 +3516,159 @@ export class DatabaseStorage implements IStorage {
     }
 
     return { allowed: true };
+  }
+
+  // Decrement call counters when call fails (rollback atomic reservation)
+  async decrementCallCounters(tenantId: string, phoneNumber: string): Promise<void> {
+    await db.transaction(async (tx) => {
+      // Decrement tenant rate limits
+      const limits = ['15_minutes', '1_hour', '24_hours'];
+      
+      for (const timeWindow of limits) {
+        const existing = await tx
+          .select()
+          .from(rateLimitTracking)
+          .where(and(
+            eq(rateLimitTracking.tenantId, tenantId),
+            eq(rateLimitTracking.timeWindow, timeWindow)
+          ));
+        
+        if (existing.length > 0 && (existing[0].callCount || 0) > 0) {
+          await tx
+            .update(rateLimitTracking)
+            .set({
+              callCount: Math.max(0, (existing[0].callCount || 0) - 1),
+              updatedAt: new Date()
+            })
+            .where(and(
+              eq(rateLimitTracking.tenantId, tenantId),
+              eq(rateLimitTracking.timeWindow, timeWindow)
+            ));
+        }
+      }
+
+      // Decrement contact call history
+      const existing = await tx
+        .select()
+        .from(contactCallHistory)
+        .where(eq(contactCallHistory.phoneNumber, phoneNumber));
+      
+      if (existing.length > 0 && (existing[0].callCount24h || 0) > 0) {
+        await tx
+          .update(contactCallHistory)
+          .set({
+            callCount24h: Math.max(0, (existing[0].callCount24h || 0) - 1),
+            updatedAt: new Date()
+          })
+          .where(eq(contactCallHistory.phoneNumber, phoneNumber));
+      }
+    });
+    
+    console.log(`📉 Decremented call counters (rollback) for tenant ${tenantId}, phone ${phoneNumber}`);
+  }
+
+  // Increment call counters AFTER successful call creation (replaces premature reservation increments)
+  async incrementCallCounters(tenantId: string, phoneNumber: string): Promise<void> {
+    await db.transaction(async (tx) => {
+      // Increment tenant rate limits
+      const limits = ['15_minutes', '1_hour', '24_hours'];
+      
+      for (const timeWindow of limits) {
+        const intervalMinutes = timeWindow === '15_minutes' ? 15 : 
+                              timeWindow === '1_hour' ? 60 : 1440;
+        
+        const existing = await tx
+          .select()
+          .from(rateLimitTracking)
+          .where(and(
+            eq(rateLimitTracking.tenantId, tenantId),
+            eq(rateLimitTracking.timeWindow, timeWindow)
+          ));
+        
+        if (existing.length > 0) {
+          const record = existing[0];
+          const windowExpired = record.windowStart && 
+            record.windowStart < new Date(Date.now() - intervalMinutes * 60 * 1000);
+          
+          if (windowExpired) {
+            await tx
+              .update(rateLimitTracking)
+              .set({
+                callCount: 1,
+                windowStart: new Date(),
+                updatedAt: new Date()
+              })
+              .where(and(
+                eq(rateLimitTracking.tenantId, tenantId),
+                eq(rateLimitTracking.timeWindow, timeWindow)
+              ));
+          } else {
+            await tx
+              .update(rateLimitTracking)
+              .set({
+                callCount: (record.callCount || 0) + 1,
+                updatedAt: new Date()
+              })
+              .where(and(
+                eq(rateLimitTracking.tenantId, tenantId),
+                eq(rateLimitTracking.timeWindow, timeWindow)
+              ));
+          }
+        } else {
+          await tx
+            .insert(rateLimitTracking)
+            .values({
+              tenantId: tenantId,
+              timeWindow: timeWindow,
+              callCount: 1,
+              windowStart: new Date()
+            });
+        }
+      }
+
+      // Increment contact call history
+      const existing = await tx
+        .select()
+        .from(contactCallHistory)
+        .where(eq(contactCallHistory.phoneNumber, phoneNumber));
+      
+      if (existing.length > 0) {
+        const record = existing[0];
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        
+        if (record.lastCallTime && record.lastCallTime < twentyFourHoursAgo) {
+          await tx
+            .update(contactCallHistory)
+            .set({
+              callCount24h: 1,
+              lastCallTime: new Date(),
+              updatedAt: new Date()
+            })
+            .where(eq(contactCallHistory.phoneNumber, phoneNumber));
+        } else {
+          await tx
+            .update(contactCallHistory)
+            .set({
+              callCount24h: (record.callCount24h || 0) + 1,
+              lastCallTime: new Date(),
+              updatedAt: new Date()
+            })
+            .where(eq(contactCallHistory.phoneNumber, phoneNumber));
+        }
+      } else {
+        await tx
+          .insert(contactCallHistory)
+          .values({
+            phoneNumber: phoneNumber,
+            tenantId: tenantId,
+            callCount24h: 1,
+            lastCallTime: new Date(),
+            updatedAt: new Date()
+          });
+      }
+    });
+    
+    console.log(`📊 Incremented call counters for tenant ${tenantId}, phone ${phoneNumber}`);
   }
 
   // Confirm or Release Call Reservation (Production Implementation)

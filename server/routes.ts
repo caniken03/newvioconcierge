@@ -2943,7 +2943,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(`⏱️ Waiting 2 seconds before next call to prevent service conflicts...`);
           await new Promise(resolve => setTimeout(resolve, 2000));
         }
+        let contactProtectionCheck: any = null;
+        
         try {
+          // ABUSE PROTECTION: Per-contact atomic check and reserve
+          contactProtectionCheck = await storage.checkAndReserveCall(
+            req.user.tenantId,
+            contact.phone,
+            triggerTime ? new Date(triggerTime) : new Date()
+          );
+
+          if (!contactProtectionCheck.allowed) {
+            // Contact blocked by abuse protection
+            console.warn(`🛡️ Bulk call blocked for contact ${contact.id}: ${contactProtectionCheck.violations.join(', ')}`);
+            protectionBlockedContacts.push({
+              contactId: contact.id,
+              contactName: contact.name,
+              violations: contactProtectionCheck.violations
+            });
+            continue; // Skip this contact
+          }
+
           // Create call session
           const sessionId = `bulk_call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
           session = await storage.createCallSession({
@@ -2974,6 +2994,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             status: 'in_progress',
           });
 
+          // Confirm reservation after successful Retell call
+          if (contactProtectionCheck.reservationId) {
+            await storage.confirmCallReservation(contactProtectionCheck.reservationId);
+            console.log(`🔒 Confirmed bulk call reservation for ${contact.phone}`);
+          }
+
           // Update contact call attempts
           await storage.updateContact(contact.id, {
             callAttempts: (contact.callAttempts || 0) + 1,
@@ -2993,6 +3019,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         } catch (error) {
           console.error(`❌ Failed to create call for contact ${contact.id} (${contact.name}):`, error);
+          
+          // CRITICAL: Rollback on failure - counters and reservation
+          if (contactProtectionCheck?.allowed && contact.phone) {
+            try {
+              await storage.decrementCallCounters(req.user.tenantId, contact.phone);
+              console.log(`📉 Rolled back counters for failed bulk call to ${contact.phone}`);
+            } catch (decrementError) {
+              console.error('Failed to rollback counters:', decrementError);
+            }
+          }
+          
+          if (contactProtectionCheck?.reservationId) {
+            try {
+              await storage.releaseCallReservation(contactProtectionCheck.reservationId);
+              console.log(`🔓 Released reservation for failed bulk call`);
+            } catch (releaseError) {
+              console.error('Failed to release reservation:', releaseError);
+            }
+          }
           
           // Update call session to failed if it was created
           if (session) {
@@ -3322,6 +3367,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Call Now endpoint - Trigger immediate call via Retell AI
   app.post('/api/contacts/:id/call', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
     let protectionCheck: any = null;
+    let callSession: any = null;
     
     try {
       const contactId = req.params.id;
@@ -3341,7 +3387,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // ABUSE PROTECTION: Atomic check and reserve call (race condition safe)
+      // ABUSE PROTECTION: Atomic check and reserve (increments counters atomically to prevent race conditions)
       protectionCheck = await storage.checkAndReserveCall(
         tenantId,
         contact.phone,
@@ -3378,7 +3424,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create call session record
-      let callSession: any = null;
       callSession = await storage.createCallSession({
         contactId,
         tenantId,
@@ -3407,10 +3452,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         startTime: new Date()
       });
 
-      // CRITICAL: Confirm reservation to finalize quota usage
+      // Counters already incremented atomically by checkAndReserveCall
+      console.log(`✅ Call successfully initiated to ${contact.phone}, counters already incremented`)
+
+      // Confirm reservation to finalize quota usage
       if (protectionCheck.reservationId) {
         await storage.confirmCallReservation(protectionCheck.reservationId);
-        console.log(`🔒 Confirmed manual call reservation: ${protectionCheck.reservationId}`);
+        console.log(`🔒 Confirmed call reservation: ${protectionCheck.reservationId}`);
       }
 
       // Update contact call attempts
@@ -3424,12 +3472,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         callSessionId: callSession.id,
         retellCallId: retellResponse.call_id,
         status: 'in_progress',
-        message: 'Call initiated successfully',
-        reservationId: protectionCheck.reservationId
+        message: 'Call initiated successfully'
       });
 
     } catch (error) {
       console.error('Call Now error:', error);
+      
+      // CRITICAL: Rollback on failure - both counters and reservation
+      if (protectionCheck?.allowed && contact?.phone) {
+        try {
+          await storage.decrementCallCounters(tenantId, contact.phone);
+          console.log(`📉 Rolled back call counters for failed call attempt to ${contact.phone}`);
+        } catch (decrementError) {
+          console.error('Failed to rollback call counters:', decrementError);
+        }
+      }
+      
+      if (protectionCheck?.reservationId) {
+        try {
+          await storage.releaseCallReservation(protectionCheck.reservationId);
+          console.log(`🔓 Released reservation on failure: ${protectionCheck.reservationId}`);
+        } catch (releaseError) {
+          console.error('Failed to release reservation:', releaseError);
+        }
+      }
       
       // Update call session to failed if it was created
       if (callSession) {
@@ -3442,16 +3508,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(`❌ Marked call session ${callSession.id} as failed due to error`);
         } catch (updateError) {
           console.error('Failed to update call session status:', updateError);
-        }
-      }
-      
-      // CRITICAL: Release reservation on failure to prevent quota leak
-      if (protectionCheck?.reservationId) {
-        try {
-          await storage.releaseCallReservation(protectionCheck.reservationId);
-          console.log(`🔓 Released manual call reservation due to error: ${protectionCheck.reservationId}`);
-        } catch (releaseError) {
-          console.error('Failed to release reservation:', releaseError);
         }
       }
       
