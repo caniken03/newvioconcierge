@@ -197,19 +197,22 @@ export class RetellService {
   }
 
   parseWebhookPayload(payload: any): RetellWebhookPayload {
+    // Retell webhooks have call data nested under 'call' object
+    const callData = payload.call || payload;
+    
     return {
       event: payload.event,
-      call_id: payload.call_id,
-      agent_id: payload.agent_id,
-      call_status: payload.call_status,
-      call_type: payload.call_type,
-      from_number: payload.from_number,
-      to_number: payload.to_number,
-      direction: payload.direction,
-      recording_url: payload.recording_url,
-      transcript: payload.transcript,
-      call_analysis: payload.call_analysis,
-      metadata: payload.metadata,
+      call_id: callData.call_id,
+      agent_id: callData.agent_id,
+      call_status: callData.call_status,
+      call_type: callData.call_type,
+      from_number: callData.from_number,
+      to_number: callData.to_number,
+      direction: callData.direction,
+      recording_url: callData.recording_url,
+      transcript: callData.transcript,
+      call_analysis: callData.call_analysis,
+      metadata: callData.metadata,
     };
   }
 

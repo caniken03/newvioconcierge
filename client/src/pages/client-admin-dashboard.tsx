@@ -59,6 +59,7 @@ export default function ClientAdminDashboard() {
   
   const { data: contacts = [], isLoading: contactsLoading } = useQuery({
     queryKey: ['/api/contacts'],
+    refetchInterval: 5000, // Auto-refresh every 5 seconds to show real-time status updates
   }) as { data: any[], isLoading: boolean };
 
   const { data: contactStats = { total: 0, pending: 0, confirmed: 0 } } = useQuery({
@@ -67,6 +68,7 @@ export default function ClientAdminDashboard() {
 
   const { data: callAnalytics, isLoading: callAnalyticsLoading } = useQuery({
     queryKey: ['/api/analytics/calls'],
+    refetchInterval: 5000, // Auto-refresh every 5 seconds to show real-time call updates
   }) as { data: any, isLoading: boolean };
 
   const { data: appointmentAnalytics, isLoading: appointmentAnalyticsLoading } = useQuery({
