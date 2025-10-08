@@ -246,6 +246,24 @@ export class RetellService {
    * Determine appointment action taken during call from sentiment and conversation analysis
    */
   determineAppointmentAction(payload: RetellWebhookPayload): string {
+    // PRIORITY: Use custom function call data if available (most accurate)
+    const customData = payload.call_analysis?.custom_analysis_data;
+    if (customData) {
+      if (customData.appointment_confirmed) {
+        return 'confirmed';
+      }
+      if (customData.appointment_rescheduled) {
+        return 'rescheduled';
+      }
+      if (customData.appointment_cancelled) {
+        return 'cancelled';
+      }
+      if (customData.reached_voicemail || customData.wrong_person) {
+        return 'no_response';
+      }
+    }
+    
+    // FALLBACK: Parse from outcome/topics (legacy support)
     const outcome = payload.call_analysis?.call_outcome?.toLowerCase() || '';
     const topics = payload.call_analysis?.conversation_analytics?.topics_discussed || [];
     
@@ -270,7 +288,24 @@ export class RetellService {
   }
 
   determineCallOutcome(payload: RetellWebhookPayload): string {
-    // Map Retell call status to our internal call outcomes
+    // PRIORITY: Use custom function call data if available (most accurate)
+    const customData = payload.call_analysis?.custom_analysis_data;
+    if (customData) {
+      if (customData.appointment_confirmed) {
+        return 'confirmed';
+      }
+      if (customData.reached_voicemail) {
+        return 'voicemail';
+      }
+      if (customData.customer_engaged && customData.call_completed_successfully) {
+        return 'answered';
+      }
+      if (customData.wrong_person) {
+        return 'wrong_number';
+      }
+    }
+    
+    // FALLBACK: Map Retell call status to our internal call outcomes (legacy support)
     if (payload.call_analysis?.call_outcome) {
       const outcome = payload.call_analysis.call_outcome.toLowerCase();
       if (outcome.includes('confirm') || outcome.includes('accept')) {
