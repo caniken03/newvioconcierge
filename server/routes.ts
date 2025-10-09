@@ -4076,6 +4076,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const signature = req.headers['x-cal-signature'] || req.headers['x-signature'];
       const rawPayload = JSON.stringify(req.body);
       
+      // Log the full webhook payload for debugging
+      console.log('📨 Cal.com webhook received:', JSON.stringify(req.body, null, 2));
+      
       const payload = calComService.parseWebhookPayload(req.body);
       const action = calComService.determineWebhookAction(payload);
       
