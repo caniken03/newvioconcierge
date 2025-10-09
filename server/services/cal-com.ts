@@ -181,7 +181,7 @@ export class CalComService {
       name: attendee?.name || 'Unknown',
       email: attendee?.email,
       phone: attendee?.phoneNumber || '', // Cal.com includes phone in attendee.phoneNumber
-      businessName: businessName,
+      companyName: businessName, // Use companyName to match schema
       appointmentTime: new Date(booking.startTime),
       appointmentType: booking.title || booking.eventTitle,
       appointmentDuration: booking.length || Math.round(
