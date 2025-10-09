@@ -201,7 +201,7 @@ export default function Contacts() {
   // CSV Upload Wizard state
   const [isCSVWizardOpen, setIsCSVWizardOpen] = useState(false);
   
-  // Delete Group Confirmation Dialog state
+ Confirmation Dialog state
   const [deleteGroupDialog, setDeleteGroupDialog] = useState<{ isOpen: boolean; groupId: string | null; groupName: string | null }>({
     isOpen: false,
     groupId: null,
