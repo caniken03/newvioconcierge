@@ -201,7 +201,14 @@ export default function Contacts() {
   // CSV Upload Wizard state
   const [isCSVWizardOpen, setIsCSVWizardOpen] = useState(false);
   
- Confirmation Dialog state
+  // Delete Contact Confirmation Dialog state
+  const [deleteContactDialog, setDeleteContactDialog] = useState<{ isOpen: boolean; contactId: string | null; contactName: string | null }>({
+    isOpen: false,
+    contactId: null,
+    contactName: null
+  });
+
+  // Delete Group Confirmation Dialog state
   const [deleteGroupDialog, setDeleteGroupDialog] = useState<{ isOpen: boolean; groupId: string | null; groupName: string | null }>({
     isOpen: false,
     groupId: null,
@@ -516,9 +523,18 @@ export default function Contacts() {
     setBulkDeleteDialog({ isOpen: false, count: 0 });
   };
 
-  const handleDelete = (contactId: string) => {
-    if (confirm("Are you sure you want to delete this contact?")) {
-      deleteContactMutation.mutate(contactId);
+  const handleDelete = (contactId: string, contactName: string) => {
+    setDeleteContactDialog({
+      isOpen: true,
+      contactId,
+      contactName
+    });
+  };
+
+  const confirmDeleteContact = () => {
+    if (deleteContactDialog.contactId) {
+      deleteContactMutation.mutate(deleteContactDialog.contactId);
+      setDeleteContactDialog({ isOpen: false, contactId: null, contactName: null });
     }
   };
 
@@ -2163,7 +2179,7 @@ export default function Contacts() {
                                 <Edit className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => handleDelete(contact.id)}
+                                onClick={() => handleDelete(contact.id, contact.name)}
                                 className="text-muted-foreground hover:text-destructive transition-colors"
                                 data-testid={`button-delete-contact-${contact.id}`}
                                 title="Delete contact"
@@ -2358,6 +2374,48 @@ export default function Contacts() {
             isOpen={isCSVWizardOpen}
             onClose={() => setIsCSVWizardOpen(false)}
           />
+
+          {/* Delete Contact Confirmation Dialog */}
+          <AlertDialog 
+            open={deleteContactDialog.isOpen} 
+            onOpenChange={(open) => !open && setDeleteContactDialog({ isOpen: false, contactId: null, contactName: null })}
+          >
+            <AlertDialogContent className="max-w-lg">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2 text-xl">
+                  <AlertTriangle className="h-6 w-6 text-destructive" />
+                  Delete Contact
+                </AlertDialogTitle>
+                <AlertDialogDescription className="text-base pt-2 space-y-3">
+                  <p>
+                    Are you sure you want to delete <strong className="text-foreground text-lg">"{deleteContactDialog.contactName}"</strong>?
+                  </p>
+                  <p className="text-destructive font-semibold">
+                    This action cannot be undone.
+                  </p>
+                  <p className="text-muted-foreground">
+                    All contact information, appointments, and call history will be permanently deleted.
+                  </p>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="gap-2 sm:gap-2">
+                <AlertDialogCancel 
+                  className="mt-0"
+                  data-testid="button-cancel-delete-contact"
+                >
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={confirmDeleteContact}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  data-testid="button-confirm-delete-contact"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Contact
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           {/* Delete Group Confirmation Dialog */}
           <AlertDialog 
