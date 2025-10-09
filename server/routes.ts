@@ -4079,6 +4079,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log the full webhook payload for debugging
       console.log('📨 Cal.com webhook received:', JSON.stringify(req.body, null, 2));
       
+      // Handle PING/test events from Cal.com
+      if (req.body.triggerEvent === 'PING' || !req.body.payload) {
+        console.log('✅ Cal.com PING event received - webhook is configured correctly');
+        return res.status(200).json({ received: true, action: 'ping' });
+      }
+      
       const payload = calComService.parseWebhookPayload(req.body);
       const action = calComService.determineWebhookAction(payload);
       
