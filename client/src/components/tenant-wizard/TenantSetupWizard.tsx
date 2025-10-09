@@ -47,6 +47,7 @@ interface WizardData {
   calendarConfig?: {
     type: 'calcom' | 'calendly';
     apiKey?: string;
+    webhookSecret?: string;
     eventTypeId?: number;
     organizerEmail?: string;
   };
@@ -194,10 +195,21 @@ export default function TenantSetupWizard({ isOpen, onClose, onComplete }: Tenan
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/tenants'] });
+      
+      // Show success message with webhook URL if calendar is configured
+      const calendarType = wizardData.calendarConfig?.type;
+      const webhookUrl = calendarType && data.tenant?.id 
+        ? `${window.location.origin}/api/webhooks/${calendarType === 'calcom' ? 'cal-com' : 'calendly'}/${data.tenant.id}`
+        : null;
+      
       toast({
         title: "Tenant created successfully!",
-        description: `${wizardData.businessName} has been activated and admin credentials have been sent.`,
+        description: webhookUrl 
+          ? `${wizardData.businessName} has been activated. Webhook URL: ${webhookUrl}`
+          : `${wizardData.businessName} has been activated and admin credentials have been sent.`,
+        duration: 10000, // Show for longer to allow copying webhook URL
       });
+      
       // Clear persisted data after successful creation
       clearPersistedData();
       onComplete();

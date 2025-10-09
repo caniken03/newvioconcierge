@@ -1052,6 +1052,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         calendarConfig: z.object({
           type: z.enum(['calcom', 'calendly']),
           apiKey: z.string().optional(),
+          webhookSecret: z.string().optional(),
           eventTypeId: z.number().optional(),
           organizerEmail: z.string().email().optional(),
         }).optional(),
@@ -1127,8 +1128,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         retellAgentNumber: retellConfig?.phoneNumber,
         calApiKey: calendarConfig?.type === 'calcom' ? calendarConfig.apiKey : undefined,
         calEventTypeId: calendarConfig?.eventTypeId,
+        calWebhookSecret: calendarConfig?.type === 'calcom' ? calendarConfig.webhookSecret : undefined,
         calendlyApiKey: calendarConfig?.type === 'calendly' ? calendarConfig.apiKey : undefined,
         calendlyOrganization: calendarConfig?.organizerEmail,
+        calendlyWebhookSecret: calendarConfig?.type === 'calendly' ? calendarConfig.webhookSecret : undefined,
         timezone: tenantData.timezone,
         businessType: tenantData.businessTemplate,
         maxCallsPerDay: tenantData.operationalSettings.maxCallsPerDay,
@@ -4056,9 +4059,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Cal.com webhook endpoint
-  app.post('/api/webhooks/cal-com', async (req, res) => {
+  // Cal.com webhook endpoint - Tenant-specific URL
+  app.post('/api/webhooks/cal-com/:tenantId', async (req, res) => {
     try {
+      const tenantId = req.params.tenantId;
+      
+      // Validate tenant exists
+      const tenant = await storage.getTenantById(tenantId);
+      if (!tenant) {
+        console.warn(`Cal.com webhook received for non-existent tenant: ${tenantId}`);
+        return res.status(404).json({ message: 'Tenant not found' });
+      }
+
       const signature = req.headers['x-cal-signature'] || req.headers['x-signature'];
       const rawPayload = JSON.stringify(req.body);
       
@@ -4071,13 +4083,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const booking = payload.payload.booking;
       const contactData = calComService.mapBookingToContact(booking);
-      
-      // Extract tenant ID from booking metadata
-      const tenantId = extractTenantIdFromWebhook(booking.metadata, booking);
-      if (!tenantId) {
-        console.warn('Cal.com webhook received without tenant ID in metadata');
-        return res.status(400).json({ message: 'Missing tenant ID in booking metadata' });
-      }
 
       // Get tenant configuration for webhook secret
       const tenantConfig = await storage.getTenantConfig(tenantId);
@@ -4334,9 +4339,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Calendly webhook endpoint
-  app.post('/api/webhooks/calendly', async (req, res) => {
+  // Calendly webhook endpoint - Tenant-specific URL
+  app.post('/api/webhooks/calendly/:tenantId', async (req, res) => {
     try {
+      const tenantId = req.params.tenantId;
+      
+      // Validate tenant exists
+      const tenant = await storage.getTenantById(tenantId);
+      if (!tenant) {
+        console.warn(`Calendly webhook received for non-existent tenant: ${tenantId}`);
+        return res.status(404).json({ message: 'Tenant not found' });
+      }
+
       const signature = req.headers['calendly-webhook-signature'] || req.headers['x-signature'];
       const rawPayload = JSON.stringify(req.body);
       
@@ -4352,13 +4366,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!event || !invitee) {
         return res.status(400).json({ message: 'Missing event or invitee data in webhook payload' });
-      }
-
-      // Extract tenant ID from tracking data or event metadata
-      const tenantId = extractTenantIdFromWebhook(invitee?.tracking, invitee);
-      if (!tenantId) {
-        console.warn('Calendly webhook received without tenant ID in tracking data');
-        return res.status(400).json({ message: 'Missing tenant ID in invitee tracking data' });
       }
 
       // Get tenant configuration for webhook secret

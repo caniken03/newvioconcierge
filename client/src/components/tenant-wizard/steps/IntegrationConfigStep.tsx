@@ -28,6 +28,7 @@ export default function IntegrationConfigStep({ data, onUpdate, onNext, onPrevio
     enabled: false,
     type: data.calendarConfig?.type || "calcom",
     apiKey: data.calendarConfig?.apiKey || "",
+    webhookSecret: data.calendarConfig?.webhookSecret || "",
     eventTypeId: data.calendarConfig?.eventTypeId || "",
     organizerEmail: data.calendarConfig?.organizerEmail || "",
     tested: false,
@@ -98,6 +99,7 @@ export default function IntegrationConfigStep({ data, onUpdate, onNext, onPrevio
       calendarConfig: calendarConfig.enabled ? {
         type: calendarConfig.type,
         apiKey: calendarConfig.apiKey,
+        webhookSecret: calendarConfig.webhookSecret,
         eventTypeId: parseInt(calendarConfig.eventTypeId) || undefined,
         organizerEmail: calendarConfig.organizerEmail.trim() || undefined,
       } : undefined,
@@ -235,7 +237,7 @@ export default function IntegrationConfigStep({ data, onUpdate, onNext, onPrevio
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="calendar-api-key">API Key *</Label>
+                <Label htmlFor="calendar-api-key">1. API Key *</Label>
                 <Input
                   id="calendar-api-key"
                   type="password"
@@ -245,9 +247,39 @@ export default function IntegrationConfigStep({ data, onUpdate, onNext, onPrevio
                   data-testid="input-calendar-api-key"
                 />
               </div>
+              <div>
+                <Label htmlFor="webhook-secret">2. Webhook Secret *</Label>
+                <Input
+                  id="webhook-secret"
+                  type="password"
+                  value={calendarConfig.webhookSecret}
+                  onChange={(e) => setCalendarConfig(prev => ({ ...prev, webhookSecret: e.target.value, tested: false }))}
+                  placeholder="Enter webhook secret"
+                  data-testid="input-webhook-secret"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Generate this in your {calendarConfig.type === "calcom" ? "Cal.com" : "Calendly"} webhook settings
+                </p>
+              </div>
+            </div>
+            
+            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <Label className="text-sm font-semibold text-blue-900 dark:text-blue-100">Tenant Webhook URL</Label>
+              <p className="text-xs text-blue-700 dark:text-blue-300 mt-1 mb-2">
+                Configure this URL in your {calendarConfig.type === "calcom" ? "Cal.com" : "Calendly"} webhook settings:
+              </p>
+              <code className="block bg-white dark:bg-gray-900 px-3 py-2 rounded text-sm text-blue-600 dark:text-blue-400 break-all border border-blue-200 dark:border-blue-700">
+                {`${window.location.origin}/api/webhooks/${calendarConfig.type === "calcom" ? "cal-com" : "calendly"}/{{TENANT_ID}}`}
+              </code>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                Note: The actual tenant ID will be automatically inserted after tenant creation
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {calendarConfig.type === "calcom" && (
                 <div>
-                  <Label htmlFor="event-type-id">Event Type ID</Label>
+                  <Label htmlFor="event-type-id">Event Type ID (Optional)</Label>
                   <Input
                     id="event-type-id"
                     type="number"
