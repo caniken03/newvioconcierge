@@ -1,14 +1,19 @@
 interface CalComBooking {
-  id: number;
+  id?: number;
+  bookingId?: number;
   uid: string;
-  title: string;
+  title?: string;
+  eventTitle?: string;
   description?: string;
+  eventDescription?: string;
   startTime: string;
   endTime: string;
+  length?: number;
   attendees: Array<{
     name: string;
     email: string;
     timeZone: string;
+    phoneNumber?: string;
   }>;
   organizer: {
     name: string;
@@ -18,6 +23,8 @@ interface CalComBooking {
   location?: string;
   eventTypeId: number;
   metadata?: any;
+  userFieldsResponses?: Record<string, { label: string; value: any; isHidden: boolean }>;
+  responses?: Record<string, { label: string; value: any; isHidden: boolean }>;
 }
 
 interface CalComEventType {
@@ -156,7 +163,7 @@ export class CalComService {
       triggerEvent: payload.triggerEvent,
       createdAt: payload.createdAt,
       payload: {
-        booking: payload.payload.booking,
+        booking: payload.payload, // The payload.payload IS the booking data
         eventType: payload.payload.eventType,
         metadata: payload.payload.metadata,
       },
@@ -164,19 +171,24 @@ export class CalComService {
   }
 
   mapBookingToContact(booking: CalComBooking) {
-    const attendee = booking.attendees[0]; // Take the first attendee
+    const attendee = booking.attendees?.[0]; // Take the first attendee
+    
+    // Extract business name from userFieldsResponses or responses
+    const businessName = booking.userFieldsResponses?.['Busines-Name']?.value || 
+                        booking.responses?.['Busines-Name']?.value || '';
     
     return {
       name: attendee?.name || 'Unknown',
       email: attendee?.email,
-      phone: '', // Cal.com bookings don't always include phone
+      phone: attendee?.phoneNumber || '', // Cal.com includes phone in attendee.phoneNumber
+      businessName: businessName,
       appointmentTime: new Date(booking.startTime),
-      appointmentType: booking.title,
-      appointmentDuration: Math.round(
+      appointmentType: booking.title || booking.eventTitle,
+      appointmentDuration: booking.length || Math.round(
         (new Date(booking.endTime).getTime() - new Date(booking.startTime).getTime()) / (1000 * 60)
       ),
       appointmentStatus: this.mapCalComStatusToInternal(booking.status),
-      notes: booking.description || `Cal.com booking ${booking.uid}`,
+      notes: booking.description || booking.eventDescription || `Cal.com booking ${booking.uid}`,
     };
   }
 
