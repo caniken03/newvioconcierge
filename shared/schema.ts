@@ -74,6 +74,7 @@ export const contacts = pgTable("contacts", {
   tenantId: uuid("tenant_id").notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   phone: varchar("phone", { length: 50 }).notNull(), // E.164 format (original input)
+  email: varchar("email", { length: 255 }), // Email address (optional)
   normalizedPhone: varchar("normalized_phone", { length: 50 }), // Sanitized E.164 format for API calls and deduplication
   appointmentTime: timestamp("appointment_time"),
   appointmentType: varchar("appointment_type", { length: 100 }), // HIPAA: Optional for medical practices
