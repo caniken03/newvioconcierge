@@ -4097,6 +4097,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Verify webhook signature (Cal.com uses HMAC SHA256)
+      console.log(`🔐 Signature verification - signature present: ${!!signature}, secret present: ${!!tenantConfig.calWebhookSecret}`);
       if (signature && !verifyWebhookSignature(rawPayload, signature as string, tenantConfig.calWebhookSecret)) {
         console.warn(`Invalid Cal.com webhook signature for tenant ${tenantId}`);
         return res.status(401).json({ message: 'Invalid webhook signature' });
@@ -4107,11 +4108,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (contactData.phone) {
         const contacts = await storage.searchContacts(tenantId, contactData.phone);
         existingContact = contacts.find(c => c.phone === contactData.phone);
+        console.log(`🔍 Contact search - phone: ${contactData.phone}, found: ${!!existingContact}`);
       }
 
       if (action === 'create' || action === 'update') {
         if (existingContact) {
           // Update existing contact
+          console.log(`📝 Updating existing contact: ${existingContact.id}`);
           await storage.updateContact(existingContact.id, {
             appointmentTime: contactData.appointmentTime,
             appointmentType: contactData.appointmentType,
@@ -4119,22 +4122,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
             appointmentStatus: contactData.appointmentStatus,
             notes: `${existingContact.notes || ''}\nCal.com booking updated: ${booking.uid}`.trim(),
           });
+          console.log(`✅ Contact updated successfully`);
         } else {
           // Create new contact
-          await storage.createContact({
+          console.log(`➕ Creating new contact - data:`, JSON.stringify(contactData, null, 2));
+          const newContact = await storage.createContact({
             ...contactData,
             tenantId,
             notes: `${contactData.notes}\nCal.com booking: ${booking.uid}`,
           });
+          console.log(`✅ Contact created successfully with ID: ${newContact.id}`);
         }
       } else if (action === 'cancel' && existingContact) {
         // Cancel appointment
+        console.log(`❌ Cancelling appointment for contact: ${existingContact.id}`);
         await storage.updateContact(existingContact.id, {
           appointmentStatus: 'cancelled',
           notes: `${existingContact.notes || ''}\nCal.com booking cancelled: ${booking.uid}`.trim(),
         });
+        console.log(`✅ Appointment cancelled successfully`);
       }
 
+      console.log(`✨ Webhook processed successfully - action: ${action}`);
       res.status(200).json({ received: true, action });
     } catch (error) {
       console.error('Cal.com webhook error:', error);
