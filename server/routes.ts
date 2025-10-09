@@ -3371,13 +3371,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/contacts/:id/call', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
     let protectionCheck: any = null;
     let callSession: any = null;
+    let tenantId: string = '';
+    let contact: any = null;
     
     try {
       const contactId = req.params.id;
-      const tenantId = req.user.tenantId;
+      tenantId = req.user.tenantId;
 
       // Get contact details
-      const contact = await storage.getContact(contactId);
+      contact = await storage.getContact(contactId);
       if (!contact || contact.tenantId !== tenantId) {
         return res.status(404).json({ message: 'Contact not found' });
       }
@@ -4065,7 +4067,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const tenantId = req.params.tenantId;
       
       // Validate tenant exists
-      const tenant = await storage.getTenantById(tenantId);
+      const tenant = await storage.getTenant(tenantId);
       if (!tenant) {
         console.warn(`Cal.com webhook received for non-existent tenant: ${tenantId}`);
         return res.status(404).json({ message: 'Tenant not found' });
@@ -4345,7 +4347,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const tenantId = req.params.tenantId;
       
       // Validate tenant exists
-      const tenant = await storage.getTenantById(tenantId);
+      const tenant = await storage.getTenant(tenantId);
       if (!tenant) {
         console.warn(`Calendly webhook received for non-existent tenant: ${tenantId}`);
         return res.status(404).json({ message: 'Tenant not found' });
