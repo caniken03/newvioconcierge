@@ -2130,11 +2130,12 @@ export default function Contacts() {
                                   contact.appointmentStatus === 'confirmed' ? 'bg-green-500 text-white' :
                                   contact.appointmentStatus === 'pending' ? 'bg-yellow-500 text-white' :
                                   contact.appointmentStatus === 'cancelled' ? 'bg-red-500 text-white' :
+                                  contact.appointmentStatus === 'rescheduled' ? 'bg-blue-500 text-white' :
                                   'bg-gray-500 text-white'
                                 }`}
                                 data-testid={`status-${contact.id}`}
                               >
-                                {contact.appointmentStatus || 'Pending'}
+                                {contact.appointmentStatus === 'rescheduled' ? '🔄 Rescheduled' : contact.appointmentStatus || 'Pending'}
                               </Badge>
                             </div>
                           </td>
