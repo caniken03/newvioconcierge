@@ -25,7 +25,6 @@ import {
   Users, 
   Shield, 
   Database,
-  Bell,
   Key,
   Globe,
   Mail,
@@ -912,46 +911,6 @@ export default function Profile() {
                       </p>
                     </div>
                     <Switch data-testid="switch-2fa" />
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Notification Preferences */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium flex items-center gap-2">
-                  <Bell className="w-4 h-4" />
-                  Notification Preferences
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">System Updates & Maintenance</p>
-                      <p className="text-xs text-muted-foreground">Important system notifications</p>
-                    </div>
-                    <Switch defaultChecked data-testid="switch-system-updates" />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">Call Outcome Notifications</p>
-                      <p className="text-xs text-muted-foreground">Email when calls are completed</p>
-                    </div>
-                    <Switch defaultChecked data-testid="switch-call-outcomes" />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">Daily Activity Summaries</p>
-                      <p className="text-xs text-muted-foreground">Daily email summary of activity</p>
-                    </div>
-                    <Switch data-testid="switch-daily-summaries" />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">Security & Login Alerts</p>
-                      <p className="text-xs text-muted-foreground">Notifications about login attempts</p>
-                    </div>
-                    <Switch defaultChecked data-testid="switch-security-alerts" />
                   </div>
                 </div>
               </div>
