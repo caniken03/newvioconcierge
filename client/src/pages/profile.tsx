@@ -615,11 +615,12 @@ function DailySummarySettings() {
 
   useEffect(() => {
     if (preferences) {
-      setEnabled(preferences.dailySummaryEnabled ?? true);
-      setSummaryTime(preferences.dailySummaryTime ?? "09:00");
-      const days = typeof preferences.dailySummaryDays === 'string' 
-        ? JSON.parse(preferences.dailySummaryDays) 
-        : preferences.dailySummaryDays;
+      const prefs = preferences as any; // Type assertion for preferences from API
+      setEnabled(prefs.dailySummaryEnabled ?? true);
+      setSummaryTime(prefs.dailySummaryTime ?? "09:00");
+      const days = typeof prefs.dailySummaryDays === 'string' 
+        ? JSON.parse(prefs.dailySummaryDays) 
+        : prefs.dailySummaryDays;
       setSelectedDays(days ?? ["1", "2", "3", "4", "5"]);
     }
   }, [preferences]);

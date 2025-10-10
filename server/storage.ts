@@ -22,6 +22,7 @@ import {
   auditTrail,
   clientConsent,
   temporaryAccess,
+  userNotificationPreferences,
   type User,
   type InsertUser,
   type Tenant,
@@ -319,6 +320,11 @@ export interface IStorage {
   createBusinessHoursConfig(config: InsertBusinessHoursConfig): Promise<BusinessHoursConfig>;
   updateBusinessHoursConfig(tenantId: string, updates: Partial<InsertBusinessHoursConfig>): Promise<BusinessHoursConfig>;
   validateBusinessHours(tenantId: string, callTime: Date): Promise<{ allowed: boolean; reason?: string; nextAllowedTime?: Date }>;
+  
+  // User Notification Preferences
+  getUserNotificationPreferences(userId: string): Promise<any | undefined>;
+  createUserNotificationPreferences(userId: string, tenantId: string): Promise<any>;
+  updateUserNotificationPreferences(userId: string, updates: any): Promise<any>;
   
   // Contact Call History (Harassment Prevention)
   getContactCallHistory(phoneNumber: string): Promise<ContactCallHistory | undefined>;
@@ -3020,6 +3026,43 @@ export class DatabaseStorage implements IStorage {
       reason: evaluation.reason,
       nextAllowedTime: evaluation.nextAllowedTime
     };
+  }
+
+  // User Notification Preferences
+  async getUserNotificationPreferences(userId: string): Promise<any | undefined> {
+    const [preferences] = await db
+      .select()
+      .from(userNotificationPreferences)
+      .where(eq(userNotificationPreferences.userId, userId))
+      .limit(1);
+
+    return preferences;
+  }
+
+  async createUserNotificationPreferences(userId: string, tenantId: string): Promise<any> {
+    const [newPreferences] = await db.insert(userNotificationPreferences).values({
+      userId,
+      tenantId,
+      dailySummaryEnabled: true,
+      dailySummaryTime: "09:00",
+      dailySummaryDays: '["1","2","3","4","5"]', // Weekdays by default
+    }).returning();
+    
+    return newPreferences;
+  }
+
+  async updateUserNotificationPreferences(userId: string, updates: any): Promise<any> {
+    const [updated] = await db
+      .update(userNotificationPreferences)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(userNotificationPreferences.userId, userId))
+      .returning();
+
+    if (!updated) {
+      throw new Error('User notification preferences not found');
+    }
+
+    return updated;
   }
 
   // Contact Call History (Harassment Prevention)

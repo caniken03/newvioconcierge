@@ -3447,6 +3447,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // User Notification Preferences Endpoints
+  app.get('/api/user/notification-preferences', authenticateJWT, async (req: any, res) => {
+    try {
+      let preferences = await storage.getUserNotificationPreferences(req.user.id);
+      
+      // If preferences don't exist, create default ones
+      if (!preferences) {
+        preferences = await storage.createUserNotificationPreferences(req.user.id, req.user.tenantId);
+      }
+      
+      res.json(preferences);
+    } catch (error) {
+      console.error('Failed to fetch notification preferences:', error);
+      res.status(500).json({ message: 'Failed to fetch notification preferences' });
+    }
+  });
+
+  app.put('/api/user/notification-preferences', authenticateJWT, async (req: any, res) => {
+    try {
+      const preferencesSchema = z.object({
+        dailySummaryEnabled: z.boolean(),
+        dailySummaryTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/),
+        dailySummaryDays: z.string(), // JSON array as string
+      });
+
+      const preferencesData = preferencesSchema.parse(req.body);
+      
+      // Check if preferences exist
+      let preferences = await storage.getUserNotificationPreferences(req.user.id);
+      
+      if (preferences) {
+        // Update existing
+        preferences = await storage.updateUserNotificationPreferences(req.user.id, preferencesData);
+      } else {
+        // Create new
+        preferences = await storage.createUserNotificationPreferences(req.user.id, req.user.tenantId);
+        preferences = await storage.updateUserNotificationPreferences(req.user.id, preferencesData);
+      }
+      
+      res.json(preferences);
+    } catch (error) {
+      console.error('Failed to save notification preferences:', error);
+      res.status(400).json({ message: 'Failed to save notification preferences' });
+    }
+  });
+
   // User management routes
   app.get('/api/users', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
     try {
