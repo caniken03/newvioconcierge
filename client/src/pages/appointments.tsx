@@ -177,7 +177,7 @@ export default function Appointments() {
       completed: { label: "Completed", variant: "outline" as const },
       cancelled: { label: "Cancelled", variant: "destructive" as const },
       no_show: { label: "No Show", variant: "destructive" as const },
-      rescheduled: { label: "🔄 Rescheduled", variant: "default" as const },
+      rescheduled: { label: "Rescheduled", variant: "default" as const },
     };
 
     const config = statusConfig[status as keyof typeof statusConfig] || { label: status, variant: "secondary" as const };

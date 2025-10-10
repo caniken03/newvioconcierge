@@ -2135,7 +2135,7 @@ export default function Contacts() {
                                 }`}
                                 data-testid={`status-${contact.id}`}
                               >
-                                {contact.appointmentStatus === 'rescheduled' ? '🔄 Rescheduled' : contact.appointmentStatus || 'Pending'}
+                                {contact.appointmentStatus || 'Pending'}
                               </Badge>
                             </div>
                           </td>
