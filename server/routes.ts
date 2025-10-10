@@ -4123,16 +4123,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (action === 'create' || action === 'update') {
         if (existingContact) {
-          // Update existing contact
-          console.log(`📝 Updating existing contact: ${existingContact.id}`);
-          await storage.updateContact(existingContact.id, {
-            appointmentTime: contactData.appointmentTime,
-            appointmentType: contactData.appointmentType,
-            appointmentDuration: contactData.appointmentDuration,
-            appointmentStatus: contactData.appointmentStatus,
-            notes: `${existingContact.notes || ''}\nCal.com booking updated: ${booking.uid}`.trim(),
-          });
-          console.log(`✅ Contact updated successfully`);
+          // Check if this is a reschedule event
+          const isReschedule = payload.triggerEvent === 'BOOKING_RESCHEDULED';
+          
+          if (isReschedule) {
+            // Get old appointment time for notes
+            const oldTime = existingContact.appointmentTime ? 
+              new Date(existingContact.appointmentTime).toLocaleString('en-US', { 
+                dateStyle: 'medium', 
+                timeStyle: 'short',
+                timeZone: 'UTC'
+              }) : 'Unknown';
+            
+            const newTime = contactData.appointmentTime ? 
+              new Date(contactData.appointmentTime).toLocaleString('en-US', { 
+                dateStyle: 'medium', 
+                timeStyle: 'short',
+                timeZone: 'UTC'
+              }) : 'Unknown';
+            
+            console.log(`🔄 Rescheduling appointment for contact: ${existingContact.id}`);
+            console.log(`   Old time: ${oldTime}`);
+            console.log(`   New time: ${newTime}`);
+            
+            await storage.updateContact(existingContact.id, {
+              appointmentTime: contactData.appointmentTime,
+              appointmentType: contactData.appointmentType,
+              appointmentDuration: contactData.appointmentDuration,
+              appointmentStatus: 'rescheduled',
+              notes: `${existingContact.notes || ''}\nRescheduled from ${oldTime} to ${newTime} (Cal.com: ${booking.uid})`.trim(),
+            });
+            console.log(`✅ Appointment rescheduled successfully`);
+          } else {
+            // Regular update
+            console.log(`📝 Updating existing contact: ${existingContact.id}`);
+            await storage.updateContact(existingContact.id, {
+              appointmentTime: contactData.appointmentTime,
+              appointmentType: contactData.appointmentType,
+              appointmentDuration: contactData.appointmentDuration,
+              appointmentStatus: contactData.appointmentStatus,
+              notes: `${existingContact.notes || ''}\nCal.com booking updated: ${booking.uid}`.trim(),
+            });
+            console.log(`✅ Contact updated successfully`);
+          }
         } else {
           // Create new contact
           console.log(`➕ Creating new contact - data:`, JSON.stringify(contactData, null, 2));
