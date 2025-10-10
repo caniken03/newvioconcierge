@@ -4139,7 +4139,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const newContact = await storage.createContact({
             ...contactData,
             tenantId,
-            notes: `${contactData.notes}\nCal.com booking: ${booking.uid}`,
+            // contactData.notes already includes booking reference from mapBookingToContact
           });
           console.log(`✅ Contact created successfully with ID: ${newContact.id}`);
         }

@@ -349,6 +349,7 @@ export default function Contacts() {
     enabled: true,
     staleTime: 0, // Always fetch fresh data
     gcTime: 0, // Don't cache (renamed from cacheTime in v5)
+    refetchInterval: 10000, // Auto-refresh every 10 seconds to show new Cal.com bookings
   }) as { data: Contact[], isLoading: boolean };
 
   const { data: contactStats = { total: 0, pending: 0, confirmed: 0 } } = useQuery({
