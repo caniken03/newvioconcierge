@@ -601,6 +601,158 @@ function TravelDirectionsContent() {
   );
 }
 
+// Daily Summary Settings Component
+function DailySummarySettings() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [enabled, setEnabled] = useState(true);
+  const [summaryTime, setSummaryTime] = useState("09:00");
+  const [selectedDays, setSelectedDays] = useState<string[]>(["1", "2", "3", "4", "5"]); // Mon-Fri by default
+
+  const { data: preferences, isLoading } = useQuery({
+    queryKey: ['/api/user/notification-preferences'],
+  });
+
+  useEffect(() => {
+    if (preferences) {
+      setEnabled(preferences.dailySummaryEnabled ?? true);
+      setSummaryTime(preferences.dailySummaryTime ?? "09:00");
+      const days = typeof preferences.dailySummaryDays === 'string' 
+        ? JSON.parse(preferences.dailySummaryDays) 
+        : preferences.dailySummaryDays;
+      setSelectedDays(days ?? ["1", "2", "3", "4", "5"]);
+    }
+  }, [preferences]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: { dailySummaryEnabled: boolean; dailySummaryTime: string; dailySummaryDays: string }) => {
+      const response = await apiRequest('PUT', '/api/user/notification-preferences', data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/user/notification-preferences'] });
+      toast({
+        title: "Daily summary settings saved",
+        description: "Your preferences have been updated successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to save settings",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSave = () => {
+    if (enabled && selectedDays.length === 0) {
+      toast({
+        title: "Invalid selection",
+        description: "Please select at least one day for daily summaries.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    saveMutation.mutate({
+      dailySummaryEnabled: enabled,
+      dailySummaryTime: summaryTime,
+      dailySummaryDays: JSON.stringify(selectedDays),
+    });
+  };
+
+  const toggleDay = (day: string) => {
+    setSelectedDays(prev =>
+      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day].sort()
+    );
+  };
+
+  const weekdays = [
+    { value: "1", label: "Mon" },
+    { value: "2", label: "Tue" },
+    { value: "3", label: "Wed" },
+    { value: "4", label: "Thu" },
+    { value: "5", label: "Fri" },
+    { value: "6", label: "Sat" },
+    { value: "0", label: "Sun" },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-lg font-medium flex items-center gap-2">
+        <Mail className="w-4 h-4" />
+        Daily Activity Summaries
+      </h3>
+      
+      <div className="space-y-4 p-4 border rounded-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Enable Daily Summaries</p>
+            <p className="text-xs text-muted-foreground">
+              Receive a daily email summary of platform activity
+            </p>
+          </div>
+          <Switch 
+            checked={enabled} 
+            onCheckedChange={setEnabled}
+            data-testid="switch-daily-summary-enabled"
+          />
+        </div>
+
+        {enabled && (
+          <>
+            <Separator />
+            
+            <div className="space-y-2">
+              <Label htmlFor="summary-time">Summary Delivery Time</Label>
+              <Input
+                id="summary-time"
+                type="time"
+                value={summaryTime}
+                onChange={(e) => setSummaryTime(e.target.value)}
+                data-testid="input-summary-time"
+              />
+              <p className="text-xs text-muted-foreground">
+                Time when you'll receive your daily summary email
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Delivery Days</Label>
+              <div className="flex gap-2 flex-wrap">
+                {weekdays.map((day) => (
+                  <Button
+                    key={day.value}
+                    type="button"
+                    variant={selectedDays.includes(day.value) ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => toggleDay(day.value)}
+                    data-testid={`button-day-${day.value}`}
+                  >
+                    {day.label}
+                  </Button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {selectedDays.length === 7 ? "7 days a week" : selectedDays.length === 5 && !selectedDays.includes("0") && !selectedDays.includes("6") ? "Weekdays only" : `${selectedDays.length} days selected`}
+              </p>
+            </div>
+
+            <Button
+              onClick={handleSave}
+              disabled={saveMutation.isPending || isLoading}
+              data-testid="button-save-daily-summary"
+            >
+              {saveMutation.isPending ? "Saving..." : "Save Daily Summary Settings"}
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Profile() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -914,6 +1066,11 @@ export default function Profile() {
                   </div>
                 </div>
               </div>
+
+              <Separator />
+
+              {/* Daily Summary Preferences */}
+              <DailySummarySettings />
 
               <div className="flex justify-end pt-4">
                 <Button data-testid="button-save-account-settings">
