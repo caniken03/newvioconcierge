@@ -37,7 +37,7 @@ import {
 // Call Settings Component
 function CallSettingsContent() {
   const { toast } = useToast();
-  const [selectedReminderHours, setSelectedReminderHours] = useState<number[]>([24, 1]);
+  const [selectedReminderHour, setSelectedReminderHour] = useState<number>(24);
   const [followUpRetryMinutes, setFollowUpRetryMinutes] = useState<number>(90);
 
   // Fetch current tenant configuration
@@ -50,7 +50,9 @@ function CallSettingsContent() {
     if (config) {
       // Type assertion for tenant config with new timing fields
       const typedConfig = config as any;
-      setSelectedReminderHours(typedConfig.reminderHoursBefore || [24, 1]);
+      const reminderHours = typedConfig.reminderHoursBefore || [24];
+      const firstHour = Array.isArray(reminderHours) && reminderHours.length > 0 ? reminderHours[0] : 24;
+      setSelectedReminderHour(firstHour);
       setFollowUpRetryMinutes(typedConfig.followUpRetryMinutes || 90);
     }
   }, [config]);
@@ -77,27 +79,9 @@ function CallSettingsContent() {
     },
   });
 
-  // Handle reminder hour selection
-  const toggleReminderHour = (hour: number) => {
-    setSelectedReminderHours(prev => 
-      prev.includes(hour) 
-        ? prev.filter(h => h !== hour)
-        : [...prev, hour].sort((a, b) => b - a) // Sort descending
-    );
-  };
-
   const handleSave = () => {
-    if (selectedReminderHours.length === 0) {
-      toast({
-        title: "Invalid selection",
-        description: "Please select at least one reminder time.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     saveConfigMutation.mutate({
-      reminderHoursBefore: selectedReminderHours,
+      reminderHoursBefore: [selectedReminderHour], // Send as array with single value
       followUpRetryMinutes,
     });
   };
@@ -135,49 +119,49 @@ function CallSettingsContent() {
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <Clock className="w-5 h-5" />
-              <h3 className="text-lg font-medium">Appointment Reminder Times</h3>
+              <h3 className="text-lg font-medium">Appointment Reminder Time</h3>
             </div>
             <p className="text-sm text-muted-foreground">
-              Select when to send appointment reminder calls. You can choose multiple times for comprehensive coverage.
+              Select when to send the initial appointment reminder call. If the customer doesn't answer, the system will automatically retry based on your "Missed Call Follow-up" setting below.
             </p>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {reminderOptions.map((option) => (
-                <div 
-                  key={option.hours}
-                  className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
-                >
-                  <Checkbox
-                    id={`reminder-${option.hours}`}
-                    checked={selectedReminderHours.includes(option.hours)}
-                    onCheckedChange={() => toggleReminderHour(option.hours)}
-                    data-testid={`checkbox-reminder-${option.hours}h`}
-                  />
-                  <div className="grid gap-1 flex-1">
-                    <Label 
-                      htmlFor={`reminder-${option.hours}`}
-                      className="text-sm font-medium cursor-pointer"
-                    >
-                      {option.label}
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      {option.description}
-                    </p>
+            <RadioGroup 
+              value={selectedReminderHour.toString()} 
+              onValueChange={(value) => setSelectedReminderHour(parseInt(value))}
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {reminderOptions.map((option) => (
+                  <div 
+                    key={option.hours}
+                    className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                  >
+                    <RadioGroupItem
+                      value={option.hours.toString()}
+                      id={`reminder-${option.hours}`}
+                      data-testid={`radio-reminder-${option.hours}h`}
+                    />
+                    <div className="grid gap-1 flex-1">
+                      <Label 
+                        htmlFor={`reminder-${option.hours}`}
+                        className="text-sm font-medium cursor-pointer"
+                      >
+                        {option.label}
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        {option.description}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-
-            {selectedReminderHours.length > 0 && (
-              <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg">
-                <AlertCircle className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  Selected: {selectedReminderHours.sort((a, b) => b - a).map(h => 
-                    `${h}h`
-                  ).join(", ")} before appointment
-                </span>
+                ))}
               </div>
-            )}
+            </RadioGroup>
+
+            <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg">
+              <AlertCircle className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">
+                Selected: {reminderOptions.find(o => o.hours === selectedReminderHour)?.label || `${selectedReminderHour}h before appointment`}
+              </span>
+            </div>
           </div>
 
           <Separator />
