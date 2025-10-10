@@ -39,7 +39,7 @@ const contactSchema = z.object({
   // Call Personalization Fields
   eventType: z.string().optional(),
   contactPerson: z.string().optional(),
-  businessName: z.string().min(1, "Business Name is required for caller identification"),
+  businessName: z.string().optional(),
   appointmentDuration: z.number().min(1).max(999).optional(),
   specialInstructions: z.string().max(300, "Special instructions must be under 300 characters").optional(),
   
@@ -479,7 +479,7 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
                   name="businessName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-sm font-medium text-gray-700">Business Name *</FormLabel>
+                      <FormLabel className="text-sm font-medium text-gray-700">Business Name (Optional)</FormLabel>
                       <FormControl>
                         <Input 
                           {...field}
@@ -489,7 +489,7 @@ export default function ContactModal({ isOpen, onClose, contact }: ContactModalP
                           data-testid="input-business-name"
                         />
                       </FormControl>
-                      <p className="text-xs text-gray-500">For multi-client agencies - specify which company</p>
+                      <p className="text-xs text-gray-500">Leave blank to use your company name from Profile Settings</p>
                       <FormMessage />
                     </FormItem>
                   )}

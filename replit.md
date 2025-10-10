@@ -52,6 +52,7 @@ Authentication is JWT-based with role-based middleware. The system enforces mult
   - **Outbound Mode**: Professional, calm tone (6-7/10 energy) for proactive reminder calls
   - **Inbound Mode**: Enthusiastic, warm tone (8/10 energy) for callbacks with warm transfer handoff scripts
   - **Legacy Prompts** (deprecated): `vioconcierge-system-prompt.txt` (outbound only), `vioconcierge-inbound-system-prompt.txt` (inbound only)
+  - **Company Name Resolution**: Voice AI uses smart fallback logic for company identification: `contact.companyName || tenantConfig.companyName || 'our office'`. Contact-level Business Name (optional) takes priority; if empty, falls back to tenant's Trading Name/DBA from Profile Settings. This allows multi-client agencies to specify different company names per contact while maintaining sensible defaults.
   The unified prompt preserves all HIPAA handling, conversation flows, objection handling, and guardrails while using VioConcierge's simplified travel assistance flow (public transport vs driving instead of train/bus/driving).
 - **Data Export & Compliance**: Comprehensive data export functionality accessible via Profile > Data & Export Controls tab for client admins and super admins:
   - **Export Contacts** (`/api/contacts/export`): Exports all tenant contacts to CSV with 12 essential fields matching the import template structure, including group memberships (comma-separated). Uses CSV injection protection via `escapeCsvValue()` and automatic temporary file cleanup.
