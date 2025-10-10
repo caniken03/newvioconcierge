@@ -15,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import Sidebar from '@/components/layout/sidebar';
 import Header from '@/components/layout/header';
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
   Building, 
@@ -31,7 +31,8 @@ import {
   Mail,
   Smartphone,
   Clock,
-  AlertCircle
+  AlertCircle,
+  MapPin
 } from "lucide-react";
 
 // Call Settings Component
@@ -443,6 +444,164 @@ function BusinessHoursContent() {
   );
 }
 
+// Travel & Directions Component
+function TravelDirectionsContent() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  const [directions, setDirections] = useState({
+    publicTransportInstructions: '',
+    parkingInstructions: '',
+    arrivalNotes: ''
+  });
+
+  // Fetch current tenant configuration
+  const { data: config, isLoading } = useQuery({
+    queryKey: ['/api/tenant/config'],
+  });
+
+  // Update local state when config is loaded
+  useEffect(() => {
+    if (config) {
+      const typedConfig = config as any;
+      setDirections({
+        publicTransportInstructions: typedConfig.publicTransportInstructions || '',
+        parkingInstructions: typedConfig.parkingInstructions || '',
+        arrivalNotes: typedConfig.arrivalNotes || ''
+      });
+    }
+  }, [config]);
+
+  // Save configuration mutation
+  const saveConfigMutation = useMutation({
+    mutationFn: async (data: typeof directions) => {
+      const response = await apiRequest('POST', '/api/tenant/config', data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tenant/config'] });
+      toast({
+        title: "Travel directions saved",
+        description: "Voice agent will communicate these directions during reminder calls.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to save travel directions",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSave = () => {
+    saveConfigMutation.mutate(directions);
+  };
+
+  return (
+    <TabsContent value="travel-directions" className="space-y-6">
+      <Card data-testid="travel-directions-section">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MapPin className="w-5 h-5" />
+            Travel & Parking Directions
+          </CardTitle>
+          <CardDescription>
+            Configure arrival instructions that the voice agent will communicate to appointment attendees during reminder calls
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="public-transport" className="flex items-center gap-2 text-base font-medium">
+                🚌 Public Transport Instructions
+              </Label>
+              <Textarea
+                id="public-transport"
+                value={directions.publicTransportInstructions}
+                onChange={(e) => setDirections(prev => ({ ...prev, publicTransportInstructions: e.target.value }))}
+                placeholder="e.g., Take bus 47 to Market Street, stop outside the library. Or Northern Line to Camden Town, 5 min walk from station."
+                rows={4}
+                className="resize-none"
+                data-testid="textarea-public-transport"
+              />
+              <p className="text-sm text-muted-foreground">
+                Bus routes, train/metro lines, and nearby stations. The voice agent will read this to callers.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {directions.publicTransportInstructions.length} characters
+              </p>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2">
+              <Label htmlFor="parking" className="flex items-center gap-2 text-base font-medium">
+                🅿️ Parking Information
+              </Label>
+              <Textarea
+                id="parking"
+                value={directions.parkingInstructions}
+                onChange={(e) => setDirections(prev => ({ ...prev, parkingInstructions: e.target.value }))}
+                placeholder="e.g., Free parking available in the blue lot behind the building. Street parking on Oak Avenue (2-hour limit)."
+                rows={4}
+                className="resize-none"
+                data-testid="textarea-parking"
+              />
+              <p className="text-sm text-muted-foreground">
+                Parking locations, restrictions, and any fees
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {directions.parkingInstructions.length} characters
+              </p>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2">
+              <Label htmlFor="arrival-notes" className="flex items-center gap-2 text-base font-medium">
+                📍 Additional Arrival Notes
+              </Label>
+              <Textarea
+                id="arrival-notes"
+                value={directions.arrivalNotes}
+                onChange={(e) => setDirections(prev => ({ ...prev, arrivalNotes: e.target.value }))}
+                placeholder="e.g., Enter through the main entrance on High Street. Reception is on the 2nd floor."
+                rows={4}
+                className="resize-none"
+                data-testid="textarea-arrival-notes"
+              />
+              <p className="text-sm text-muted-foreground">
+                Walking directions, landmarks, and entrance details
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {directions.arrivalNotes.length} characters
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+            <p className="text-sm text-blue-900 dark:text-blue-100">
+              <strong>Voice Agent Communication:</strong> These directions will be spoken by the AI voice agent during appointment reminder calls. Keep instructions clear and concise for easy verbal communication.
+            </p>
+          </div>
+
+          <div className="flex justify-end pt-4">
+            <Button
+              onClick={handleSave}
+              disabled={saveConfigMutation.isPending || isLoading}
+              data-testid="button-save-travel-directions"
+            >
+              {saveConfigMutation.isPending ? "Saving..." : "Save Travel Directions"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </TabsContent>
+  );
+}
+
 export default function Profile() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -476,6 +635,13 @@ export default function Profile() {
       title: "Call Settings & Preferences",
       description: "Configure voice calling behavior and timing",
       icon: Phone,
+      accessLevel: "client_admin_only"
+    },
+    {
+      id: "travel-directions",
+      title: "Travel & Directions",
+      description: "Configure arrival instructions for voice agent",
+      icon: MapPin,
       accessLevel: "client_admin_only"
     },
     {
@@ -807,6 +973,10 @@ export default function Profile() {
 
           if (section.id === "calls") {
             return <CallSettingsContent key="calls" />;
+          }
+
+          if (section.id === "travel-directions") {
+            return <TravelDirectionsContent key="travel-directions" />;
           }
 
           if (section.id === "integrations") {

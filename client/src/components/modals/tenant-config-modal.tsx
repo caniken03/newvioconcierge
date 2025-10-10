@@ -5,6 +5,7 @@ import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import type { TenantConfig } from "@shared/schema";
 import { 
   Dialog,
   DialogContent,
@@ -15,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { 
   Select,
@@ -49,6 +51,11 @@ const configSchema = z.object({
   maxCallsPer15Min: z.number().min(1).max(100).default(25),
   quietStart: z.string().default('20:00'),
   quietEnd: z.string().default('08:00'),
+  
+  // Travel & Parking Directions
+  publicTransportInstructions: z.string().optional(),
+  parkingInstructions: z.string().optional(),
+  arrivalNotes: z.string().optional(),
 });
 
 type ConfigForm = z.infer<typeof configSchema>;
@@ -73,11 +80,14 @@ export default function TenantConfigModal({ isOpen, onClose }: TenantConfigModal
       maxCallsPer15Min: 25,
       quietStart: '20:00',
       quietEnd: '08:00',
+      publicTransportInstructions: '',
+      parkingInstructions: '',
+      arrivalNotes: '',
     },
   });
 
   // Fetch existing configuration
-  const { data: config } = useQuery({
+  const { data: config } = useQuery<TenantConfig>({
     queryKey: ['/api/tenant/config'],
     enabled: isOpen,
   });
@@ -508,6 +518,75 @@ export default function TenantConfigModal({ isOpen, onClose }: TenantConfigModal
                         )}
                       />
                     </div>
+                  </div>
+                </div>
+
+                {/* Travel & Parking Directions */}
+                <div>
+                  <h4 className="text-md font-semibold text-foreground mb-4">Travel & Parking Directions</h4>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    These directions will be communicated by the voice agent during appointment reminder calls.
+                  </p>
+                  <div className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="publicTransportInstructions"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>🚌 Public Transport Instructions</FormLabel>
+                          <FormControl>
+                            <Textarea 
+                              {...field}
+                              placeholder="e.g., Take bus 47 to Market Street, stop outside the library. Or Northern Line to Camden Town, 5 min walk from station."
+                              rows={3}
+                              data-testid="textarea-public-transport"
+                            />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">Bus routes, train/metro lines, and stations</p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="parkingInstructions"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>🅿️ Parking Information</FormLabel>
+                          <FormControl>
+                            <Textarea 
+                              {...field}
+                              placeholder="e.g., Free parking available in the blue lot behind the building. Street parking on Oak Avenue (2-hour limit)."
+                              rows={3}
+                              data-testid="textarea-parking"
+                            />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">Where to park and any parking restrictions</p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="arrivalNotes"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>📍 Additional Arrival Notes</FormLabel>
+                          <FormControl>
+                            <Textarea 
+                              {...field}
+                              placeholder="e.g., Enter through the main entrance on High Street. Reception is on the 2nd floor."
+                              rows={3}
+                              data-testid="textarea-arrival-notes"
+                            />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">Walking directions, landmarks, entrance details</p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
                 </div>
               </div>

@@ -3203,6 +3203,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Configurable call timing settings
         reminderHoursBefore: z.array(z.number().min(1).max(168)).min(1).optional(),
         followUpRetryMinutes: z.number().min(60).max(300).optional(),
+        // Travel & Parking Directions
+        publicTransportInstructions: z.string().optional(),
+        parkingInstructions: z.string().optional(),
+        arrivalNotes: z.string().optional(),
       });
 
       const configData = configSchema.parse(req.body);
