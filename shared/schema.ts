@@ -802,6 +802,7 @@ export const userNotificationPreferences = pgTable("user_notification_preference
   dailySummaryEnabled: boolean("daily_summary_enabled").default(true),
   dailySummaryTime: time("daily_summary_time").default("09:00"), // Time to send summary (HH:MM)
   dailySummaryDays: text("daily_summary_days").default('["1","2","3","4","5"]'), // JSON array of day numbers: 0=Sunday, 1=Monday, etc.
+  timezone: varchar("timezone", { length: 100 }).default("Europe/London"), // User's timezone for delivery time
   
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

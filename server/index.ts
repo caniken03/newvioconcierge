@@ -149,6 +149,11 @@ app.use((req, res, next) => {
         log('🔍 Observability service started');
       });
     });
+    
+    // Start the daily summary email service
+    import("./services/daily-summary-service").then(({ dailySummaryService }) => {
+      dailySummaryService.start();
+    });
   });
 
   // Graceful shutdown

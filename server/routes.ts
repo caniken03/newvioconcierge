@@ -3470,6 +3470,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         dailySummaryEnabled: z.boolean(),
         dailySummaryTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/),
         dailySummaryDays: z.string(), // JSON array as string
+        timezone: z.string().optional(), // User's timezone (e.g., "America/New_York")
       });
 
       const preferencesData = preferencesSchema.parse(req.body);
@@ -3482,8 +3483,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         preferences = await storage.updateUserNotificationPreferences(req.user.id, preferencesData);
       } else {
         // Create new
-        preferences = await storage.createUserNotificationPreferences(req.user.id, req.user.tenantId);
-        preferences = await storage.updateUserNotificationPreferences(req.user.id, preferencesData);
+        preferences = await storage.createUserNotificationPreferences(req.user.id, req.user.tenantId, preferencesData.timezone);
+        if (preferencesData.dailySummaryEnabled !== undefined || preferencesData.dailySummaryTime || preferencesData.dailySummaryDays) {
+          preferences = await storage.updateUserNotificationPreferences(req.user.id, preferencesData);
+        }
       }
       
       res.json(preferences);

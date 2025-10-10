@@ -3039,13 +3039,14 @@ export class DatabaseStorage implements IStorage {
     return preferences;
   }
 
-  async createUserNotificationPreferences(userId: string, tenantId: string): Promise<any> {
+  async createUserNotificationPreferences(userId: string, tenantId: string, timezone?: string): Promise<any> {
     const [newPreferences] = await db.insert(userNotificationPreferences).values({
       userId,
       tenantId,
       dailySummaryEnabled: true,
       dailySummaryTime: "09:00",
       dailySummaryDays: '["1","2","3","4","5"]', // Weekdays by default
+      timezone: timezone || "Europe/London",
     }).returning();
     
     return newPreferences;

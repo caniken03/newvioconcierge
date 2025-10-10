@@ -608,6 +608,7 @@ function DailySummarySettings() {
   const [enabled, setEnabled] = useState(true);
   const [summaryTime, setSummaryTime] = useState("09:00");
   const [selectedDays, setSelectedDays] = useState<string[]>(["1", "2", "3", "4", "5"]); // Mon-Fri by default
+  const [timezone, setTimezone] = useState("Europe/London");
 
   const { data: preferences, isLoading } = useQuery({
     queryKey: ['/api/user/notification-preferences'],
@@ -618,6 +619,7 @@ function DailySummarySettings() {
       const prefs = preferences as any; // Type assertion for preferences from API
       setEnabled(prefs.dailySummaryEnabled ?? true);
       setSummaryTime(prefs.dailySummaryTime ?? "09:00");
+      setTimezone(prefs.timezone ?? "Europe/London");
       const days = typeof prefs.dailySummaryDays === 'string' 
         ? JSON.parse(prefs.dailySummaryDays) 
         : prefs.dailySummaryDays;
@@ -626,7 +628,7 @@ function DailySummarySettings() {
   }, [preferences]);
 
   const saveMutation = useMutation({
-    mutationFn: async (data: { dailySummaryEnabled: boolean; dailySummaryTime: string; dailySummaryDays: string }) => {
+    mutationFn: async (data: { dailySummaryEnabled: boolean; dailySummaryTime: string; dailySummaryDays: string; timezone?: string }) => {
       const response = await apiRequest('PUT', '/api/user/notification-preferences', data);
       return response.json();
     },
@@ -660,6 +662,7 @@ function DailySummarySettings() {
       dailySummaryEnabled: enabled,
       dailySummaryTime: summaryTime,
       dailySummaryDays: JSON.stringify(selectedDays),
+      timezone: timezone,
     });
   };
 
@@ -716,6 +719,32 @@ function DailySummarySettings() {
               />
               <p className="text-xs text-muted-foreground">
                 Time when you'll receive your daily summary email
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="timezone">Timezone</Label>
+              <select
+                id="timezone"
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                data-testid="select-timezone"
+              >
+                <option value="Europe/London">London (GMT/BST)</option>
+                <option value="Europe/Paris">Paris (CET/CEST)</option>
+                <option value="Europe/Berlin">Berlin (CET/CEST)</option>
+                <option value="America/New_York">New York (EST/EDT)</option>
+                <option value="America/Chicago">Chicago (CST/CDT)</option>
+                <option value="America/Denver">Denver (MST/MDT)</option>
+                <option value="America/Los_Angeles">Los Angeles (PST/PDT)</option>
+                <option value="Asia/Tokyo">Tokyo (JST)</option>
+                <option value="Asia/Shanghai">Shanghai (CST)</option>
+                <option value="Asia/Dubai">Dubai (GST)</option>
+                <option value="Australia/Sydney">Sydney (AEDT/AEST)</option>
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Your local timezone for email delivery
               </p>
             </div>
 
