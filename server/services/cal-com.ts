@@ -177,6 +177,15 @@ export class CalComService {
     const businessName = booking.userFieldsResponses?.['Busines-Name']?.value || 
                         booking.responses?.['Busines-Name']?.value || '';
     
+    // Get additional notes from booking (user-provided notes during booking)
+    const additionalNotes = (booking as any).additionalNotes || booking.responses?.notes?.value || '';
+    
+    // Clean notes: Use additionalNotes if provided, otherwise just reference booking ID
+    // Don't use event description as it contains marketing copy with HTML/markdown
+    const cleanNotes = additionalNotes ? 
+      `${additionalNotes}\n\nCal.com booking: ${booking.uid}` : 
+      `Cal.com booking: ${booking.uid}`;
+    
     return {
       name: attendee?.name || 'Unknown',
       email: attendee?.email,
@@ -188,7 +197,7 @@ export class CalComService {
         (new Date(booking.endTime).getTime() - new Date(booking.startTime).getTime()) / (1000 * 60)
       ),
       appointmentStatus: this.mapCalComStatusToInternal(booking.status),
-      notes: booking.description || booking.eventDescription || `Cal.com booking ${booking.uid}`,
+      notes: cleanNotes,
     };
   }
 
