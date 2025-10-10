@@ -294,6 +294,10 @@ export const tenantConfig = pgTable("tenant_config", {
   maxCallsPer15Min: integer("max_calls_per_15m").default(75),
   quietStart: time("quiet_start").default("20:00"),
   quietEnd: time("quiet_end").default("08:00"),
+  // Travel & Parking Directions (for voice agent to communicate)
+  publicTransportInstructions: text("public_transport_instructions"),
+  parkingInstructions: text("parking_instructions"),
+  arrivalNotes: text("arrival_notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
