@@ -5295,7 +5295,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Create audit log for this data export request
       await storage.createAuditTrail({
-        correlationId: require('crypto').randomUUID(),
+        correlationId: crypto.randomUUID(),
         tenantId: req.user.tenantId,
         userId: req.user.id,
         action: 'data_export',

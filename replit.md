@@ -53,6 +53,12 @@ Authentication is JWT-based with role-based middleware. The system enforces mult
   - **Inbound Mode**: Enthusiastic, warm tone (8/10 energy) for callbacks with warm transfer handoff scripts
   - **Legacy Prompts** (deprecated): `vioconcierge-system-prompt.txt` (outbound only), `vioconcierge-inbound-system-prompt.txt` (inbound only)
   The unified prompt preserves all HIPAA handling, conversation flows, objection handling, and guardrails while using VioConcierge's simplified travel assistance flow (public transport vs driving instead of train/bus/driving).
+- **Data Export & Compliance**: Comprehensive data export functionality accessible via Profile > Data & Export Controls tab for client admins and super admins:
+  - **Export Contacts** (`/api/contacts/export`): Exports all tenant contacts to CSV with 12 essential fields matching the import template structure, including group memberships (comma-separated). Uses CSV injection protection via `escapeCsvValue()` and automatic temporary file cleanup.
+  - **Export Appointments** (`/api/appointments/export`): Exports appointments via `storage.getAppointments()` to CSV with contact name, phone, appointment type, time, duration, status, special instructions, and notes.
+  - **Export Call Logs** (`/api/call-sessions/export`): Exports call session data to CSV with contact information enrichment (fetches contact data for each call), including status, outcome, duration, sentiment, and error messages.
+  - **Export All Data** (`/api/compliance/data-export`): GDPR Article 20 (Right to Data Portability) compliant JSON export including user data, tenant data, contacts, call history, and recent audit trail. Implements rate limiting (5 requests/hour) and creates audit log entries for compliance tracking.
+  - All CSV exports use `csv-writer` library, temporary file storage in `/tmp`, `res.download()` for file delivery, and automatic cleanup callbacks. Frontend uses authenticated fetch with JWT token from localStorage (`auth_token`), blob URL creation for downloads, and toast notifications for user feedback.
 
 # External Dependencies
 

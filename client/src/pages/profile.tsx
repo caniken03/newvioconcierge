@@ -1181,7 +1181,7 @@ export default function Profile() {
                       try {
                         const response = await fetch('/api/contacts/export', {
                           headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
                           }
                         });
                         if (!response.ok) throw new Error('Export failed');
@@ -1209,7 +1209,7 @@ export default function Profile() {
                       try {
                         const response = await fetch('/api/call-sessions/export', {
                           headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
                           }
                         });
                         if (!response.ok) throw new Error('Export failed');
@@ -1237,7 +1237,7 @@ export default function Profile() {
                       try {
                         const response = await fetch('/api/appointments/export', {
                           headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
                           }
                         });
                         if (!response.ok) throw new Error('Export failed');
@@ -1265,16 +1265,15 @@ export default function Profile() {
                       try {
                         const response = await fetch('/api/compliance/data-export', {
                           headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
                           }
                         });
                         if (!response.ok) throw new Error('Export failed');
-                        const data = await response.json();
-                        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                        const blob = await response.blob();
                         const url = window.URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = `all_data_export_${new Date().toISOString().split('T')[0]}.json`;
+                        a.download = `gdpr_data_export_${new Date().toISOString().split('T')[0]}.json`;
                         document.body.appendChild(a);
                         a.click();
                         document.body.removeChild(a);
