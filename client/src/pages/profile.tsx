@@ -1174,16 +1174,117 @@ export default function Profile() {
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Data Export</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Button variant="outline" data-testid="button-export-contacts">
+                  <Button 
+                    variant="outline" 
+                    data-testid="button-export-contacts"
+                    onClick={async () => {
+                      try {
+                        const response = await fetch('/api/contacts/export', {
+                          headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                          }
+                        });
+                        if (!response.ok) throw new Error('Export failed');
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `contacts_export_${new Date().toISOString().split('T')[0]}.csv`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        window.URL.revokeObjectURL(url);
+                        toast({ title: "Success", description: "Contacts exported successfully" });
+                      } catch (error) {
+                        toast({ title: "Error", description: "Failed to export contacts", variant: "destructive" });
+                      }
+                    }}
+                  >
                     Export Contacts
                   </Button>
-                  <Button variant="outline" data-testid="button-export-call-logs">
+                  <Button 
+                    variant="outline" 
+                    data-testid="button-export-call-logs"
+                    onClick={async () => {
+                      try {
+                        const response = await fetch('/api/call-sessions/export', {
+                          headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                          }
+                        });
+                        if (!response.ok) throw new Error('Export failed');
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `call_logs_export_${new Date().toISOString().split('T')[0]}.csv`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        window.URL.revokeObjectURL(url);
+                        toast({ title: "Success", description: "Call logs exported successfully" });
+                      } catch (error) {
+                        toast({ title: "Error", description: "Failed to export call logs", variant: "destructive" });
+                      }
+                    }}
+                  >
                     Export Call Logs
                   </Button>
-                  <Button variant="outline" data-testid="button-export-appointments">
+                  <Button 
+                    variant="outline" 
+                    data-testid="button-export-appointments"
+                    onClick={async () => {
+                      try {
+                        const response = await fetch('/api/appointments/export', {
+                          headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                          }
+                        });
+                        if (!response.ok) throw new Error('Export failed');
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `appointments_export_${new Date().toISOString().split('T')[0]}.csv`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        window.URL.revokeObjectURL(url);
+                        toast({ title: "Success", description: "Appointments exported successfully" });
+                      } catch (error) {
+                        toast({ title: "Error", description: "Failed to export appointments", variant: "destructive" });
+                      }
+                    }}
+                  >
                     Export Appointments
                   </Button>
-                  <Button variant="outline" data-testid="button-export-all-data">
+                  <Button 
+                    variant="outline" 
+                    data-testid="button-export-all-data"
+                    onClick={async () => {
+                      try {
+                        const response = await fetch('/api/compliance/data-export', {
+                          headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                          }
+                        });
+                        if (!response.ok) throw new Error('Export failed');
+                        const data = await response.json();
+                        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `all_data_export_${new Date().toISOString().split('T')[0]}.json`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        window.URL.revokeObjectURL(url);
+                        toast({ title: "Success", description: "All data exported successfully" });
+                      } catch (error) {
+                        toast({ title: "Error", description: "Failed to export all data", variant: "destructive" });
+                      }
+                    }}
+                  >
                     Export All Data
                   </Button>
                 </div>

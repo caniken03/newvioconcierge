@@ -1907,6 +1907,148 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Export Appointments to CSV
+  app.get('/api/appointments/export', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    let csvFilePath: string | undefined;
+    
+    try {
+      const appointmentContacts = await storage.getAppointments(req.user.tenantId);
+      const appointments = appointmentContacts.map((contact: any) => ({
+        contactName: escapeCsvValue(contact.name),
+        phone: escapeCsvValue(contact.phone),
+        appointmentType: escapeCsvValue(contact.appointmentType || ''),
+        appointmentTime: contact.appointmentTime ? new Date(contact.appointmentTime).toISOString() : '',
+        appointmentDuration: contact.appointmentDuration || '',
+        appointmentStatus: escapeCsvValue(contact.appointmentStatus || 'pending'),
+        specialInstructions: escapeCsvValue(contact.specialInstructions || ''),
+        notes: escapeCsvValue(contact.notes || ''),
+      }));
+      
+      csvFilePath = `/tmp/appointments_export_${req.user.tenantId}_${Date.now()}.csv`;
+      const csvWriter = createCsvWriter.createObjectCsvWriter({
+        path: csvFilePath,
+        header: [
+          { id: 'contactName', title: 'Contact Name' },
+          { id: 'phone', title: 'Phone' },
+          { id: 'appointmentType', title: 'Appointment Type' },
+          { id: 'appointmentTime', title: 'Appointment Time' },
+          { id: 'appointmentDuration', title: 'Duration (minutes)' },
+          { id: 'appointmentStatus', title: 'Status' },
+          { id: 'specialInstructions', title: 'Special Instructions' },
+          { id: 'notes', title: 'Notes' },
+        ],
+      });
+
+      await csvWriter.writeRecords(appointments);
+      
+      const filename = `appointments_export_${new Date().toISOString().split('T')[0]}.csv`;
+      res.download(csvFilePath, filename, (err) => {
+        if (err) {
+          console.error('Download error:', err);
+        }
+        if (csvFilePath && fs.existsSync(csvFilePath)) {
+          try {
+            fs.unlinkSync(csvFilePath);
+          } catch (cleanupError) {
+            console.error('Failed to cleanup export file:', cleanupError);
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Appointments export error:', error);
+      res.status(500).json({ message: 'Failed to export appointments' });
+      
+      if (csvFilePath && fs.existsSync(csvFilePath)) {
+        try {
+          fs.unlinkSync(csvFilePath);
+        } catch (cleanupError) {
+          console.error('Failed to cleanup export file on error:', cleanupError);
+        }
+      }
+    }
+  });
+
+  // Export Call Logs to CSV
+  app.get('/api/call-sessions/export', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    let csvFilePath: string | undefined;
+    
+    try {
+      const callSessions = await storage.getCallSessionsByTenant(req.user.tenantId);
+      const callLogs = await Promise.all(
+        callSessions.map(async (call: any) => {
+          let contactName = '';
+          let phone = '';
+          if (call.contactId) {
+            try {
+              const contact = await storage.getContact(call.contactId);
+              if (contact) {
+                contactName = contact.name || '';
+                phone = contact.phone || '';
+              }
+            } catch (e) {
+              console.error(`Failed to fetch contact ${call.contactId}:`, e);
+            }
+          }
+          
+          return {
+            contactName: escapeCsvValue(contactName),
+            phone: escapeCsvValue(phone),
+            status: escapeCsvValue(call.status || ''),
+            outcome: escapeCsvValue(call.callOutcome || ''),
+            startTime: call.startTime ? new Date(call.startTime).toISOString() : '',
+            endTime: call.endTime ? new Date(call.endTime).toISOString() : '',
+            duration: call.durationSeconds || '',
+            sentiment: escapeCsvValue(call.customerSentiment || ''),
+            errorMessage: escapeCsvValue(call.errorMessage || ''),
+          };
+        })
+      );
+      
+      csvFilePath = `/tmp/call_logs_export_${req.user.tenantId}_${Date.now()}.csv`;
+      const csvWriter = createCsvWriter.createObjectCsvWriter({
+        path: csvFilePath,
+        header: [
+          { id: 'contactName', title: 'Contact Name' },
+          { id: 'phone', title: 'Phone' },
+          { id: 'status', title: 'Call Status' },
+          { id: 'outcome', title: 'Call Outcome' },
+          { id: 'startTime', title: 'Start Time' },
+          { id: 'endTime', title: 'End Time' },
+          { id: 'duration', title: 'Duration (seconds)' },
+          { id: 'sentiment', title: 'Customer Sentiment' },
+          { id: 'errorMessage', title: 'Error Message' },
+        ],
+      });
+
+      await csvWriter.writeRecords(callLogs);
+      
+      const filename = `call_logs_export_${new Date().toISOString().split('T')[0]}.csv`;
+      res.download(csvFilePath, filename, (err) => {
+        if (err) {
+          console.error('Download error:', err);
+        }
+        if (csvFilePath && fs.existsSync(csvFilePath)) {
+          try {
+            fs.unlinkSync(csvFilePath);
+          } catch (cleanupError) {
+            console.error('Failed to cleanup export file:', cleanupError);
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Call logs export error:', error);
+      res.status(500).json({ message: 'Failed to export call logs' });
+      
+      if (csvFilePath && fs.existsSync(csvFilePath)) {
+        try {
+          fs.unlinkSync(csvFilePath);
+        } catch (cleanupError) {
+          console.error('Failed to cleanup export file on error:', cleanupError);
+        }
+      }
+    }
+  });
+
   app.get('/api/contacts/:id', authenticateJWT, requireContactAccess, async (req, res) => {
     try {
       const contact = await storage.getContact(req.params.id);
