@@ -3447,6 +3447,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // User Profile Update Endpoint
+  app.put('/api/user/profile', authenticateJWT, async (req: any, res) => {
+    try {
+      const profileSchema = z.object({
+        fullName: z.string().min(1).optional(),
+        email: z.string().email().optional(),
+      });
+
+      const profileData = profileSchema.parse(req.body);
+      
+      // If email is being changed, check if it's already in use
+      if (profileData.email && profileData.email !== req.user.email) {
+        const existingUser = await storage.getUserByEmail(profileData.email);
+        if (existingUser && existingUser.id !== req.user.id) {
+          return res.status(400).json({ message: 'Email address is already in use' });
+        }
+      }
+      
+      // Update user profile
+      const updatedUser = await storage.updateUser(req.user.id, profileData);
+      
+      // Return user without password
+      res.json({
+        id: updatedUser.id,
+        email: updatedUser.email,
+        fullName: updatedUser.fullName,
+        role: updatedUser.role,
+        tenantId: updatedUser.tenantId,
+      });
+    } catch (error) {
+      console.error('Failed to update user profile:', error);
+      res.status(400).json({ message: 'Failed to update profile' });
+    }
+  });
+
   // User Notification Preferences Endpoints
   app.get('/api/user/notification-preferences', authenticateJWT, async (req: any, res) => {
     try {
