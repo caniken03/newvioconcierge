@@ -1,9 +1,10 @@
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
-import type { TenantConfig } from '@shared/schema';
+import type { TenantConfig, BusinessHoursConfig } from '@shared/schema';
 
 interface BusinessHoursWindow {
   start: string; // "HH:MM" format
   end: string;   // "HH:MM" format
+  enabled: boolean;
 }
 
 interface EvaluationResult {
@@ -16,27 +17,31 @@ interface EvaluationResult {
 }
 
 /**
- * Business Hours Evaluator - Centralized logic for weekend calling and business hours
+ * Business Hours Evaluator - Centralized logic for business hours validation
  * 
  * Key Features:
- * - Single source of truth: TenantConfig only
- * - Weekend inheritance: Uses weekday hours when weekend calling enabled but no specific weekend hours set
- * - Proper timezone handling: Evaluates in tenant timezone (Europe/London for UK)
+ * - Hybrid approach: Super admin sets defaults, client admin can update
+ * - Per-day scheduling: Different hours for each day of the week
+ * - Proper timezone handling: Evaluates in tenant timezone
  * - Clear logging: Shows exactly why calls are allowed/blocked
  */
 export class BusinessHoursEvaluator {
   
   /**
-   * Evaluate if a call is allowed at the given time based on tenant configuration
+   * Evaluate if a call is allowed at the given time based on configured business hours
    */
-  static evaluate(callTimeUTC: Date, tenantConfig: TenantConfig | null): EvaluationResult {
-    if (!tenantConfig) {
-      // Default fallback: weekdays 8-20, no weekends
-      return this.evaluateDefault(callTimeUTC);
+  static evaluate(
+    callTimeUTC: Date, 
+    tenantConfig: TenantConfig | null, 
+    businessHoursConfig: BusinessHoursConfig | null
+  ): EvaluationResult {
+    if (!businessHoursConfig) {
+      // Fallback to default hours if no configuration exists
+      return this.evaluateDefault(callTimeUTC, tenantConfig);
     }
 
-    // Get tenant timezone (default to Europe/London for UK businesses)
-    const timezone = tenantConfig.timezone || 'Europe/London';
+    // Get tenant timezone from business hours config or tenant config
+    const timezone = businessHoursConfig.timezone || tenantConfig?.timezone || 'Europe/London';
     
     // Convert UTC time to tenant local time
     const localTime = toZonedTime(callTimeUTC, timezone);
@@ -46,20 +51,45 @@ export class BusinessHoursEvaluator {
 
     console.log(`🕐 Evaluating business hours: ${timeString} ${dayName} (${timezone})`);
 
-    // For now, use simplified business hours until we implement full weekend calling config
-    // Default business hours: 9 AM - 9 PM (allowing for evening calls like 7 PM UK time)
-    const businessWindow = { start: "09:00", end: "21:00" };
-
-    // Simple weekend calling logic: ALWAYS ALLOW if it's a weekend
-    // This fixes the immediate issue where weekend calls are blocked despite toggle being enabled
-    if (dayOfWeek === 0 || dayOfWeek === 6) { // Sunday or Saturday
-      console.log(`📅 Weekend calling ENABLED: ${dayName} using business hours ${businessWindow.start}-${businessWindow.end}`);
-      return this.evaluateTimeWindow(timeString, businessWindow, dayName, callTimeUTC, tenantConfig);
+    // Get the configured hours for this specific day
+    const dayHoursField = this.getDayHoursField(dayOfWeek);
+    const dayHoursJson = businessHoursConfig[dayHoursField];
+    
+    let businessWindow: BusinessHoursWindow;
+    try {
+      businessWindow = typeof dayHoursJson === 'string' 
+        ? JSON.parse(dayHoursJson) 
+        : dayHoursJson || { start: "09:00", end: "17:00", enabled: true };
+    } catch (error) {
+      console.error(`Failed to parse business hours for ${dayName}:`, error);
+      businessWindow = { start: "09:00", end: "17:00", enabled: true };
     }
 
-    // Weekday - use regular business hours
-    console.log(`📅 Weekday business hours: ${dayName} ${businessWindow.start}-${businessWindow.end}`);
-    return this.evaluateTimeWindow(timeString, businessWindow, dayName, callTimeUTC, tenantConfig);
+    // Check if this day is enabled for calling
+    if (!businessWindow.enabled) {
+      console.log(`❌ ${dayName} is disabled for calling`);
+      return {
+        allowed: false,
+        reason: `${dayName} is not a business day`,
+        nextAllowedTime: this.getNextAllowedTime(callTimeUTC, businessHoursConfig, timezone),
+        evaluatedDay: dayName,
+        evaluatedTime: timeString
+      };
+    }
+
+    console.log(`📅 ${dayName} business hours: ${businessWindow.start} - ${businessWindow.end}`);
+    return this.evaluateTimeWindow(timeString, businessWindow, dayName, callTimeUTC, businessHoursConfig, timezone);
+  }
+
+  /**
+   * Get the field name for a specific day's hours
+   */
+  private static getDayHoursField(dayOfWeek: number): keyof BusinessHoursConfig {
+    const fields: (keyof BusinessHoursConfig)[] = [
+      'sundayHours', 'mondayHours', 'tuesdayHours', 'wednesdayHours',
+      'thursdayHours', 'fridayHours', 'saturdayHours'
+    ];
+    return fields[dayOfWeek];
   }
 
   /**
@@ -70,7 +100,8 @@ export class BusinessHoursEvaluator {
     window: BusinessHoursWindow, 
     dayName: string,
     callTimeUTC: Date,
-    tenantConfig: TenantConfig
+    businessHoursConfig: BusinessHoursConfig,
+    timezone: string
   ): EvaluationResult {
     
     if (timeString >= window.start && timeString <= window.end) {
@@ -87,7 +118,7 @@ export class BusinessHoursEvaluator {
     return {
       allowed: false,
       reason: `Outside business hours (${window.start} - ${window.end}) on ${dayName}`,
-      nextAllowedTime: this.getNextAllowedTime(callTimeUTC, tenantConfig),
+      nextAllowedTime: this.getNextAllowedTime(callTimeUTC, businessHoursConfig, timezone),
       evaluatedWindow: window,
       evaluatedDay: dayName,
       evaluatedTime: timeString
@@ -97,7 +128,7 @@ export class BusinessHoursEvaluator {
   /**
    * Default business hours for tenants without configuration
    */
-  private static evaluateDefault(callTimeUTC: Date): EvaluationResult {
+  private static evaluateDefault(callTimeUTC: Date, tenantConfig: TenantConfig | null): EvaluationResult {
     const localTime = new Date(callTimeUTC); // Assume UTC for default
     const dayOfWeek = localTime.getDay();
     const hour = localTime.getHours();
@@ -118,7 +149,7 @@ export class BusinessHoursEvaluator {
     if (hour >= 8 && hour < 20) {
       return {
         allowed: true,
-        evaluatedWindow: { start: "08:00", end: "20:00" },
+        evaluatedWindow: { start: "08:00", end: "20:00", enabled: true },
         evaluatedDay: dayName,
         evaluatedTime: timeString
       };
@@ -133,58 +164,57 @@ export class BusinessHoursEvaluator {
   }
 
   /**
-   * Calculate next allowed call time based on tenant configuration
+   * Calculate next allowed call time based on business hours configuration
+   * CRITICAL: Always returns a time strictly in the future
    */
-  private static getNextAllowedTime(callTimeUTC: Date, tenantConfig: TenantConfig): Date {
-    const timezone = tenantConfig.timezone || 'Europe/London';
-    const businessWindow = { start: "09:00", end: "21:00" }; // Simplified for now
+  private static getNextAllowedTime(
+    callTimeUTC: Date, 
+    businessHoursConfig: BusinessHoursConfig, 
+    timezone: string
+  ): Date {
+    const currentLocalTime = toZonedTime(callTimeUTC, timezone);
+    let nextTime = new Date(callTimeUTC);
     
-    let nextTime = new Date(callTimeUTC.getTime() + 60 * 60 * 1000); // Start checking 1 hour later
-    
-    // Try the next 7 days to find an allowed time
+    // Try the next 7 days to find an enabled business day with future hours
     for (let i = 0; i < 7; i++) {
       const localTime = toZonedTime(nextTime, timezone);
-      
-      // Set to start of business hours for this day  
-      const [startHour, startMinute] = businessWindow.start.split(':').map(Number);
-      const businessStart = new Date(localTime);
-      businessStart.setHours(startHour, startMinute, 0, 0);
-      
-      // Convert back to UTC
-      return fromZonedTime(businessStart, timezone);
-    }
-    
-    // Fallback: 24 hours later
-    return new Date(callTimeUTC.getTime() + 24 * 60 * 60 * 1000);
-  }
-
-  /**
-   * Get next business day based on tenant configuration
-   */
-  private static getNextBusinessDay(callTimeUTC: Date, tenantConfig: TenantConfig): Date {
-    const timezone = tenantConfig.timezone || 'Europe/London';
-    const businessWindow = { start: "09:00", end: "21:00" }; // Simplified for now
-    
-    let nextDay = new Date(callTimeUTC);
-    nextDay.setDate(nextDay.getDate() + 1);
-    
-    // Find next weekday (Monday-Friday)
-    for (let i = 0; i < 7; i++) {
-      const localTime = toZonedTime(nextDay, timezone);
       const dayOfWeek = localTime.getDay();
       
-      if (dayOfWeek >= 1 && dayOfWeek <= 5) { // Monday to Friday
-        const [startHour, startMinute] = businessWindow.start.split(':').map(Number);
+      // Get business hours for this day
+      const dayHoursField = this.getDayHoursField(dayOfWeek);
+      const dayHoursJson = businessHoursConfig[dayHoursField];
+      
+      let dayHours: BusinessHoursWindow;
+      try {
+        dayHours = typeof dayHoursJson === 'string' 
+          ? JSON.parse(dayHoursJson) 
+          : dayHoursJson || { start: "09:00", end: "17:00", enabled: false };
+      } catch (error) {
+        dayHours = { start: "09:00", end: "17:00", enabled: false };
+      }
+      
+      // If this day is enabled, check if business start is in the future
+      if (dayHours.enabled) {
+        const [startHour, startMinute] = dayHours.start.split(':').map(Number);
         const businessStart = new Date(localTime);
         businessStart.setHours(startHour, startMinute, 0, 0);
         
-        return fromZonedTime(businessStart, timezone);
+        const businessStartUTC = fromZonedTime(businessStart, timezone);
+        
+        // Only return if this time is strictly after the current call time
+        if (businessStartUTC > callTimeUTC) {
+          return businessStartUTC;
+        }
       }
       
-      nextDay.setDate(nextDay.getDate() + 1);
+      // Try next day (advance by 1 day)
+      nextTime = new Date(nextTime.getTime() + 24 * 60 * 60 * 1000);
     }
     
-    // Fallback
-    return nextDay;
+    // CRITICAL: If no enabled days found within 7 days, this indicates business hours misconfiguration
+    // Return a far-future date (30 days) to prevent infinite rescheduling loops
+    // Callers should detect this as an error condition (no valid business hours)
+    console.warn('⚠️ No enabled business days found within 7-day window - business hours may be misconfigured');
+    return new Date(callTimeUTC.getTime() + 30 * 24 * 60 * 60 * 1000);
   }
 }

@@ -2997,14 +2997,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async validateBusinessHours(tenantId: string, callTime: Date): Promise<{ allowed: boolean; reason?: string; nextAllowedTime?: Date }> {
-    // CRITICAL FIX: Use TenantConfig instead of businessHoursConfig
-    // This fixes the weekend calling toggle issue by using single source of truth
-    const tenantConfig = await this.getTenantConfig(tenantId);
+    // Hybrid approach: Load configured business hours (set by super admin, updated by client admin)
+    const [tenantConfig, businessHoursConfig] = await Promise.all([
+      this.getTenantConfig(tenantId),
+      this.getBusinessHoursConfig(tenantId)
+    ]);
     
     console.log(`🔍 Business hours validation for tenant ${tenantId} at ${callTime.toISOString()}`);
     
-    // Use the new BusinessHoursEvaluator with proper timezone handling
-    const evaluation = BusinessHoursEvaluator.evaluate(callTime, tenantConfig || null);
+    // Use configured business hours with proper timezone handling
+    const evaluation = BusinessHoursEvaluator.evaluate(callTime, tenantConfig || null, businessHoursConfig || null);
     
     // Log the evaluation result for debugging
     if (evaluation.allowed) {
