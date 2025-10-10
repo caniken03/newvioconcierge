@@ -786,6 +786,63 @@ function DailySummarySettings() {
 export default function Profile() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  // Account settings state
+  const [fullName, setFullName] = useState(user?.fullName || '');
+  const [email, setEmail] = useState(user?.email || '');
+
+  // Update state when user changes
+  useEffect(() => {
+    if (user) {
+      setFullName(user.fullName);
+      setEmail(user.email);
+    }
+  }, [user]);
+
+  // Profile update mutation
+  const saveProfileMutation = useMutation({
+    mutationFn: async (data: { fullName: string; email: string }) => {
+      const response = await apiRequest('PUT', '/api/user/profile', data);
+      return response.json();
+    },
+    onSuccess: (updatedUser) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+      toast({
+        title: "Profile updated",
+        description: "Your account settings have been saved successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to update profile",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSaveProfile = () => {
+    if (!fullName.trim()) {
+      toast({
+        title: "Invalid input",
+        description: "Full name is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!email.trim()) {
+      toast({
+        title: "Invalid input",
+        description: "Email address is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    saveProfileMutation.mutate({ fullName, email });
+  };
   
   if (!user) return null;
 
@@ -1023,7 +1080,8 @@ export default function Profile() {
                     <Label htmlFor="full-name">Full Name *</Label>
                     <Input 
                       id="full-name"
-                      defaultValue={user.fullName}
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
                       data-testid="input-full-name"
                     />
                   </div>
@@ -1032,7 +1090,8 @@ export default function Profile() {
                     <Input 
                       id="email"
                       type="email"
-                      defaultValue={user.email}
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       data-testid="input-email"
                     />
                   </div>
@@ -1103,8 +1162,12 @@ export default function Profile() {
               <DailySummarySettings />
 
               <div className="flex justify-end pt-4">
-                <Button data-testid="button-save-account-settings">
-                  Save Account Settings
+                <Button 
+                  onClick={handleSaveProfile}
+                  disabled={saveProfileMutation.isPending}
+                  data-testid="button-save-account-settings"
+                >
+                  {saveProfileMutation.isPending ? "Saving..." : "Save Account Settings"}
                 </Button>
               </div>
             </CardContent>
