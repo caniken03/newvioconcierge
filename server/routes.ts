@@ -3575,6 +3575,235 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ========================================
+  // TEAM MANAGEMENT ROUTES (Client Admin)
+  // ========================================
+
+  // Send team invitation
+  app.post('/api/team/invite', authenticateJWT, requireRole(['client_admin']), async (req: any, res) => {
+    try {
+      const inviteSchema = z.object({
+        email: z.string().email(),
+        role: z.enum(['client_admin', 'client_user']),
+      });
+
+      const inviteData = inviteSchema.parse(req.body);
+      
+      // Check if user already exists
+      const existingUser = await storage.getUserByEmail(inviteData.email);
+      if (existingUser && existingUser.tenantId === req.user.tenantId) {
+        return res.status(400).json({ message: 'User with this email already exists in your team' });
+      }
+
+      // Check if there's already a pending invitation
+      const existingInvitations = await storage.getUserInvitationsByTenant(req.user.tenantId);
+      const pendingInvitation = existingInvitations.find(
+        inv => inv.email === inviteData.email && inv.status === 'pending'
+      );
+      
+      if (pendingInvitation) {
+        return res.status(400).json({ message: 'An invitation has already been sent to this email' });
+      }
+
+      // Generate invitation token
+      const crypto = await import('crypto');
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+
+      // Create invitation
+      const invitation = await storage.createUserInvitation({
+        tenantId: req.user.tenantId,
+        email: inviteData.email,
+        role: inviteData.role,
+        invitedBy: req.user.id,
+        token,
+        expiresAt,
+        status: 'pending',
+      });
+
+      // Send invitation email
+      const { sendInvitationEmail } = await import('./services/email-service');
+      await sendInvitationEmail({
+        to: inviteData.email,
+        inviterName: req.user.fullName,
+        token,
+        role: inviteData.role,
+      });
+
+      res.status(201).json({
+        message: 'Invitation sent successfully',
+        invitation: {
+          id: invitation.id,
+          email: invitation.email,
+          role: invitation.role,
+          status: invitation.status,
+          expiresAt: invitation.expiresAt,
+        },
+      });
+    } catch (error) {
+      console.error('Failed to send invitation:', error);
+      res.status(400).json({ message: 'Failed to send invitation' });
+    }
+  });
+
+  // Get pending invitations
+  app.get('/api/team/invitations', authenticateJWT, requireRole(['client_admin']), async (req: any, res) => {
+    try {
+      const invitations = await storage.getUserInvitationsByTenant(req.user.tenantId);
+      res.json(invitations.filter(inv => inv.status === 'pending'));
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch invitations' });
+    }
+  });
+
+  // Cancel invitation
+  app.delete('/api/team/invitations/:id', authenticateJWT, requireRole(['client_admin']), async (req: any, res) => {
+    try {
+      const invitations = await storage.getUserInvitationsByTenant(req.user.tenantId);
+      const invitation = invitations.find(inv => inv.id === req.params.id);
+      
+      if (!invitation) {
+        return res.status(404).json({ message: 'Invitation not found' });
+      }
+
+      await storage.deleteUserInvitation(req.params.id);
+      res.json({ message: 'Invitation cancelled successfully' });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to cancel invitation' });
+    }
+  });
+
+  // Accept invitation and create user account
+  app.post('/api/team/accept-invitation', async (req, res) => {
+    try {
+      const acceptSchema = z.object({
+        token: z.string(),
+        fullName: z.string().min(1),
+        password: z.string().min(8),
+      });
+
+      const acceptData = acceptSchema.parse(req.body);
+
+      // Find invitation by token
+      const invitation = await storage.getUserInvitationByToken(acceptData.token);
+      if (!invitation) {
+        return res.status(404).json({ message: 'Invalid invitation link' });
+      }
+
+      // Check if invitation is expired
+      if (new Date() > new Date(invitation.expiresAt)) {
+        return res.status(400).json({ message: 'Invitation has expired' });
+      }
+
+      // Check if already accepted
+      if (invitation.status !== 'pending') {
+        return res.status(400).json({ message: 'Invitation has already been used' });
+      }
+
+      // Create user account
+      const user = await storage.createUser({
+        email: invitation.email,
+        fullName: acceptData.fullName,
+        hashedPassword: acceptData.password,
+        tenantId: invitation.tenantId,
+        role: invitation.role,
+      });
+
+      // Mark invitation as accepted
+      await storage.updateUserInvitation(invitation.id, {
+        status: 'accepted',
+        acceptedAt: new Date(),
+      });
+
+      // Generate JWT token for immediate login
+      const jwt = await import('jsonwebtoken');
+      const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+      const token = jwt.sign(
+        { userId: user.id, tenantId: user.tenantId, role: user.role },
+        JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      res.status(201).json({
+        token,
+        user: {
+          id: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          role: user.role,
+          tenantId: user.tenantId,
+        },
+        message: 'Account created successfully',
+      });
+    } catch (error) {
+      console.error('Failed to accept invitation:', error);
+      res.status(400).json({ message: 'Failed to accept invitation' });
+    }
+  });
+
+  // Change user role
+  app.patch('/api/users/:id/role', authenticateJWT, requireRole(['client_admin']), async (req: any, res) => {
+    try {
+      const roleSchema = z.object({
+        role: z.enum(['client_admin', 'client_user']),
+      });
+
+      const { role } = roleSchema.parse(req.body);
+      
+      // Don't allow changing own role
+      if (req.params.id === req.user.id) {
+        return res.status(400).json({ message: 'You cannot change your own role' });
+      }
+
+      const user = await storage.updateUserRole(req.params.id, role, req.user.tenantId);
+      
+      res.json({
+        message: 'User role updated successfully',
+        user: {
+          id: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          role: user.role,
+        },
+      });
+    } catch (error) {
+      console.error('Failed to update user role:', error);
+      res.status(400).json({ message: 'Failed to update user role' });
+    }
+  });
+
+  // Toggle user active status
+  app.patch('/api/users/:id/status', authenticateJWT, requireRole(['client_admin']), async (req: any, res) => {
+    try {
+      const statusSchema = z.object({
+        isActive: z.boolean(),
+      });
+
+      const { isActive } = statusSchema.parse(req.body);
+      
+      // Don't allow deactivating own account
+      if (req.params.id === req.user.id) {
+        return res.status(400).json({ message: 'You cannot deactivate your own account' });
+      }
+
+      const user = await storage.toggleUserStatus(req.params.id, isActive, req.user.tenantId);
+      
+      res.json({
+        message: `User ${isActive ? 'activated' : 'deactivated'} successfully`,
+        user: {
+          id: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          isActive: user.isActive,
+        },
+      });
+    } catch (error) {
+      console.error('Failed to update user status:', error);
+      res.status(400).json({ message: 'Failed to update user status' });
+    }
+  });
+
   // Dashboard analytics routes
   app.get('/api/dashboard/analytics', authenticateJWT, async (req: any, res) => {
     try {
