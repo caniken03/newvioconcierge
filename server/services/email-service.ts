@@ -21,7 +21,10 @@ export async function sendInvitationEmail({ to, inviterName, token, role }: Send
     return false;
   }
 
-  const acceptUrl = `${process.env.REPL_URL || 'http://localhost:5000'}/accept-invitation?token=${token}`;
+  const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+    ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+    : 'http://localhost:5000';
+  const acceptUrl = `${baseUrl}/accept-invitation?token=${token}`;
   const roleDisplay = role === 'client_admin' ? 'Admin' : 'Team Member';
 
   try {
