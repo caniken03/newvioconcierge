@@ -23,6 +23,7 @@ import {
   clientConsent,
   temporaryAccess,
   userNotificationPreferences,
+  userInvitations,
   type User,
   type InsertUser,
   type Tenant,
@@ -70,6 +71,8 @@ import {
   type PasswordResetToken,
   type InsertPasswordResetToken,
   passwordResetTokens,
+  type UserInvitation,
+  type InsertUserInvitation,
 } from "@shared/schema";
 import { BusinessHoursEvaluator } from "./utils/business-hours-evaluator";
 import { db } from "./db";
@@ -325,6 +328,15 @@ export interface IStorage {
   getUserNotificationPreferences(userId: string): Promise<any | undefined>;
   createUserNotificationPreferences(userId: string, tenantId: string): Promise<any>;
   updateUserNotificationPreferences(userId: string, updates: any): Promise<any>;
+  
+  // User Invitations (Team Management)
+  createUserInvitation(invitation: InsertUserInvitation): Promise<UserInvitation>;
+  getUserInvitationByToken(token: string): Promise<UserInvitation | undefined>;
+  getUserInvitationsByTenant(tenantId: string): Promise<UserInvitation[]>;
+  updateUserInvitation(id: string, updates: Partial<InsertUserInvitation>): Promise<UserInvitation>;
+  deleteUserInvitation(id: string): Promise<void>;
+  updateUserRole(userId: string, role: string, tenantId: string): Promise<User>;
+  toggleUserStatus(userId: string, isActive: boolean, tenantId: string): Promise<User>;
   
   // Contact Call History (Harassment Prevention)
   getContactCallHistory(phoneNumber: string): Promise<ContactCallHistory | undefined>;
@@ -3063,6 +3075,84 @@ export class DatabaseStorage implements IStorage {
       throw new Error('User notification preferences not found');
     }
 
+    return updated;
+  }
+
+  // User Invitations (Team Management)
+  async createUserInvitation(invitation: InsertUserInvitation): Promise<UserInvitation> {
+    const [newInvitation] = await db
+      .insert(userInvitations)
+      .values(invitation)
+      .returning();
+    
+    return newInvitation;
+  }
+
+  async getUserInvitationByToken(token: string): Promise<UserInvitation | undefined> {
+    const [invitation] = await db
+      .select()
+      .from(userInvitations)
+      .where(eq(userInvitations.token, token))
+      .limit(1);
+    
+    return invitation;
+  }
+
+  async getUserInvitationsByTenant(tenantId: string): Promise<UserInvitation[]> {
+    const invitations = await db
+      .select()
+      .from(userInvitations)
+      .where(eq(userInvitations.tenantId, tenantId))
+      .orderBy(desc(userInvitations.createdAt));
+    
+    return invitations;
+  }
+
+  async updateUserInvitation(id: string, updates: Partial<InsertUserInvitation>): Promise<UserInvitation> {
+    const [updated] = await db
+      .update(userInvitations)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(userInvitations.id, id))
+      .returning();
+    
+    if (!updated) {
+      throw new Error('User invitation not found');
+    }
+    
+    return updated;
+  }
+
+  async deleteUserInvitation(id: string): Promise<void> {
+    await db
+      .delete(userInvitations)
+      .where(eq(userInvitations.id, id));
+  }
+
+  async updateUserRole(userId: string, role: string, tenantId: string): Promise<User> {
+    const [updated] = await db
+      .update(users)
+      .set({ role, updatedAt: new Date() })
+      .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)))
+      .returning();
+    
+    if (!updated) {
+      throw new Error('User not found or unauthorized');
+    }
+    
+    return updated;
+  }
+
+  async toggleUserStatus(userId: string, isActive: boolean, tenantId: string): Promise<User> {
+    const [updated] = await db
+      .update(users)
+      .set({ isActive, updatedAt: new Date() })
+      .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)))
+      .returning();
+    
+    if (!updated) {
+      throw new Error('User not found or unauthorized');
+    }
+    
     return updated;
   }
 
