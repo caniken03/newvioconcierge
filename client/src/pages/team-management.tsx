@@ -74,7 +74,7 @@ export default function TeamManagement() {
   const [invitationToCancel, setInvitationToCancel] = useState<Invitation | null>(null);
 
   const { data: users = [], isLoading: loadingUsers } = useQuery({
-    queryKey: ["/api/users"],
+    queryKey: ["/api/team/users"],
   });
 
   const { data: invitations = [], isLoading: loadingInvitations } = useQuery({
@@ -127,11 +127,11 @@ export default function TeamManagement() {
 
   const changeRoleMutation = useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
-      const response = await apiRequest("PATCH", `/api/users/${userId}/role`, { role });
+      const response = await apiRequest("PATCH", `/api/team/users/${userId}/role`, { role });
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/team/users"] });
       toast({
         title: "Role updated",
         description: "User role has been updated successfully",
@@ -149,11 +149,11 @@ export default function TeamManagement() {
 
   const toggleStatusMutation = useMutation({
     mutationFn: async ({ userId, isActive }: { userId: string; isActive: boolean }) => {
-      const response = await apiRequest("PATCH", `/api/users/${userId}/status`, { isActive });
+      const response = await apiRequest("PATCH", `/api/team/users/${userId}/status`, { isActive });
       return response.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/team/users"] });
       toast({
         title: data.user.isActive ? "User activated" : "User deactivated",
         description: data.message,

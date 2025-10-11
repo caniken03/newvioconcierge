@@ -3674,6 +3674,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get team members (all users in tenant)
+  app.get('/api/team/users', authenticateJWT, requireRole(['client_admin']), async (req: any, res) => {
+    try {
+      const users = await storage.getUsersByTenant(req.user.tenantId);
+      res.json(users.map(user => ({
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        isActive: user.isActive,
+        createdAt: user.createdAt,
+      })));
+    } catch (error) {
+      console.error('Failed to fetch team members:', error);
+      res.status(500).json({ message: 'Failed to fetch team members' });
+    }
+  });
+
   // Accept invitation and create user account
   app.post('/api/team/accept-invitation', async (req, res) => {
     try {
@@ -3743,7 +3761,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Change user role
-  app.patch('/api/users/:id/role', authenticateJWT, requireRole(['client_admin']), async (req: any, res) => {
+  app.patch('/api/team/users/:id/role', authenticateJWT, requireRole(['client_admin']), async (req: any, res) => {
     try {
       const roleSchema = z.object({
         role: z.enum(['client_admin', 'client_user']),
@@ -3774,7 +3792,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Toggle user active status
-  app.patch('/api/users/:id/status', authenticateJWT, requireRole(['client_admin']), async (req: any, res) => {
+  app.patch('/api/team/users/:id/status', authenticateJWT, requireRole(['client_admin']), async (req: any, res) => {
     try {
       const statusSchema = z.object({
         isActive: z.boolean(),

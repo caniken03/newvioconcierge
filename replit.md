@@ -44,6 +44,16 @@ JWT-based with role-based middleware, enforcing multi-level access control (supe
     - **Call Flow**: For each appointment, system makes initial reminder call at selected time. If missed/failed, single retry occurs after configured delay. No further attempts made if retry also fails, preventing customer over-calling.
     - **Configuration Storage**: `reminderHoursBefore` stored as array with single value in tenant config. `followUpRetryMinutes` stores retry delay. Frontend uses radio group for single selection with fallback to 24h if config empty/invalid.
     - **UI Component** (Profile > Call Settings): Appointment reminder time radio buttons (data-testid="radio-reminder-{hours}h" where hours: 168, 48, 24, 12, 3, 2, 1). Missed call follow-up radio buttons (data-testid="radio-followup-{minutes}min" where minutes: 60, 90, 120). Save Call Settings button (data-testid="button-save-call-preferences") persists both settings to tenant configuration with success/error toast feedback.
+- **Team Management** (Team Management page, client_admin only):
+    - **User Invitation**: Client admins can invite team members via email with assigned roles (client_admin or client_user). Invitation emails include secure links with UUID-based tokens that expire after 7 days. Email service uses Resend API.
+    - **Invitation Acceptance**: New users receive invitation emails with links to `/accept-invitation?token={uuid}`. Acceptance page validates token, allows password setting (min 8 chars), and auto-creates user account with assigned role and tenant association.
+    - **Team Roster**: Displays all tenant users with full name, email, role, and status. Shows active/inactive badges. Lists pending invitations with email, role, and expiry date.
+    - **Role Management**: Client admins can change user roles between client_admin and client_user. Role changes are immediate with UI feedback via toast notifications.
+    - **Status Management**: Client admins can activate/deactivate users. Inactive users cannot log in but data is preserved. Status toggle uses confirmation dialogs.
+    - **Security**: Token-based invitations are single-use, expire after 7 days, and enforce tenant boundaries. Email uniqueness validated within tenant scope. Audit trail tracks all team changes.
+    - **API Endpoints**: `POST /api/team/invite` (send invitation), `GET /api/team/invitations` (list pending), `POST /api/team/accept-invitation` (accept and create user), `PATCH /api/team/users/:id/role` (change role), `PATCH /api/team/users/:id/status` (toggle status), `GET /api/team/users` (list team members).
+    - **UI Components**: Invite form (data-testid="input-invite-email", "select-invite-role", "button-send-invitation"), user list (data-testid="select-role-{userId}", "button-toggle-status-{userId}"), pending invitations table (data-testid="text-invitation-{index}").
+    - **Navigation**: Team Management link (data-testid="nav-team-management") visible in sidebar for client_admin role only.
 
 # External Dependencies
 
