@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,17 +80,23 @@ export default function AcceptInvitation() {
         throw new Error(result.message || "Failed to accept invitation");
       }
 
-      localStorage.setItem("token", result.token);
+      // Store token with the correct key (same as login)
+      localStorage.setItem("auth_token", result.token);
+
+      // Clear cache and set fresh auth state
+      await queryClient.clear();
+      queryClient.setQueryData(['/api/auth/me'], result.user);
 
       toast({
         title: "Welcome to VioConcierge!",
         description: "Your account has been created successfully",
       });
 
-      setTimeout(() => {
-        setLocation("/");
-        window.location.reload();
-      }, 500);
+      // Small delay to ensure cache operations complete
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Navigate to home page
+      setLocation("/", { replace: true });
     } catch (err: any) {
       setError(err.message || "Failed to accept invitation");
       toast({

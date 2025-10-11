@@ -3735,11 +3735,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Generate JWT token for immediate login
-      const jwt = await import('jsonwebtoken');
-      const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
       const token = jwt.sign(
         { userId: user.id, tenantId: user.tenantId, role: user.role },
-        JWT_SECRET,
+        JWT_SECRET || 'fallback-secret',
         { expiresIn: '24h' }
       );
 
