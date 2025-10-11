@@ -813,6 +813,31 @@ export const userNotificationPreferences = pgTable("user_notification_preference
   tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "user_notification_preferences_tenant_fk" }).onDelete("cascade"),
 }));
 
+// User invitations for team management
+export const userInvitations = pgTable("user_invitations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(),
+  email: varchar("email", { length: 255 }).notNull(),
+  role: varchar("role", { length: 50 }).notNull(), // client_admin or client_user
+  invitedBy: uuid("invited_by").notNull(), // User ID who sent the invitation
+  
+  // Invitation token and status
+  token: varchar("token", { length: 255 }).notNull().unique(),
+  status: varchar("status", { length: 20 }).default("pending"), // pending, accepted, expired, cancelled
+  expiresAt: timestamp("expires_at").notNull(),
+  acceptedAt: timestamp("accepted_at"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  tenantIdIdx: index("user_invitations_tenant_id_idx").on(table.tenantId),
+  emailIdx: index("user_invitations_email_idx").on(table.email),
+  tokenIdx: uniqueIndex("user_invitations_token_idx").on(table.token),
+  statusIdx: index("user_invitations_status_idx").on(table.status),
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "user_invitations_tenant_fk" }).onDelete("cascade"),
+  invitedByFk: foreignKey({ columns: [table.invitedBy], foreignColumns: [users.id], name: "user_invitations_invited_by_fk" }).onDelete("cascade"),
+}));
+
 // Relations
 export const usersRelations = relations(users, ({ one }) => ({
   tenant: one(tenants, {
@@ -1168,6 +1193,12 @@ export const insertUserNotificationPreferencesSchema = createInsertSchema(userNo
   updatedAt: true,
 });
 
+export const insertUserInvitationSchema = createInsertSchema(userInvitations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -1243,3 +1274,6 @@ export type InsertTemporaryAccess = z.infer<typeof insertTemporaryAccessSchema>;
 
 export type UserNotificationPreferences = typeof userNotificationPreferences.$inferSelect;
 export type InsertUserNotificationPreferences = z.infer<typeof insertUserNotificationPreferencesSchema>;
+
+export type UserInvitation = typeof userInvitations.$inferSelect;
+export type InsertUserInvitation = z.infer<typeof insertUserInvitationSchema>;
