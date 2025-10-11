@@ -432,6 +432,8 @@ function TravelDirectionsContent() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
+  const MAX_CHARS = 250;
+  
   const [directions, setDirections] = useState({
     publicTransportInstructions: '',
     parkingInstructions: '',
@@ -477,7 +479,25 @@ function TravelDirectionsContent() {
     },
   });
 
+  // Helper function to get character count color
+  const getCharCountColor = (length: number) => {
+    if (length > MAX_CHARS) return 'text-red-600 dark:text-red-400 font-semibold';
+    if (length > 200) return 'text-orange-600 dark:text-orange-400 font-medium';
+    return 'text-muted-foreground';
+  };
+
   const handleSave = () => {
+    // Validate character limits before saving
+    if (directions.publicTransportInstructions.length > MAX_CHARS ||
+        directions.parkingInstructions.length > MAX_CHARS ||
+        directions.arrivalNotes.length > MAX_CHARS) {
+      toast({
+        title: "Character limit exceeded",
+        description: "Please reduce your instructions to 250 characters or less per field.",
+        variant: "destructive",
+      });
+      return;
+    }
     saveConfigMutation.mutate(directions);
   };
 
@@ -505,14 +525,15 @@ function TravelDirectionsContent() {
                 onChange={(e) => setDirections(prev => ({ ...prev, publicTransportInstructions: e.target.value }))}
                 placeholder="e.g., Take bus 47 to Market Street, stop outside the library. Or Northern Line to Camden Town, 5 min walk from station."
                 rows={4}
+                maxLength={MAX_CHARS}
                 className="resize-none"
                 data-testid="textarea-public-transport"
               />
               <p className="text-sm text-muted-foreground">
                 Bus routes, train/metro lines, and nearby stations. The voice agent will read this to callers.
               </p>
-              <p className="text-xs text-muted-foreground">
-                {directions.publicTransportInstructions.length} characters
+              <p className={`text-xs ${getCharCountColor(directions.publicTransportInstructions.length)}`}>
+                {directions.publicTransportInstructions.length}/{MAX_CHARS} characters
               </p>
             </div>
 
@@ -528,14 +549,15 @@ function TravelDirectionsContent() {
                 onChange={(e) => setDirections(prev => ({ ...prev, parkingInstructions: e.target.value }))}
                 placeholder="e.g., Free parking available in the blue lot behind the building. Street parking on Oak Avenue (2-hour limit)."
                 rows={4}
+                maxLength={MAX_CHARS}
                 className="resize-none"
                 data-testid="textarea-parking"
               />
               <p className="text-sm text-muted-foreground">
                 Parking locations, restrictions, and any fees
               </p>
-              <p className="text-xs text-muted-foreground">
-                {directions.parkingInstructions.length} characters
+              <p className={`text-xs ${getCharCountColor(directions.parkingInstructions.length)}`}>
+                {directions.parkingInstructions.length}/{MAX_CHARS} characters
               </p>
             </div>
 
@@ -551,14 +573,15 @@ function TravelDirectionsContent() {
                 onChange={(e) => setDirections(prev => ({ ...prev, arrivalNotes: e.target.value }))}
                 placeholder="e.g., Enter through the main entrance on High Street. Reception is on the 2nd floor."
                 rows={4}
+                maxLength={MAX_CHARS}
                 className="resize-none"
                 data-testid="textarea-arrival-notes"
               />
               <p className="text-sm text-muted-foreground">
                 Walking directions, landmarks, and entrance details
               </p>
-              <p className="text-xs text-muted-foreground">
-                {directions.arrivalNotes.length} characters
+              <p className={`text-xs ${getCharCountColor(directions.arrivalNotes.length)}`}>
+                {directions.arrivalNotes.length}/{MAX_CHARS} characters
               </p>
             </div>
           </div>
