@@ -284,6 +284,12 @@ export default function Sidebar() {
               Analytics
             </NavLink>
             
+            {user.role === 'client_admin' && (
+              <NavLink href="/team" icon="fas fa-users" testId="nav-team-management">
+                Team Management
+              </NavLink>
+            )}
+            
             {!collapsed && (
               <div className="pt-2">
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1">

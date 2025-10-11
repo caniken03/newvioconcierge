@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
 import ResetPassword from "@/pages/reset-password";
+import AcceptInvitation from "@/pages/accept-invitation";
 import Dashboard from "@/pages/dashboard";
 import SuperAdminDashboard from "@/pages/super-admin-dashboard";
 import ClientAdminDashboard from "@/pages/client-admin-dashboard";
@@ -23,6 +24,7 @@ import Compliance from "@/pages/compliance";
 import AbuseProtection from "@/pages/abuse-protection";
 import SuperAdminGuide from "@/pages/super-admin-guide";
 import ClientAdminGuide from "@/pages/client-admin-guide";
+import TeamManagement from "@/pages/team-management";
 
 // Role-based route protection component
 function ProtectedRoute({ 
@@ -46,10 +48,15 @@ function Router() {
   // Check if this is the reset password page (with or without trailing slash)
   const pathname = window.location.pathname.replace(/\/$/, ''); // Remove trailing slash
   const isResetPasswordPage = pathname === '/reset-password';
+  const isAcceptInvitationPage = pathname === '/accept-invitation';
   
-  // Allow access to reset password page without authentication
+  // Allow access to reset password and accept invitation pages without authentication
   if (isResetPasswordPage) {
     return <ResetPassword />;
+  }
+  
+  if (isAcceptInvitationPage) {
+    return <AcceptInvitation />;
   }
 
   // Check if this is the login page
@@ -118,6 +125,9 @@ function Router() {
       </Route>
       <Route path="/client-admin-guide">
         <ProtectedRoute component={ClientAdminGuide} allowedRoles={['client_admin', 'client_user']} user={user} />
+      </Route>
+      <Route path="/team">
+        <ProtectedRoute component={TeamManagement} allowedRoles={['client_admin']} user={user} />
       </Route>
       
       {/* All authenticated users routes */}
