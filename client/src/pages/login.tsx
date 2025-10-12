@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Eye, EyeOff, Shield } from "lucide-react";
 import ForgotPasswordModal from "@/components/modals/forgot-password-modal";
 import { Link } from "wouter";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -62,7 +63,12 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/10 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/10 dark:from-primary/10 dark:to-secondary/5 flex items-center justify-center p-4 relative">
+      {/* Theme Toggle in Top Right Corner */}
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
+      
       <Card className="w-full max-w-md shadow-2xl">
         <CardContent className="p-8">
           {/* Logo and Header */}

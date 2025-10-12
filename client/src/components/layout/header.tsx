@@ -7,6 +7,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Badge } from "@/components/ui/badge";
 import SystemHealthStatus from "@/components/health/SystemHealthStatus";
 import AlertsBanner from "@/components/health/AlertsBanner";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { useState } from "react";
 
 interface PageConfig {
@@ -306,6 +307,9 @@ export default function Header() {
           
           {/* Contextual Help */}
           {getContextualHelp()}
+          
+          {/* Theme Toggle */}
+          <ThemeToggle />
           
           {/* Quick Actions Toolbar */}
           <div className="flex items-center space-x-2">
