@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import {
   users,
   tenants,
@@ -491,12 +492,10 @@ export function computeCanonicalAuditHash(row: CanonicalAuditRow): string {
   const canonical = buildCanonicalAuditObject(row, { keyVersion: 1, algorithmVersion: 2 });
   const payload = canonicalStringify(canonical);
   const secret = getAuditSecret(canonical.keyVersion);
-  const crypto = require('crypto');
   return crypto.createHmac("sha256", secret).update(payload, "utf8").digest("hex");
 }
 
 export function verifyCanonicalAuditHash(rowFromDb: CanonicalAuditRow & { hashSignature: string }): boolean {
-  const crypto = require('crypto');
   const algorithmVersion = rowFromDb.algorithmVersion;
   
   // NULL or v1 = Legacy algorithm (created before canonical hash implementation)
@@ -515,12 +514,18 @@ export function verifyCanonicalAuditHash(rowFromDb: CanonicalAuditRow & { hashSi
       const isValid = crypto.timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(rowFromDb.hashSignature, "hex"));
       if (!isValid) {
         console.warn(`AUDIT INTEGRITY: Canonical verification failed for v2 entry seq=${rowFromDb.sequenceNumber}, action=${rowFromDb.action} - hash mismatch detected`);
+        console.warn(`  Expected hash: ${expected}`);
+        console.warn(`  Actual hash:   ${rowFromDb.hashSignature}`);
+        console.warn(`  Canonical payload: ${payload}`);
       }
       return isValid;
     } catch (error) {
       const isValid = expected === rowFromDb.hashSignature;
       if (!isValid) {
         console.warn(`AUDIT INTEGRITY: Canonical verification failed for v2 entry seq=${rowFromDb.sequenceNumber}, action=${rowFromDb.action} - hash mismatch detected`);
+        console.warn(`  Expected hash: ${expected}`);
+        console.warn(`  Actual hash:   ${rowFromDb.hashSignature}`);
+        console.warn(`  Canonical payload: ${payload}`);
       }
       return isValid;
     }
@@ -533,7 +538,6 @@ export function verifyCanonicalAuditHash(rowFromDb: CanonicalAuditRow & { hashSi
 
 /** Legacy verifier for old audit entries (algorithmVersion 1 or null) */
 function verifyLegacyAuditHash(row: CanonicalAuditRow & { hashSignature: string }): boolean {
-  const crypto = require('crypto');
   
   // Recreate legacy hash input (mimics old behavior with undefined omission)
   const legacyObj: any = {
@@ -4779,7 +4783,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Audit Trail Integrity Verification (Critical for UK GDPR Article 30)
-  async verifyAuditTrailIntegrity(tenantId: string): Promise<{
+  async verifyAuditTrailIntegrity(tenantId: string | null): Promise<{
     isValid: boolean;
     totalEntries: number;
     verifiedEntries: number;
@@ -4797,11 +4801,18 @@ export class DatabaseStorage implements IStorage {
 
     try {
       // Get all audit trail entries for tenant in sequence order
-      const auditEntries = await db
-        .select()
-        .from(auditTrail)
-        .where(eq(auditTrail.tenantId, tenantId))
-        .orderBy(asc(auditTrail.sequenceNumber));
+      // Handle null tenantId (super admin) with IS NULL comparison
+      const auditEntries = tenantId 
+        ? await db
+            .select()
+            .from(auditTrail)
+            .where(eq(auditTrail.tenantId, tenantId))
+            .orderBy(asc(auditTrail.sequenceNumber))
+        : await db
+            .select()
+            .from(auditTrail)
+            .where(sql`tenant_id IS NULL`)
+            .orderBy(asc(auditTrail.sequenceNumber));
 
       const totalEntries = auditEntries.length;
 
@@ -4878,6 +4889,8 @@ export class DatabaseStorage implements IStorage {
       };
 
     } catch (error) {
+      console.error('❌ AUDIT VERIFICATION ERROR:', error);
+      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       return {
         isValid: false,
         totalEntries: 0,

@@ -5534,7 +5534,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Audit Trail Integrity Verification Endpoint
   app.get('/api/compliance/audit-verification', authenticateJWT, requireRole(['super_admin', 'client_admin']), async (req: any, res) => {
     try {
+      console.log(`🔍 AUDIT VERIFICATION for tenant: ${req.user.tenantId}, role: ${req.user.role}`);
       const verification = await storage.verifyAuditTrailIntegrity(req.user.tenantId);
+      console.log(`✅ AUDIT VERIFICATION result:`, verification);
       
       res.json({
         success: true,
@@ -5546,7 +5548,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
     } catch (error) {
-      console.error('Error verifying audit trail:', error);
+      console.error('❌ Error verifying audit trail:', error);
       res.status(500).json({ 
         success: false, 
         message: 'Failed to verify audit trail integrity' 
