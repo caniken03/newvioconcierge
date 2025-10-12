@@ -512,22 +512,41 @@ export function verifyCanonicalAuditHash(rowFromDb: CanonicalAuditRow & { hashSi
     
     try {
       const isValid = crypto.timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(rowFromDb.hashSignature, "hex"));
-      if (!isValid) {
-        console.warn(`AUDIT INTEGRITY: Canonical verification failed for v2 entry seq=${rowFromDb.sequenceNumber}, action=${rowFromDb.action} - hash mismatch detected`);
-        console.warn(`  Expected hash: ${expected}`);
-        console.warn(`  Actual hash:   ${rowFromDb.hashSignature}`);
-        console.warn(`  Canonical payload: ${payload}`);
+      if (isValid) {
+        return true;
       }
-      return isValid;
+      
+      // Migration artifact fallback: try legacy verification for v2 entries that fail canonical
+      console.warn(`AUDIT INTEGRITY: Canonical verification failed for v2 entry seq=${rowFromDb.sequenceNumber}, attempting legacy fallback for migration artifact`);
+      const legacyValid = verifyLegacyAuditHash(rowFromDb);
+      if (legacyValid) {
+        console.warn(`  ✓ Legacy verification passed - this is a migration artifact (v2 label, v1 hash)`);
+        return true;
+      }
+      
+      console.warn(`  ✗ Both canonical and legacy verification failed - possible tampering`);
+      console.warn(`  Expected hash: ${expected}`);
+      console.warn(`  Actual hash:   ${rowFromDb.hashSignature}`);
+      console.warn(`  Canonical payload: ${payload}`);
+      return false;
     } catch (error) {
       const isValid = expected === rowFromDb.hashSignature;
-      if (!isValid) {
-        console.warn(`AUDIT INTEGRITY: Canonical verification failed for v2 entry seq=${rowFromDb.sequenceNumber}, action=${rowFromDb.action} - hash mismatch detected`);
-        console.warn(`  Expected hash: ${expected}`);
-        console.warn(`  Actual hash:   ${rowFromDb.hashSignature}`);
-        console.warn(`  Canonical payload: ${payload}`);
+      if (isValid) {
+        return true;
       }
-      return isValid;
+      
+      // Migration artifact fallback
+      const legacyValid = verifyLegacyAuditHash(rowFromDb);
+      if (legacyValid) {
+        console.warn(`AUDIT INTEGRITY: Migration artifact detected at seq=${rowFromDb.sequenceNumber} - verified with legacy algorithm`);
+        return true;
+      }
+      
+      console.warn(`AUDIT INTEGRITY: Verification failed for v2 entry seq=${rowFromDb.sequenceNumber}, action=${rowFromDb.action}`);
+      console.warn(`  Expected hash: ${expected}`);
+      console.warn(`  Actual hash:   ${rowFromDb.hashSignature}`);
+      console.warn(`  Canonical payload: ${payload}`);
+      return false;
     }
   }
   

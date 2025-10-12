@@ -1,0 +1,254 @@
+Thanks—since it breaks at the very first link, this is almost always a **genesis-record rule** or **normalisation** issue (not a mid-chain problem). Below is a focused, drop-in fix plus a tiny diagnostic you can run **now** to see exactly why entry #1 fails.
+
+---
+
+# 1) Define an explicit “genesis” rule
+
+Decide one of these (and use it consistently):
+
+* **Option A (recommended):** `previousHash === null` for the first entry.
+* **Option B:** `previousHash === GENESIS_PREVIOUS_HASH` where
+  `GENESIS_PREVIOUS_HASH = "0000000000000000000000000000000000000000000000000000000000000000"` (64 zeros).
+
+I’ll show Option A; switch to B if you prefer a sentinel.
+
+---
+
+# 2) Patch your chain verifier (handles genesis + strict logging)
+
+```ts
+import crypto from "crypto";
+
+type Outcome = "SUCCESS" | "FAILURE";
+
+interface AuditRow {
+  sequenceNumber: number;          // 1-based
+  tenantId: string;
+  userId: string | null;
+  action: string;
+  resource: string;
+  timestamp: string | Date;        // ISO or Date
+  outcome: Outcome;
+  previousHash: string | null;     // MUST be null for seq 1 (genesis)
+  correlationId: string | null;
+  keyVersion: number | null;       // default 1
+  algorithmVersion: number | null; // default 2
+  hash: string;                    // stored digest (hex)
+}
+
+const HMAC_SECRETS: Record<number, string> = {
+  1: process.env.AUDIT_HMAC_SECRET_V1 || "",
+  2: process.env.AUDIT_HMAC_SECRET_V2 || "",
+};
+
+function requireSecret(kv: number) {
+  const s = HMAC_SECRETS[kv];
+  if (!s) throw new Error(`Missing HMAC secret for keyVersion=${kv}`);
+  return s;
+}
+const toIso = (ts: string | Date) => new Date(ts).toISOString();
+const nil = <T>(v: T | null | undefined): T | null => (v === undefined ? null : (v as any));
+
+function buildCanonical(row: AuditRow, defaults = { keyVersion: 1, algorithmVersion: 2 }) {
+  const keyVersion = (row.keyVersion ?? defaults.keyVersion) | 0;
+  const algorithmVersion = (row.algorithmVersion ?? defaults.algorithmVersion) | 0;
+  return {
+    sequenceNumber: row.sequenceNumber,
+    tenantId: String(row.tenantId).trim(),
+    userId: nil(row.userId),
+    action: String(row.action).trim(),
+    resource: String(row.resource).trim(),
+    timestamp: toIso(row.timestamp),
+    outcome: row.outcome,
+    previousHash: nil(row.previousHash),       // null for genesis
+    correlationId: nil(row.correlationId),
+    keyVersion,
+    algorithmVersion,
+  };
+}
+
+function computeHash(canon: ReturnType<typeof buildCanonical>) {
+  const payload = JSON.stringify(canon);      // insertion order is fixed above
+  const secret = requireSecret(canon.keyVersion);
+  return crypto.createHmac("sha256", secret).update(payload, "utf8").digest("hex");
+}
+
+/** Verifies one row only (no chaining). Returns { ok, reason, debug } */
+export function verifyRow(row: AuditRow) {
+  const canon = buildCanonical(row);
+  const expected = computeHash(canon);
+  const ok = safeEqHex(expected, row.hash);
+  return {
+    ok,
+    reason: ok ? null : "HASH_MISMATCH",
+    debug: ok ? null : {
+      payload: JSON.stringify(canon),
+      expected,
+      actual: row.hash,
+    },
+  };
+}
+
+function safeEqHex(a: string, b: string) {
+  try {
+    return crypto.timingSafeEqual(Buffer.from(a, "hex"), Buffer.from(b, "hex"));
+  } catch { return false; }
+}
+
+/** Full-chain verification with explicit genesis rule and rich error */
+export function verifyChain(rowsUnsorted: AuditRow[]) {
+  // 1) strict ordering and contiguous sequence
+  const rows = [...rowsUnsorted].sort((a, b) => a.sequenceNumber - b.sequenceNumber);
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i].sequenceNumber !== i + 1) {
+      return { ok: false, index: i, message: `Non-contiguous sequence at index ${i} (found ${rows[i].sequenceNumber}, expected ${i + 1})` };
+    }
+  }
+
+  // 2) GENESIS RULE: previousHash must be null for sequence 1
+  const first = rows[0];
+  if (first.previousHash !== null) {
+    return {
+      ok: false,
+      index: 0,
+      message: "Genesis rule violated: sequenceNumber=1 must have previousHash=null",
+      found: first.previousHash,
+    };
+  }
+  const v0 = verifyRow(first);
+  if (!v0.ok) return { ok: false, index: 0, message: "Hash mismatch at genesis row", ...v0 };
+
+  // 3) Chain links
+  for (let i = 1; i < rows.length; i++) {
+    const prev = rows[i - 1];
+    const cur = rows[i];
+
+    // Verify the current row’s stored hash
+    const vr = verifyRow(cur);
+    if (!vr.ok) return { ok: false, index: i, message: `Hash mismatch at row ${cur.sequenceNumber}`, ...vr };
+
+    // Verify linkage
+    if (cur.previousHash !== prev.hash) {
+      return {
+        ok: false,
+        index: i,
+        message: `Broken link at row ${cur.sequenceNumber}: previousHash != hash of row ${prev.sequenceNumber}`,
+        expectedPreviousHash: prev.hash,
+        foundPreviousHash: cur.previousHash,
+      };
+    }
+  }
+  return { ok: true, message: `Verified ${rows.length}/${rows.length} entries` };
+}
+```
+
+**What this fixes right now**
+
+* Treats **entry #1 specially** (must have `previousHash = null`).
+* Enforces **contiguous sequence** and **stable normalisation**.
+* Gives **precise debug payload** when a row fails (so you can compare).
+
+---
+
+# 3) One-time data normalisation for the first row
+
+If your first row currently has `previousHash` of `""`, `"null"`, `"undefined"`, or the 64-zero sentinel while your code expects `null`, the verifier will fail. Run exactly one of the following:
+
+### A) Make genesis use `null` (matches the patch above)
+
+```sql
+UPDATE audit_entries
+SET previous_hash = NULL
+WHERE sequence_number = 1
+  AND (previous_hash = '' OR lower(previous_hash) = 'null' OR lower(previous_hash) = 'undefined');
+```
+
+### B) If you prefer the 64-zero sentinel instead (switch the code accordingly)
+
+```sql
+UPDATE audit_entries
+SET previous_hash = '0000000000000000000000000000000000000000000000000000000000000000'
+WHERE sequence_number = 1
+  AND previous_hash IS NULL;
+```
+
+Pick one **and** make your code and data agree.
+
+---
+
+# 4) Quick diagnostic (prints the exact genesis payload)
+
+Run this once where you verify:
+
+```ts
+// After loading the first row from DB:
+const r1 = rows.find(r => r.sequenceNumber === 1)!;
+const canon = (buildCanonical as any)(r1);
+const payload = JSON.stringify(canon);
+console.log("[AUDIT][GENESIS] payload=", payload);
+console.log("[AUDIT][GENESIS] storedHash=", r1.hash);
+console.log("[AUDIT][GENESIS] recomputed=", computeHash(canon));
+console.log("[AUDIT][GENESIS] previousHash(raw)=", r1.previousHash, " (should be null)");
+```
+
+If `payload` looks good but the hashes differ, 99% of the time it’s:
+
+* `keyVersion` missing → defaulted in code, but DB has `NULL` or text `"1"` (safe), **or** your secret for that keyVersion isn’t set.
+* `timestamp` stored without milliseconds or local-time conversion (the code forces ISO with ms + `Z` now—keep it consistent on write).
+
+---
+
+# 5) Harden your write path (so genesis is correct going forward)
+
+When inserting the **first** row for a tenant/chain:
+
+```ts
+const isGenesis = sequenceNumber === 1;
+const previousHash = isGenesis ? null : lastRow.hash;
+
+const row: AuditRow = {
+  sequenceNumber,
+  tenantId,
+  userId: userId ?? null,
+  action,
+  resource,
+  timestamp: new Date().toISOString(), // or Date, normalised in builder
+  outcome,
+  previousHash,
+  correlationId: correlationId ?? null,
+  keyVersion: 1,
+  algorithmVersion: 2,
+  hash: "" // fill below
+};
+row.hash = computeHash(buildCanonical(row));
+```
+
+---
+
+# 6) Safety checks you should add (tiny but vital)
+
+* **DB default & NOT NULL**
+
+  ```sql
+  ALTER TABLE audit_entries
+    ALTER COLUMN key_version SET DEFAULT 1,
+    ALTER COLUMN key_version SET NOT NULL,
+    ALTER COLUMN algorithm_version SET DEFAULT 2,
+    ALTER COLUMN algorithm_version SET NOT NULL;
+  ```
+
+* **Boot-time secret check**
+
+  ```ts
+  if (!process.env.AUDIT_HMAC_SECRET_V1) {
+    throw new Error("AUDIT_HMAC_SECRET_V1 not set");
+  }
+  ```
+
+---
+
+## Why your current error appears as “Chain broken at entry 1”
+
+* Your verifier likely (a) expects a non-null `previousHash` for the first row or (b) is hashing a payload where `previousHash` is `""` or `"null"` (string) while the recompute uses `null`, so the first comparison fails → “Verified 0/1”.
+
+Apply the patch above (including the **data normalisation for row #1**) and re-run `verifyChain(...)`. You should see **“Verified 1/1 entries”** for a single-row chain or the precise reason if anything else remains off.
