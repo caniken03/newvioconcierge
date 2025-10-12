@@ -49,6 +49,7 @@ interface AuditVerification {
   verifiedEntries: number;
   brokenChainAt: number | null;
   lastVerifiedHash: string | null;
+  verificationDate?: string;
 }
 
 export default function AuditTrail() {
@@ -90,8 +91,19 @@ export default function AuditTrail() {
   });
 
   // Fetch audit integrity verification
-  const { data: verification, isLoading: verificationLoading } = useQuery<AuditVerification>({
+  const { data: verification, isLoading: verificationLoading, isError: verificationError } = useQuery<AuditVerification>({
     queryKey: ['/api/compliance/audit-verification'],
+    queryFn: async () => {
+      const response = await fetch('/api/compliance/audit-verification', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Failed to verify audit trail');
+      const data = await response.json();
+      return data.verification;
+    },
     enabled: !!user && (user.role === 'client_admin' || user.role === 'super_admin')
   });
 
@@ -211,14 +223,42 @@ export default function AuditTrail() {
               <CardContent>
                 {verificationLoading ? (
                   <div className="text-sm text-muted-foreground">Verifying integrity...</div>
-                ) : verification?.isValid ? (
-                  <div className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-lg">
-                    <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
+                ) : verificationError || !verification ? (
+                  <div className="flex items-center gap-3 p-4 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900 rounded-lg">
+                    <AlertTriangle className="w-6 h-6 text-orange-600 dark:text-orange-400" />
                     <div>
-                      <p className="font-semibold text-green-900 dark:text-green-100">Audit Trail Verified</p>
-                      <p className="text-sm text-green-700 dark:text-green-300">
-                        All {verification.totalEntries} entries verified. No tampering detected. Last verified: {format(new Date(), 'PPpp')}
+                      <p className="font-semibold text-orange-900 dark:text-orange-100">Unable to Verify Audit Trail</p>
+                      <p className="text-sm text-orange-700 dark:text-orange-300">
+                        Could not connect to verification service. Please try again or contact support.
                       </p>
+                    </div>
+                  </div>
+                ) : verification.isValid ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-lg">
+                      <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
+                      <div className="flex-1">
+                        <p className="font-semibold text-green-900 dark:text-green-100">Audit Trail Verified</p>
+                        <p className="text-sm text-green-700 dark:text-green-300">
+                          {verification.verifiedEntries} of {verification.totalEntries} entries verified. No tampering detected.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                      {verification.verificationDate && (
+                        <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+                          <span className="font-medium">Last Verified:</span>
+                          <span className="text-muted-foreground">{format(new Date(verification.verificationDate), 'PPpp')}</span>
+                        </div>
+                      )}
+                      {verification.lastVerifiedHash && (
+                        <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+                          <span className="font-medium">Last Hash:</span>
+                          <span className="font-mono text-xs text-muted-foreground truncate" title={verification.lastVerifiedHash}>
+                            {verification.lastVerifiedHash.substring(0, 16)}...
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -227,8 +267,13 @@ export default function AuditTrail() {
                     <div>
                       <p className="font-semibold text-red-900 dark:text-red-100">Integrity Issue Detected</p>
                       <p className="text-sm text-red-700 dark:text-red-300">
-                        Chain broken at entry {verification?.brokenChainAt}. Please contact support immediately.
+                        Chain broken at entry {verification.brokenChainAt}. Verified {verification.verifiedEntries}/{verification.totalEntries} entries. Contact support immediately.
                       </p>
+                      {verification.lastVerifiedHash && (
+                        <p className="text-xs text-red-600 dark:text-red-400 mt-2 font-mono">
+                          Last valid hash: {verification.lastVerifiedHash.substring(0, 24)}...
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
