@@ -122,7 +122,7 @@ export default function CallManagement() {
       voicemail: "Voicemail",
       no_answer: "No Answer",
       busy: "Busy",
-      failed: "Failed"
+      failed: "No Answer"
     };
 
     return (

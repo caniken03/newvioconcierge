@@ -1,0 +1,151 @@
+🎯 Complete Client Onboarding Checklist
+📋 PLATFORM API KEYS & SERVICES (One-time setup per platform)
+Required Services:
+
+ Retell AI API Key - For voice AI calls (RETELL_API_KEY)
+ Resend API Key - For email notifications and daily summaries
+ Database - PostgreSQL connection (automatically provided by Replit)
+Optional Integrations (if client needs them):
+
+ Calendly API Key - If client uses Calendly for scheduling
+ Calendly Webhook Secret - For automatic appointment sync
+ Cal.com Webhook Setup - If client uses Cal.com for scheduling
+👤 CLIENT INFORMATION (Collect from client)
+Business Details:
+
+ Company/Business Name
+ Primary Contact Person (Name, Email, Phone)
+ Business Type/Industry (Healthcare, Wellness, Professional Services, etc.)
+ Business Address
+ Time Zone
+ Business Hours (Days & Hours of operation)
+Contact Data:
+
+ Customer/Contact List (CSV or from calendar integration)
+ Appointment Schedule/History (if available)
+Branding & Voice:
+
+ Preferred Voice Tone (Professional, Friendly, Warm)
+ Travel/Parking Directions (for voice AI to communicate)
+ Special Instructions or Notes
+⚙️ SYSTEM CONFIGURATION (Set up in platform)
+Tenant Creation (Super Admin):
+
+ Create new tenant in 7-step wizard
+ Set tenant name and basic info
+ Configure industry template (Healthcare, Wellness, or Professional)
+ Set default business hours
+ Enable required features
+Voice AI Configuration:
+
+ Configure Retell AI agent for tenant
+ Set voice personality/tone
+ Add business-specific context (name, services, etc.)
+ Configure travel/parking directions
+ Test voice quality with sample calls
+Call Settings:
+
+ Set initial reminder timing (24h, 48h, 72h before appointment)
+ Configure missed call follow-up timing (e.g., 90 minutes after)
+ Set call window/business hours
+ Configure voicemail behavior
+Email Notifications:
+
+ Set up daily summary email schedule
+ Configure email delivery time (in client's timezone)
+ Set which notifications to include
+ Add recipient email addresses
+📊 DATA SETUP (Import client data)
+Contact Import:
+
+ Prepare contact CSV (Name, Phone, Email)
+ Validate phone numbers (E.164 format)
+ Remove duplicates
+ Import contacts to system
+ Verify import success
+Appointment Setup:
+
+ Import existing appointments OR
+ Connect calendar integration (Cal.com/Calendly)
+ Test calendar sync
+ Verify appointment data accuracy
+👥 USER ACCESS SETUP (Create accounts)
+Admin Account:
+
+ Create Client Admin user account
+ Send invitation email
+ Verify account activation
+ Walk through initial login
+Team Members (if applicable):
+
+ Identify additional users needed
+ Set roles (Client Admin vs Client User)
+ Send team invitations
+ Verify all access
+🧪 TESTING & VALIDATION (Before go-live)
+Test Workflow:
+
+ Create 5-10 test appointments
+ Trigger test reminder calls
+ Verify call outcomes (confirmed, no-answer, voicemail, etc.)
+ Check email notifications
+ Review daily summary email
+ Test calendar sync (if integrated)
+Feature Verification:
+
+ Call Now function works
+ Cancel Call function works
+ Rescheduling detected properly
+ Analytics showing correct data
+ Dashboard displaying metrics
+📚 TRAINING & HANDOFF (Client education)
+Documentation:
+
+ Share Client Admin User Guide link
+ Walk through key features
+ Explain dashboard metrics
+ Show how to add/import contacts
+ Demonstrate voice AI configuration
+Support Setup:
+
+ Provide support contact info
+ Set up regular check-in schedule (Week 1, 2, 4)
+ Document any custom configurations
+ Create escalation process
+📈 POST-LAUNCH MONITORING (First 30 days)
+Week 1:
+
+ Daily check-in on call success rate
+ Monitor for any failed calls
+ Address technical issues immediately
+ Collect initial feedback
+Week 2-3:
+
+ Review analytics and performance
+ Optimize call timing if needed
+ Adjust voice scripts based on feedback
+ Check no-show reduction metrics
+Week 4:
+
+ Full performance review
+ Calculate ROI achieved
+ Enable advanced features if ready
+ Plan ongoing optimization
+🔑 QUICK REFERENCE: Environment Variables Needed
+✅ Required (Platform-wide):
+- DATABASE_URL (auto-provided by Replit)
+- RETELL_API_KEY
+- RESEND_API_KEY
+- AUDIT_HMAC_SECRET
+✅ Optional (Per Client):
+- CALENDLY_API_KEY (if client uses Calendly)
+- CALENDLY_WEBHOOK_SECRET
+💡 Pro Tips:
+Start Small: Test with 1 client thoroughly before scaling
+Document Everything: Keep notes on each client's custom setup
+Set Expectations: Inform clients about 30-day optimization period
+Monitor Closely: First week is critical for catching issues
+Iterate Quickly: Use client feedback to refine the process
+This checklist ensures you don't miss anything when onboarding new clients! 🎯
+
+Would you like me to create a printable version or add this to your platform documentation?

@@ -203,6 +203,8 @@ export default function ClientAdminDashboard() {
         </Card>
 
         <Card 
+          className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-green-200"
+          onClick={navigateToAnalytics}
           data-testid="card-success-rate"
         >
           <CardContent className="p-6">
@@ -217,15 +219,20 @@ export default function ClientAdminDashboard() {
                 <TrendingUp className="w-6 h-6" />
               </div>
             </div>
-            <div className="flex items-center mt-4">
-              <TrendingUp className="w-4 h-4 text-green-500 mr-1" />
-              <span className="text-xs text-green-500 font-medium">+{((callSuccessRate - 80) / 80 * 100).toFixed(1)}%</span>
-              <span className="text-xs text-muted-foreground ml-1">vs baseline</span>
+            <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center">
+                <TrendingUp className="w-4 h-4 text-green-500 mr-1" />
+                <span className="text-xs text-green-500 font-medium">+{((callSuccessRate - 80) / 80 * 100).toFixed(1)}%</span>
+                <span className="text-xs text-muted-foreground ml-1">vs baseline</span>
+              </div>
+              <ExternalLink className="w-4 h-4 text-muted-foreground" />
             </div>
           </CardContent>
         </Card>
 
         <Card 
+          className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-red-200"
+          onClick={navigateToAnalytics}
           data-testid="card-no-show-rate"
         >
           <CardContent className="p-6">
@@ -240,10 +247,13 @@ export default function ClientAdminDashboard() {
                 <TrendingDown className="w-6 h-6" />
               </div>
             </div>
-            <div className="flex items-center mt-4">
-              <TrendingDown className="w-4 h-4 text-green-500 mr-1" />
-              <span className="text-xs text-green-500 font-medium">-{((15 - noShowRate) / 15 * 100).toFixed(1)}%</span>
-              <span className="text-xs text-muted-foreground ml-1">vs baseline</span>
+            <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center">
+                <TrendingDown className="w-4 h-4 text-green-500 mr-1" />
+                <span className="text-xs text-green-500 font-medium">-{((15 - noShowRate) / 15 * 100).toFixed(1)}%</span>
+                <span className="text-xs text-muted-foreground ml-1">vs baseline</span>
+              </div>
+              <ExternalLink className="w-4 h-4 text-muted-foreground" />
             </div>
           </CardContent>
         </Card>
@@ -353,12 +363,8 @@ export default function ClientAdminDashboard() {
                 className="space-y-3"
                 data-testid="todays-schedule-appointments"
               >
-                <div 
-                  className="flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded-lg transition-colors"
-                  onClick={() => navigateToAppointments('today')}
-                >
+                <div className="flex items-center justify-between p-2">
                   <h4 className="text-sm font-medium text-muted-foreground">Next Appointments</h4>
-                  <ExternalLink className="w-4 h-4 text-muted-foreground" />
                 </div>
                 {todaysAppointments.length === 0 ? (
                   <div className="text-center py-6 text-muted-foreground">
@@ -396,13 +402,11 @@ export default function ClientAdminDashboard() {
 
               {/* Call Queue */}
               <div 
-                className="space-y-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded-lg transition-colors" 
-                onClick={() => navigateToCalls('scheduled')}
+                className="space-y-3 p-2" 
                 data-testid="todays-schedule-call-queue"
               >
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-medium text-muted-foreground">Call Queue Priority</h4>
-                  <ExternalLink className="w-4 h-4 text-muted-foreground" />
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-950/20 rounded-lg">
