@@ -246,7 +246,7 @@ export default function Header() {
   };
 
   const getContextualHelp = () => {
-    const helpContent = {
+    const helpContent: Record<string, string> = {
       '/': user.role === 'super_admin' 
         ? 'Platform Overview shows system-wide metrics, tenant status, and health monitoring. Use the quick actions to manage tenants and access key administrative functions.'
         : 'Your business dashboard shows key metrics, recent appointments, and call performance. Use the sidebar to navigate between contacts, calls, and analytics.',
@@ -410,23 +410,6 @@ export default function Header() {
           {/* Quick Actions Toolbar */}
           <div className="flex items-center space-x-2">
             {getQuickActions()}
-          </div>
-
-          {/* User Menu */}
-          <div className="flex items-center space-x-3 pl-4 border-l border-border">
-            <div className="text-right hidden sm:block">
-              <p className="text-sm font-medium text-foreground">{user.fullName}</p>
-              <p className="text-xs text-muted-foreground">
-                {user.role === 'super_admin' ? 'Super Admin' 
-                 : user.role === 'client_admin' ? 'Client Admin'
-                 : 'Client User'}
-              </p>
-            </div>
-            <div className="w-8 h-8 bg-accent rounded-full flex items-center justify-center">
-              <span className="text-xs font-semibold text-accent-foreground">
-                {user.fullName.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2)}
-              </span>
-            </div>
           </div>
         </div>
       </div>
