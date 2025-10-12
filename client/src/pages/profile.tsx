@@ -1319,9 +1319,6 @@ export default function Profile() {
                 <Shield className="w-5 h-5" />
                 Privacy & Compliance
               </CardTitle>
-              <CardDescription>
-                Manage HIPAA settings, data retention, and privacy controls
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
               {/* At-a-Glance Summary */}
