@@ -96,6 +96,14 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // CRITICAL: Validate AUDIT_HMAC_SECRET at boot-time for hash integrity
+  if (!process.env.AUDIT_HMAC_SECRET) {
+    console.error('❌ FATAL: AUDIT_HMAC_SECRET environment variable is not set');
+    console.error('Audit trail integrity verification requires this secret for tamper-resistant hashing');
+    process.exit(1);
+  }
+  log('✅ AUDIT_HMAC_SECRET validated');
+  
   const server = await registerRoutes(app);
 
   app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
