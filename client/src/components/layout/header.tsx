@@ -209,35 +209,12 @@ export default function Header() {
     if (user.role === 'client_admin' || user.role === 'client_user') {
       return (
         <div className="flex items-center space-x-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="default" data-testid="button-quick-actions">
-                <i className="fas fa-plus text-sm mr-2"></i>
-                Quick Actions
-                <i className="fas fa-chevron-down text-xs ml-2"></i>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem asChild>
-                <Link href="/contacts?new=true" className="w-full">
-                  <i className="fas fa-user-plus mr-2"></i>
-                  Add New Contact
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/appointments" className="w-full">
-                  <i className="fas fa-calendar-plus mr-2"></i>
-                  Schedule Appointment
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/calls" className="w-full">
-                  <i className="fas fa-phone mr-2"></i>
-                  Manual Call
-                </Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button variant="default" asChild data-testid="button-add-contact">
+            <Link href="/contacts?new=true">
+              <i className="fas fa-user-plus text-sm mr-2"></i>
+              Add Contact
+            </Link>
+          </Button>
         </div>
       );
     }
