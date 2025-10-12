@@ -41,6 +41,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import Sidebar from "@/components/layout/sidebar";
+import Header from "@/components/layout/header";
 
 const inviteSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -196,7 +198,12 @@ export default function TeamManagement() {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-7xl">
+    <div className="flex h-screen bg-background">
+      <Sidebar />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Header />
+        <main className="flex-1 overflow-auto bg-background">
+          <div className="container mx-auto p-6 max-w-7xl">
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2" data-testid="heading-team-management">Team Management</h1>
         <p className="text-muted-foreground">
@@ -442,6 +449,9 @@ export default function TeamManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+        </div>
+      </main>
     </div>
+  </div>
   );
 }
