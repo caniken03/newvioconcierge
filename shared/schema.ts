@@ -697,6 +697,7 @@ export const auditTrail = pgTable("audit_trail", {
   sequenceNumber: integer("sequence_number").notNull(), // For ordering and integrity verification
   previousHash: varchar("previous_hash", { length: 255 }).notNull(), // Hash chaining for tamper resistance
   keyVersion: integer("key_version").default(1), // For HMAC key rotation support
+  algorithmVersion: integer("algorithm_version"), // Hash algorithm version (NULL=legacy, 2=canonical)
   
   // Administrative
   isAutomated: boolean("is_automated").default(false), // System vs human action

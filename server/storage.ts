@@ -497,24 +497,38 @@ export function computeCanonicalAuditHash(row: CanonicalAuditRow): string {
 
 export function verifyCanonicalAuditHash(rowFromDb: CanonicalAuditRow & { hashSignature: string }): boolean {
   const crypto = require('crypto');
-  const algorithmVersion = rowFromDb.algorithmVersion ?? 1;
+  const algorithmVersion = rowFromDb.algorithmVersion;
   
-  // Legacy algorithm (v1 or null) - use old logic for backward compatibility
-  if (algorithmVersion === 1) {
+  // NULL or v1 = Legacy algorithm (created before canonical hash implementation)
+  if (algorithmVersion === null || algorithmVersion === undefined || algorithmVersion === 1) {
     return verifyLegacyAuditHash(rowFromDb);
   }
   
-  // Canonical algorithm (v2) - use new canonical logic
-  const canonical = buildCanonicalAuditObject(rowFromDb, { keyVersion: 1, algorithmVersion: 2 });
-  const payload = canonicalStringify(canonical);
-  const secret = getAuditSecret(canonical.keyVersion);
-  const expected = crypto.createHmac("sha256", secret).update(payload, "utf8").digest("hex");
-  
-  try {
-    return crypto.timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(rowFromDb.hashSignature, "hex"));
-  } catch (error) {
-    return expected === rowFromDb.hashSignature;
+  // v2 = Canonical algorithm (created with new canonical hash logic)
+  if (algorithmVersion === 2) {
+    const canonical = buildCanonicalAuditObject(rowFromDb, { keyVersion: 1, algorithmVersion: 2 });
+    const payload = canonicalStringify(canonical);
+    const secret = getAuditSecret(canonical.keyVersion);
+    const expected = crypto.createHmac("sha256", secret).update(payload, "utf8").digest("hex");
+    
+    try {
+      const isValid = crypto.timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(rowFromDb.hashSignature, "hex"));
+      if (!isValid) {
+        console.warn(`AUDIT INTEGRITY: Canonical verification failed for v2 entry seq=${rowFromDb.sequenceNumber}, action=${rowFromDb.action} - hash mismatch detected`);
+      }
+      return isValid;
+    } catch (error) {
+      const isValid = expected === rowFromDb.hashSignature;
+      if (!isValid) {
+        console.warn(`AUDIT INTEGRITY: Canonical verification failed for v2 entry seq=${rowFromDb.sequenceNumber}, action=${rowFromDb.action} - hash mismatch detected`);
+      }
+      return isValid;
+    }
   }
+  
+  // Unknown algorithm version - fail verification
+  console.error(`Unknown algorithm version: ${algorithmVersion} for audit entry`);
+  return false;
 }
 
 /** Legacy verifier for old audit entries (algorithmVersion 1 or null) */
