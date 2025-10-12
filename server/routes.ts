@@ -25,6 +25,7 @@ import { reschedulingWorkflowService } from "./services/rescheduling-workflow";
 import { notificationService } from "./services/notification-service";
 import { normalizePhoneNumber } from "./utils/phone-normalization";
 import { emailService } from "./services/email";
+import { dailySummaryService } from "./services/daily-summary-service";
 
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET;
 
@@ -3528,6 +3529,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Failed to save notification preferences:', error);
       res.status(400).json({ message: 'Failed to save notification preferences' });
+    }
+  });
+
+  // Test endpoint for daily summary
+  app.post('/api/user/test-daily-summary', authenticateJWT, async (req: any, res) => {
+    try {
+      const testSchema = z.object({
+        email: z.string().email(),
+      });
+
+      const { email } = testSchema.parse(req.body);
+      
+      await dailySummaryService.sendTestSummary(email, req.user.tenantId, req.user.fullName);
+      
+      res.json({ message: 'Test daily summary sent successfully', email });
+    } catch (error) {
+      console.error('Failed to send test daily summary:', error);
+      res.status(500).json({ message: 'Failed to send test daily summary' });
     }
   });
 

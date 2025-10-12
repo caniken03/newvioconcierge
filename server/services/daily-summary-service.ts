@@ -11,6 +11,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 interface DailySummaryService {
   start(): void;
   stop(): void;
+  sendTestSummary(email: string, tenantId: string, userName?: string): Promise<void>;
 }
 
 class DailySummaryServiceImpl implements DailySummaryService {
@@ -212,6 +213,19 @@ class DailySummaryServiceImpl implements DailySummaryService {
       console.error(`❌ Failed to send email to ${userEmail}:`, error);
       throw error;
     }
+  }
+
+  async sendTestSummary(email: string, tenantId: string, userName?: string): Promise<void> {
+    console.log(`📧 Sending test daily summary to ${email} for tenant ${tenantId}`);
+    
+    const recipient = {
+      userId: 'test',
+      userEmail: email,
+      userName: userName || 'Test User',
+      tenantId: tenantId,
+    };
+    
+    await this.sendDailySummary(recipient);
   }
 }
 
