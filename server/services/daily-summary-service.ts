@@ -201,14 +201,24 @@ class DailySummaryServiceImpl implements DailySummaryService {
 
     // Send email via Resend
     try {
-      const result = await resend.emails.send({
-        from: 'VioConcierge <notifications@vioconcierge.com>',
+      const { data, error } = await resend.emails.send({
+        from: 'VioConcierge <noreply@smartaisolutions.ai>',
         to: userEmail,
         subject: `Daily Summary - ${format(today, 'MMMM d, yyyy')}`,
         html: emailHtml,
       });
 
-      console.log(`✅ Daily summary sent to ${userEmail}:`, result.data?.id || 'success');
+      if (error) {
+        console.error(`❌ Failed to send daily summary email to ${userEmail}:`, error);
+        // Check if it's a Resend testing restriction
+        if (error.message && error.message.includes('testing emails')) {
+          console.warn('⚠️ Resend testing restriction: Emails can only be sent to verified domain or account owner email');
+          console.warn('ℹ️ To send to any email, verify a domain at https://resend.com/domains');
+        }
+        throw new Error(`Email sending failed: ${error.message}`);
+      }
+
+      console.log(`✅ Daily summary email sent to ${userEmail}:`, data?.id || 'success');
     } catch (error) {
       console.error(`❌ Failed to send email to ${userEmail}:`, error);
       throw error;
