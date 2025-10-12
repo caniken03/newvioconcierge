@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Eye, EyeOff, Shield } from "lucide-react";
 import ForgotPasswordModal from "@/components/modals/forgot-password-modal";
+import { Link } from "wouter";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -183,6 +184,15 @@ export default function Login() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Footer with Privacy Policy Link */}
+      <div className="mt-6 text-center">
+        <Link href="/privacy-policy">
+          <a className="text-sm text-muted-foreground hover:text-primary transition-colors" data-testid="link-privacy-policy">
+            Privacy Policy
+          </a>
+        </Link>
+      </div>
 
       <ForgotPasswordModal
         isOpen={isForgotPasswordOpen}

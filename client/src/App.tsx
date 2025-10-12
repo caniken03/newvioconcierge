@@ -26,6 +26,7 @@ import SuperAdminGuide from "@/pages/super-admin-guide";
 import ClientAdminGuide from "@/pages/client-admin-guide";
 import TeamManagement from "@/pages/team-management";
 import AuditTrail from "@/pages/audit-trail";
+import PrivacyPolicy from "@/pages/privacy-policy";
 
 // Role-based route protection component
 function ProtectedRoute({ 
@@ -50,14 +51,19 @@ function Router() {
   const pathname = window.location.pathname.replace(/\/$/, ''); // Remove trailing slash
   const isResetPasswordPage = pathname === '/reset-password';
   const isAcceptInvitationPage = pathname === '/accept-invitation';
+  const isPrivacyPolicyPage = pathname === '/privacy-policy';
   
-  // Allow access to reset password and accept invitation pages without authentication
+  // Allow access to reset password, accept invitation, and privacy policy pages without authentication
   if (isResetPasswordPage) {
     return <ResetPassword />;
   }
   
   if (isAcceptInvitationPage) {
     return <AcceptInvitation />;
+  }
+  
+  if (isPrivacyPolicyPage) {
+    return <PrivacyPolicy />;
   }
 
   // Check if this is the login page
