@@ -418,6 +418,135 @@ export interface IStorage {
   getActiveTemporaryAccess(tenantId: string): Promise<TemporaryAccess[]>;
 }
 
+// ============================================================================
+// Canonical Audit Hash Utilities (Production-Ready Fix)
+// ============================================================================
+
+type Outcome = "SUCCESS" | "FAILURE" | "success" | "failure";
+
+interface CanonicalAuditRow {
+  sequenceNumber: number;
+  tenantId: string;
+  userId?: string | null;
+  action: string;
+  resource?: string | null;
+  timestamp: string | Date;
+  outcome: Outcome;
+  previousHash?: string | null;
+  correlationId?: string | null;
+  keyVersion?: number | null;
+  algorithmVersion?: number | null;
+}
+
+// HMAC secret map for key rotation support
+const HMAC_SECRETS: Record<number, string> = {
+  1: process.env.AUDIT_HMAC_SECRET || "",
+};
+
+function getAuditSecret(keyVersion: number): string {
+  const secret = HMAC_SECRETS[keyVersion];
+  if (!secret) {
+    throw new Error(`AUDIT_HMAC_SECRET not set for keyVersion=${keyVersion}`);
+  }
+  return secret;
+}
+
+function toIsoMsZ(ts: string | Date): string {
+  return new Date(ts).toISOString(); // always ms + Z
+}
+
+function nil<T>(v: T | null | undefined): T | null {
+  return v === undefined || v === null ? null : v;
+}
+
+/** Build canonical object with fixed field order and null normalization */
+function buildCanonicalAuditObject(row: CanonicalAuditRow, defaults?: Partial<CanonicalAuditRow>) {
+  const keyVersion = row.keyVersion ?? defaults?.keyVersion ?? 1;
+  const algorithmVersion = row.algorithmVersion ?? defaults?.algorithmVersion ?? 2;
+
+  // CRITICAL: Fixed field order - do not reorder these fields!
+  const canonical = {
+    sequenceNumber: row.sequenceNumber,
+    tenantId: String(row.tenantId),
+    userId: nil(row.userId),
+    action: String(row.action),
+    resource: nil(row.resource ?? ""),
+    timestamp: toIsoMsZ(row.timestamp),
+    outcome: String(row.outcome).toUpperCase() as "SUCCESS" | "FAILURE",
+    previousHash: nil(row.previousHash),
+    correlationId: nil(row.correlationId),
+    keyVersion: keyVersion,
+    algorithmVersion: algorithmVersion,
+  };
+
+  return canonical;
+}
+
+function canonicalStringify(canonical: ReturnType<typeof buildCanonicalAuditObject>): string {
+  // Object keys are already in the correct order from construction
+  return JSON.stringify(canonical);
+}
+
+export function computeCanonicalAuditHash(row: CanonicalAuditRow): string {
+  const canonical = buildCanonicalAuditObject(row, { keyVersion: 1, algorithmVersion: 2 });
+  const payload = canonicalStringify(canonical);
+  const secret = getAuditSecret(canonical.keyVersion);
+  const crypto = require('crypto');
+  return crypto.createHmac("sha256", secret).update(payload, "utf8").digest("hex");
+}
+
+export function verifyCanonicalAuditHash(rowFromDb: CanonicalAuditRow & { hashSignature: string }): boolean {
+  const crypto = require('crypto');
+  const algorithmVersion = rowFromDb.algorithmVersion ?? 1;
+  
+  // Legacy algorithm (v1 or null) - use old logic for backward compatibility
+  if (algorithmVersion === 1) {
+    return verifyLegacyAuditHash(rowFromDb);
+  }
+  
+  // Canonical algorithm (v2) - use new canonical logic
+  const canonical = buildCanonicalAuditObject(rowFromDb, { keyVersion: 1, algorithmVersion: 2 });
+  const payload = canonicalStringify(canonical);
+  const secret = getAuditSecret(canonical.keyVersion);
+  const expected = crypto.createHmac("sha256", secret).update(payload, "utf8").digest("hex");
+  
+  try {
+    return crypto.timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(rowFromDb.hashSignature, "hex"));
+  } catch (error) {
+    return expected === rowFromDb.hashSignature;
+  }
+}
+
+/** Legacy verifier for old audit entries (algorithmVersion 1 or null) */
+function verifyLegacyAuditHash(row: CanonicalAuditRow & { hashSignature: string }): boolean {
+  const crypto = require('crypto');
+  
+  // Recreate legacy hash input (mimics old behavior with undefined omission)
+  const legacyObj: any = {
+    sequenceNumber: row.sequenceNumber,
+    tenantId: row.tenantId,
+    userId: row.userId ?? undefined,
+    action: row.action,
+    resource: row.resource ?? undefined,
+    timestamp: typeof row.timestamp === "string" ? row.timestamp : new Date(row.timestamp).toISOString(),
+    outcome: row.outcome,
+    previousHash: row.previousHash ?? undefined,
+    correlationId: row.correlationId,
+    keyVersion: row.keyVersion ?? 1,
+  };
+  
+  // Remove undefined keys to emulate legacy JSON.stringify omission
+  Object.keys(legacyObj).forEach(k => {
+    if (legacyObj[k] === undefined) delete legacyObj[k];
+  });
+  
+  const payload = JSON.stringify(legacyObj);
+  const secret = getAuditSecret(legacyObj.keyVersion);
+  const expected = crypto.createHmac("sha256", secret).update(payload, "utf8").digest("hex");
+  
+  return expected === row.hashSignature;
+}
+
 export class DatabaseStorage implements IStorage {
   // User operations
   async getUser(id: string): Promise<User | undefined> {

@@ -1,0 +1,247 @@
+Got it — here’s a **concrete, production-ready fix** that eliminates the hash mismatches by enforcing a single canonical contract for both creation and verification, plus a safe path for legacy rows.
+
+---
+
+# 1) Adopt a Canonical Hash Contract (single source of truth)
+
+**Canonical field list & order (exactly this, in this order):**
+
+1. `sequenceNumber` (number)
+2. `tenantId` (string, UUID allowed)
+3. `userId` (string|null)
+4. `action` (string)
+5. `resource` (string)
+6. `timestamp` (string, ISO8601 with ms + `Z`, e.g. `2025-10-12T09:15:02.123Z`)
+7. `outcome` (`"SUCCESS"`|`"FAILURE"`)
+8. `previousHash` (string|null)
+9. `correlationId` (string|null)
+10. `keyVersion` (integer, >=1)
+11. `algorithmVersion` (integer; set **2** for the new canonical algorithm)
+
+> Rule: **No `undefined` is ever allowed** in this object. Missing becomes `null`. Keys are always present in the above order.
+
+---
+
+# 2) Deterministic normalisation + serialisation
+
+* **Normalise `timestamp`** to `new Date(ts).toISOString()` at **write and verify** time.
+* **Normalise `null/undefined`**: coerce all empties to `null` (never `undefined`).
+* **Stable order**: build a fresh object by inserting keys in the exact order above, then `JSON.stringify`.
+* **HMAC**: `sha256`, digest `hex`, keyed by `keyVersion`.
+
+### TypeScript utility (drop-in)
+
+```ts
+import crypto from "crypto";
+
+type Outcome = "SUCCESS" | "FAILURE";
+
+interface AuditRow {
+  sequenceNumber: number;
+  tenantId: string;
+  userId?: string | null;
+  action: string;
+  resource: string;
+  timestamp: string | Date;     // may arrive as Date or string
+  outcome: Outcome;
+  previousHash?: string | null;
+  correlationId?: string | null;
+  keyVersion?: number | null;   // default 1
+  algorithmVersion?: number | null; // default 2 (new canonical)
+}
+
+// Map for key rotation
+const HMAC_SECRETS: Record<number, string> = {
+  1: process.env.AUDIT_HMAC_SECRET_V1 || "",
+  2: process.env.AUDIT_HMAC_SECRET_V2 || "",
+  // add more when rotating
+};
+
+function getSecret(keyVersion: number): string {
+  const secret = HMAC_SECRETS[keyVersion];
+  if (!secret) throw new Error(`Unknown or unset HMAC secret for keyVersion=${keyVersion}`);
+  return secret;
+}
+
+function toIsoMsZ(ts: string | Date): string {
+  return new Date(ts).toISOString(); // always ms + Z
+}
+
+function nil<T>(v: T | null | undefined): T | null {
+  return v === undefined ? null : (v as any);
+}
+
+/** Build the canonical object in the exact field order and with nulls normalised */
+function buildCanonical(row: AuditRow, defaults?: Partial<AuditRow>) {
+  const keyVersion = (row.keyVersion ?? defaults?.keyVersion ?? 1) | 0;
+  const algorithmVersion = (row.algorithmVersion ?? defaults?.algorithmVersion ?? 2) | 0;
+
+  const canonical = {
+    sequenceNumber: row.sequenceNumber,
+    tenantId: String(row.tenantId),
+    userId: nil(row.userId ?? null),
+    action: String(row.action),
+    resource: String(row.resource),
+    timestamp: toIsoMsZ(row.timestamp),
+    outcome: row.outcome,
+    previousHash: nil(row.previousHash ?? null),
+    correlationId: nil(row.correlationId ?? null),
+    keyVersion,         // explicit, never omitted
+    algorithmVersion,   // explicit, never omitted
+  };
+
+  return canonical;
+}
+
+function canonicalStringify(canonical: ReturnType<typeof buildCanonical>): string {
+  // Insertion order is already fixed by object construction above.
+  return JSON.stringify(canonical);
+}
+
+export function computeAuditHash(row: AuditRow): string {
+  const canonical = buildCanonical(row, { keyVersion: 1, algorithmVersion: 2 });
+  const payload = canonicalStringify(canonical);
+  const secret = getSecret(canonical.keyVersion);
+  return crypto.createHmac("sha256", secret).update(payload, "utf8").digest("hex");
+}
+
+export function verifyAuditHash(rowFromDb: AuditRow & { hash: string }): boolean {
+  // Use the stored key/algorithm versions if present; fall back to defaults
+  const canonical = buildCanonical(rowFromDb, { keyVersion: 1, algorithmVersion: 2 });
+  const payload = canonicalStringify(canonical);
+  const secret = getSecret(canonical.keyVersion);
+  const expected = crypto.createHmac("sha256", secret).update(payload, "utf8").digest("hex");
+  return crypto.timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(rowFromDb.hash, "hex"));
+}
+```
+
+---
+
+# 3) DB schema hardening (prevents silent drift)
+
+```sql
+-- Ensure canonical constraints at the database layer
+ALTER TABLE audit_entries
+  ALTER COLUMN key_version SET DEFAULT 1,
+  ALTER COLUMN key_version SET NOT NULL,
+  ALTER COLUMN algorithm_version SET DEFAULT 2,
+  ALTER COLUMN algorithm_version SET NOT NULL,
+  ALTER COLUMN outcome SET NOT NULL,
+  ALTER COLUMN sequence_number SET NOT NULL,
+  ALTER COLUMN tenant_id SET NOT NULL,
+  ALTER COLUMN action SET NOT NULL,
+  ALTER COLUMN resource SET NOT NULL,
+  ALTER COLUMN "timestamp" SET NOT NULL;
+
+-- Optional: disallow empty secrets by gatekeeping at app boot, but you can also enforce:
+-- CREATE POLICY / CHECK constraints for outcome values etc.
+```
+
+**Write path contract**
+
+* Before insert, **normalise** with `buildCanonical(...)`.
+* Persist exactly the canonical values (including `timestamp` as `timestamptz` or as the ISO string you generated — pick one and stick to it).
+* Persist the computed `hash`.
+
+**Read/verify path contract**
+
+* Load DB row → feed into `verifyAuditHash`.
+
+---
+
+# 4) Key rotation without breakage
+
+* Keep `keyVersion` as part of the canonical fields.
+* Maintain a map of secrets (`AUDIT_HMAC_SECRET_V1`, `AUDIT_HMAC_SECRET_V2`, …).
+* When rotating: start writing new rows with `keyVersion = 2`; verification works for both.
+
+---
+
+# 5) Handling legacy rows (created with old logic)
+
+If older rows were produced with different serialisation, don’t rewrite history (that would break the chain). Instead:
+
+* Add `algorithmVersion` and set **new rows** to `2`.
+* During verification:
+
+  * If `algorithmVersion === 2` → use the canonical path above.
+  * If `algorithmVersion IS NULL` or `1` → run a **legacy verifier** that mimics the old behaviour (e.g., omitted keys, different timestamp format). Keep it read-only.
+
+Skeleton:
+
+```ts
+function verifyAuditHashUniversal(row: AuditRow & { hash: string }): boolean {
+  const alg = row.algorithmVersion ?? 1;
+
+  if (alg === 2) return verifyAuditHash(row);
+
+  // Legacy v1 attempt (example – customise to match your old code)
+  const legacyObj: any = {
+    sequenceNumber: row.sequenceNumber,
+    tenantId: row.tenantId,
+    userId: row.userId ?? undefined,        // legacy omitted undefined
+    action: row.action,
+    resource: row.resource,
+    timestamp: typeof row.timestamp === "string" ? row.timestamp : new Date(row.timestamp).toISOString(),
+    outcome: row.outcome,
+    previousHash: row.previousHash ?? undefined,
+    correlationId: row.correlationId ?? undefined,
+    keyVersion: row.keyVersion ?? 1,
+    // algorithmVersion likely absent
+  };
+  // Remove keys with undefined to emulate legacy JSON.stringify omission
+  Object.keys(legacyObj).forEach(k => legacyObj[k] === undefined && delete legacyObj[k]);
+
+  const payload = JSON.stringify(legacyObj);
+  const secret = getSecret(legacyObj.keyVersion);
+  const expected = crypto.createHmac("sha256", secret).update(payload, "utf8").digest("hex");
+  return expected === row.hash;
+}
+```
+
+**Migration advice (optional but recommended):**
+
+* Start writing **algorithmVersion=2** immediately.
+* Leave legacy rows as is; verify with the legacy path.
+* If you must attest integrity for legacy rows under the new rules, add a new column `v2_hash` computed once (do **not** replace the original hash), and link chains across the algorithm boundary with a special “bridge” entry that records the last legacy hash as its `previousHash`.
+
+---
+
+# 6) Operational safeguards
+
+1. **Reject `undefined` at boundaries**
+   Create a tiny guard that throws if any canonical field is `undefined` before hashing.
+
+2. **Ensure `process.env` secrets exist at boot**
+   Fail fast if `HMAC_SECRETS[keyVersion]` is missing.
+
+3. **One timestamp format everywhere**
+   Only ever store/compare **ISO with ms + Z** (or store `timestamptz` and always convert to ISO at verification).
+
+4. **Deterministic casing/trimming**
+   If any of `tenantId`, `userId`, `correlationId`, `resource` might be user-provided, `trim()` and normalise case on write (and do the same on verify).
+
+---
+
+# 7) Minimal patch checklist for your codebase
+
+* [ ] Add the `buildCanonical`, `computeAuditHash`, `verifyAuditHashUniversal` utilities.
+* [ ] Enforce `algorithmVersion=2` on all **new** writes.
+* [ ] Harden DB defaults (`key_version` default 1, `algorithm_version` default 2, not nulls).
+* [ ] Add boot-time check for `AUDIT_HMAC_SECRET_V1` (and newer if rotating).
+* [ ] Swap your creation & verification code to call these utilities.
+* [ ] (Optional) Keep a **feature-flagged** legacy verifier for old rows.
+
+---
+
+This fix eliminates all seven failure modes you identified:
+
+* **Hash input mismatch & order** → fixed by canonical builder + fixed key order.
+* **null vs undefined** → fixed by explicit coercion to `null` + no `undefined`.
+* **Timestamp drift** → fixed by ISO normalisation at both ends.
+* **Secret mismatches** → fixed by `keyVersion` + boot-time secret checks.
+* **KeyVersion discrepancies** → fixed by explicit presence/default & DB default.
+* **DB conversions** → fixed by trimming/normalising before hash.
+* **Old data** → handled via `algorithmVersion` + legacy verifier (no chain rewrite).
+
+If you paste in the utilities above and flip your create/verify calls to use them, your audit integrity verification will stabilise.
