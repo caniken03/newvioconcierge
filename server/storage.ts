@@ -76,7 +76,7 @@ import {
 } from "@shared/schema";
 import { BusinessHoursEvaluator } from "./utils/business-hours-evaluator";
 import { db } from "./db";
-import { eq, and, desc, asc, count, sql, gt, lt, like, inArray } from "drizzle-orm";
+import { eq, and, or, desc, asc, count, sql, gt, lt, like, inArray } from "drizzle-orm";
 import { getTableColumns } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { responsivenessTracker, type ResponsivenessPattern, type ContactTimingData } from "./services/responsiveness-tracker";
@@ -3935,13 +3935,13 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Cleanup stale call sessions (in_progress for >10 minutes)
+  // Cleanup stale call sessions (initiated/in_progress/active for >10 minutes)
   async cleanupStaleCallSessions(): Promise<{ cleaned: number; errors: string[] }> {
     const errors: string[] = [];
     let cleaned = 0;
 
     try {
-      // Find stale in_progress calls (older than 10 minutes)
+      // Find stale calls in any active state (older than 10 minutes)
       const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
       
       const staleCalls = await db
@@ -3949,7 +3949,11 @@ export class DatabaseStorage implements IStorage {
         .from(callSessions)
         .where(
           and(
-            eq(callSessions.status, 'in_progress'),
+            or(
+              eq(callSessions.status, 'initiated'),
+              eq(callSessions.status, 'in_progress'),
+              eq(callSessions.status, 'active')
+            ),
             lt(callSessions.createdAt, tenMinutesAgo)
           )
         );
@@ -3961,7 +3965,8 @@ export class DatabaseStorage implements IStorage {
             .set({
               status: 'failed',
               callOutcome: 'no_answer',
-              endTime: new Date()
+              endTime: new Date(),
+              errorMessage: 'Call timed out - no status update received from voice provider'
             })
             .where(eq(callSessions.id, call.id));
 
