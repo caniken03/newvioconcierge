@@ -839,6 +839,47 @@ export const userInvitations = pgTable("user_invitations", {
   invitedByFk: foreignKey({ columns: [table.invitedBy], foreignColumns: [users.id], name: "user_invitations_invited_by_fk" }).onDelete("cascade"),
 }));
 
+// Notifications for in-app alerts and system events
+export const notifications = pgTable("notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull(), // Who should see this notification
+  tenantId: uuid("tenant_id").notNull(), // Tenant isolation
+  
+  // Notification content
+  type: varchar("type", { length: 50 }).notNull(), // system_alert, tenant_activity, call_event, security_event, appointment_update, user_action
+  category: varchar("category", { length: 50 }).notNull(), // info, warning, error, success
+  title: varchar("title", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  
+  // Notification metadata
+  priority: varchar("priority", { length: 20 }).default("normal"), // low, normal, high, urgent
+  actionUrl: varchar("action_url", { length: 500 }), // Optional link to related page
+  actionLabel: varchar("action_label", { length: 100 }), // Optional button text
+  metadata: text("metadata"), // JSON data for additional context
+  
+  // Status tracking
+  isRead: boolean("is_read").default(false),
+  readAt: timestamp("read_at"),
+  isDismissed: boolean("is_dismissed").default(false),
+  dismissedAt: timestamp("dismissed_at"),
+  
+  // Related entities
+  relatedContactId: uuid("related_contact_id"), // Optional: link to contact
+  relatedCallSessionId: uuid("related_call_session_id"), // Optional: link to call
+  relatedTenantId: uuid("related_tenant_id"), // Optional: for super admin notifications
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  expiresAt: timestamp("expires_at"), // Optional: auto-delete old notifications
+}, (table) => ({
+  userIdIdx: index("notifications_user_id_idx").on(table.userId),
+  tenantIdIdx: index("notifications_tenant_id_idx").on(table.tenantId),
+  isReadIdx: index("notifications_is_read_idx").on(table.isRead),
+  typeIdx: index("notifications_type_idx").on(table.type),
+  createdAtIdx: index("notifications_created_at_idx").on(table.createdAt),
+  userFk: foreignKey({ columns: [table.userId], foreignColumns: [users.id], name: "notifications_user_fk" }).onDelete("cascade"),
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "notifications_tenant_fk" }).onDelete("cascade"),
+}));
+
 // Relations
 export const usersRelations = relations(users, ({ one }) => ({
   tenant: one(tenants, {
@@ -1200,6 +1241,13 @@ export const insertUserInvitationSchema = createInsertSchema(userInvitations).om
   updatedAt: true,
 });
 
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true,
+  readAt: true,
+  dismissedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -1278,3 +1326,6 @@ export type InsertUserNotificationPreferences = z.infer<typeof insertUserNotific
 
 export type UserInvitation = typeof userInvitations.$inferSelect;
 export type InsertUserInvitation = z.infer<typeof insertUserInvitationSchema>;
+
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
