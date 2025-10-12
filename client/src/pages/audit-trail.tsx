@@ -312,12 +312,12 @@ export default function AuditTrail() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="action-filter">Action Type</Label>
-                    <Select value={filters.action} onValueChange={(value) => setFilters({ ...filters, action: value })}>
+                    <Select value={filters.action || "all"} onValueChange={(value) => setFilters({ ...filters, action: value === "all" ? "" : value })}>
                       <SelectTrigger id="action-filter" data-testid="select-filter-action">
                         <SelectValue placeholder="All actions" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">All actions</SelectItem>
+                        <SelectItem value="all">All actions</SelectItem>
                         <SelectItem value="USER_LOGIN">Login</SelectItem>
                         <SelectItem value="USER_LOGIN_FAILURE">Failed Login</SelectItem>
                         <SelectItem value="USER_LOGOUT">Logout</SelectItem>
@@ -330,12 +330,12 @@ export default function AuditTrail() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="outcome-filter">Outcome</Label>
-                    <Select value={filters.outcome} onValueChange={(value) => setFilters({ ...filters, outcome: value })}>
+                    <Select value={filters.outcome || "all"} onValueChange={(value) => setFilters({ ...filters, outcome: value === "all" ? "" : value })}>
                       <SelectTrigger id="outcome-filter" data-testid="select-filter-outcome">
                         <SelectValue placeholder="All outcomes" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">All outcomes</SelectItem>
+                        <SelectItem value="all">All outcomes</SelectItem>
                         <SelectItem value="SUCCESS">Success</SelectItem>
                         <SelectItem value="FAILURE">Failure</SelectItem>
                         <SelectItem value="DENIED">Denied</SelectItem>
@@ -345,12 +345,12 @@ export default function AuditTrail() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="user-filter">User</Label>
-                    <Select value={filters.userId} onValueChange={(value) => setFilters({ ...filters, userId: value })}>
+                    <Select value={filters.userId || "all"} onValueChange={(value) => setFilters({ ...filters, userId: value === "all" ? "" : value })}>
                       <SelectTrigger id="user-filter" data-testid="select-filter-user">
                         <SelectValue placeholder="All users" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">All users</SelectItem>
+                        <SelectItem value="all">All users</SelectItem>
                         {teamMembers.map((member: any) => (
                           <SelectItem key={member.id} value={member.id}>
                             {member.fullName} ({member.email})
