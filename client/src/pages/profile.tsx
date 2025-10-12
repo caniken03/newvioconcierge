@@ -31,7 +31,8 @@ import {
   Smartphone,
   Clock,
   AlertCircle,
-  MapPin
+  MapPin,
+  CheckCircle
 } from "lucide-react";
 
 // Call Settings Component
@@ -1322,48 +1323,397 @@ export default function Profile() {
                 Manage HIPAA settings, data retention, and privacy controls
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              {/* HIPAA Compliance */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium">HIPAA Compliance</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">HIPAA Compliance Mode</p>
-                      <p className="text-xs text-muted-foreground">Enable enhanced privacy controls for medical practices</p>
-                    </div>
-                    <Switch data-testid="switch-hipaa-compliance" />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">PHI Data Encryption</p>
-                      <p className="text-xs text-muted-foreground">Encrypt all protected health information</p>
-                    </div>
-                    <Switch defaultChecked data-testid="switch-phi-encryption" />
-                  </div>
+            <CardContent className="space-y-8">
+              {/* At-a-Glance Summary */}
+              <div className="bg-primary/5 p-6 rounded-lg border border-primary/20">
+                <h3 className="text-lg font-semibold mb-3">VioConcierge Compliance Overview (At a Glance)</h3>
+                <div className="space-y-3 text-sm leading-relaxed">
+                  <p>
+                    At Smart AI Solutions, we know that when you trust us with your client and caller data, <strong>security and privacy are non-negotiable</strong>. 
+                    That's why VioConcierge is built from the ground up to meet <strong>GDPR, industry, and enterprise-level compliance standards</strong> — not just on paper, but in practice.
+                  </p>
+                  <p>
+                    All data is <strong>hosted exclusively in the UK</strong>, protected by <strong>enterprise-grade security</strong>, and fully controlled by <strong>you as the Data Controller</strong>. 
+                    We only process data to deliver the service you've chosen, and you can access, export, or delete it at any time.
+                  </p>
+                  <p>
+                    We go far beyond "basic compliance" by combining <strong>privacy by design, strict access control, full audit transparency, optional call recording, secure retention and deletion, incident response, and business continuity</strong>. 
+                    The result is a platform that is <strong>safe, transparent, and trusted — even by highly regulated sectors like healthcare and finance.</strong>
+                  </p>
+                  <p className="font-medium text-primary">
+                    In short: VioConcierge is built to protect your data, respect your privacy, and earn your trust — every step of the way.
+                  </p>
                 </div>
               </div>
 
-              <Separator />
+              {/* Detailed Compliance Sections */}
+              <div className="space-y-6">
+                {/* GDPR & Data Protection */}
+                <div className="space-y-3">
+                  <h3 className="text-base font-semibold flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    1. GDPR & Data Protection
+                  </h3>
+                  <ul className="space-y-2 text-sm ml-7 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Fully aligned with UK & EU GDPR</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Client = Data Controller | Smart AI Solutions = Data Processor</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Lawful bases: Contract, Legitimate Interest, Legal Obligation, (Consent if needed)</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Data subject rights fully supported (access, erasure, portability, objection, etc.)</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Clients own all data and can export or delete at any time</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Healthcare-related appointment context treated as potential special category data with enhanced safeguards</span>
+                    </li>
+                  </ul>
+                </div>
 
-              {/* Data Retention */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium">Data Retention</h3>
-                <div className="space-y-2">
-                  <Label htmlFor="data-retention-period">Data Retention Period</Label>
-                  <Select defaultValue="7" data-testid="select-data-retention">
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">1 year</SelectItem>
-                      <SelectItem value="3">3 years</SelectItem>
-                      <SelectItem value="5">5 years</SelectItem>
-                      <SelectItem value="7">7 years (Recommended)</SelectItem>
-                      <SelectItem value="10">10 years</SelectItem>
-                      <SelectItem value="forever">Retain indefinitely</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <Separator />
+
+                {/* Data Hosting & Sovereignty */}
+                <div className="space-y-3">
+                  <h3 className="text-base font-semibold flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    2. Data Hosting & Sovereignty
+                  </h3>
+                  <ul className="space-y-2 text-sm ml-7 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span><strong>100% hosted in the United Kingdom</strong></span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>No international data transfers by default</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Encrypted backups stored in the UK</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Optional dedicated or on-premise hosting for enterprise clients</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <Separator />
+
+                {/* Security & Technical Safeguards */}
+                <div className="space-y-3">
+                  <h3 className="text-base font-semibold flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    3. Security & Technical Safeguards
+                  </h3>
+                  <ul className="space-y-2 text-sm ml-7 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>End-to-end encryption (TLS in transit, AES-256 at rest)</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Zero-trust and least privilege architecture</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Secure development lifecycle & code reviews</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Optional Multi-Factor Authentication (MFA)</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Continuous threat monitoring & alerting</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span><strong>Tamper-proof, hash-chained audit logs retained for 7 years</strong></span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Regular internal security reviews and upcoming external pen tests</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <Separator />
+
+                {/* Access Control & User Management */}
+                <div className="space-y-3">
+                  <h3 className="text-base font-semibold flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    4. Access Control & User Management
+                  </h3>
+                  <ul className="space-y-2 text-sm ml-7 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Role-Based Access Control (RBAC) with least privilege</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Client Admin: full control of their tenant</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Client Staff: limited operational access</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Platform Admin/Support: no data access by default</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span><strong>Internal access only via impersonation → time-limited, fully logged, visible to client</strong></span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Optional client approval for sensitive operations</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <Separator />
+
+                {/* Multi-Tenant Isolation */}
+                <div className="space-y-3">
+                  <h3 className="text-base font-semibold flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    5. Multi-Tenant Isolation
+                  </h3>
+                  <ul className="space-y-2 text-sm ml-7 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>True logical separation at both application and database level (Row-Level Security)</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>No data sharing between tenants</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>No shared caches or sessions</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>All internal access actions recorded and visible to the client</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Supports future dedicated instances for large organisations</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <Separator />
+
+                {/* Call Recording */}
+                <div className="space-y-3">
+                  <h3 className="text-base font-semibold flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    6. Call Recording (Optional & Controlled by You)
+                  </h3>
+                  <ul className="space-y-2 text-sm ml-7 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Off or limited by default (privacy by default)</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Legal basis: Legitimate Interest (no consent required under UK law)</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Clients choose whether to enable, who can access, and retention length</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Recordings encrypted and access fully logged</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Transparency notices supported</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Healthcare use cases covered in DPIA</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <Separator />
+
+                {/* Data Retention & Deletion */}
+                <div className="space-y-3">
+                  <h3 className="text-base font-semibold flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    7. Data Retention & Deletion
+                  </h3>
+                  <ul className="space-y-2 text-sm ml-7 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Data retained only as long as necessary</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Standard defaults:</span>
+                    </li>
+                    <li className="ml-6 space-y-1">
+                      <p>• Call recordings: 30 days (extendable up to 90 days)</p>
+                      <p>• Transcripts: 12 months</p>
+                      <p>• Call/appointment metadata: 24 months</p>
+                      <p>• Billing data: 6 years (legal requirement)</p>
+                      <p>• Audit logs: 7 years (accountability)</p>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Automated deletion where possible</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Clients can request deletion at any time</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Full support for "Right to Be Forgotten"</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <Separator />
+
+                {/* Incident Response & Breach Management */}
+                <div className="space-y-3">
+                  <h3 className="text-base font-semibold flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    8. Incident Response & Breach Management
+                  </h3>
+                  <ul className="space-y-2 text-sm ml-7 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Formal 8-step Incident Response Plan</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Rapid detection, containment, investigation, recovery</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>ICO notified within 72 hours if required</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Clients notified without undue delay</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Post-incident review to prevent recurrence</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Audit logs used to pinpoint and evidence activity</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <Separator />
+
+                {/* Business Continuity & Disaster Recovery */}
+                <div className="space-y-3">
+                  <h3 className="text-base font-semibold flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    9. Business Continuity & Disaster Recovery
+                  </h3>
+                  <ul className="space-y-2 text-sm ml-7 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>High-availability infrastructure with failover</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Encrypted daily backups (30-day rolling)</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>RTO &lt; 2 hours | RPO &lt; 24 hours</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Load balancing, replication, and redundancy</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Regular backup tests and continuity exercises</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>99.9% uptime target</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <Separator />
+
+                {/* DPIA */}
+                <div className="space-y-3">
+                  <h3 className="text-base font-semibold flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    10. Data Protection Impact Assessment (DPIA)
+                  </h3>
+                  <ul className="space-y-2 text-sm ml-7 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>DPIA proactively completed due to AI, voice, and potential health context</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Risks identified and mitigated through:</span>
+                    </li>
+                    <li className="ml-6 space-y-1">
+                      <p>• Access controls</p>
+                      <p>• Tenant isolation</p>
+                      <p>• Encryption</p>
+                      <p>• Optional call recording</p>
+                      <p>• Audit trails</p>
+                      <p>• Retention limits</p>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span>
+                      <span>Full DPIA document available on request</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Summary Section */}
+              <div className="bg-green-50 dark:bg-green-950/20 p-6 rounded-lg border border-green-200 dark:border-green-900">
+                <h3 className="text-lg font-semibold mb-3 text-green-900 dark:text-green-100">In Summary</h3>
+                <div className="space-y-3 text-sm text-green-800 dark:text-green-200">
+                  <p>
+                    <strong>VioConcierge provides enterprise-grade privacy, security, and compliance by design.</strong> 
+                    We combine GDPR alignment, UK-only hosting, strict access control, audit transparency, secure data handling, flexible retention, and robust incident response to ensure your data — and your clients' trust — are always protected.
+                  </p>
+                  <div className="space-y-1 mt-3">
+                    <p className="flex items-center gap-2"><CheckCircle className="w-4 h-4" /> Trusted by regulated industries</p>
+                    <p className="flex items-center gap-2"><CheckCircle className="w-4 h-4" /> Built to exceed enterprise expectations</p>
+                    <p className="flex items-center gap-2"><CheckCircle className="w-4 h-4" /> Ready for due diligence, procurement, and audits</p>
+                  </div>
+                  <p className="font-medium mt-4">
+                    Need the full policy, DPIA, DPA, or Sub-Processor Register? We'll provide it immediately on request.
+                  </p>
                 </div>
               </div>
             </CardContent>
