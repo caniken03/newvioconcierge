@@ -4465,24 +4465,25 @@ export class DatabaseStorage implements IStorage {
           }
           
           const keyVersion = 1; // Current HMAC key version for rotation support
+          const algorithmVersion = 2; // Use canonical hash algorithm (v2)
           
-          // Create verifiable hash chain with HMAC (UK GDPR Article 30 compliance)
+          // Create verifiable hash chain with canonical HMAC (UK GDPR Article 30 compliance)
           const timestamp = entry.timestamp || new Date();
-          const hashInput = JSON.stringify({
+          
+          // Use canonical hash computation for consistency and tamper-resistance
+          const hashSignature = computeCanonicalAuditHash({
             sequenceNumber,
             tenantId: entry.tenantId,
             userId: entry.userId,
             action: entry.action,
             resource: entry.resource,
-            timestamp: timestamp.toISOString(),
+            timestamp,
             outcome: entry.outcome,
             previousHash,
             correlationId: entry.correlationId,
-            keyVersion
+            keyVersion,
+            algorithmVersion
           });
-          
-          // Use dedicated AUDIT_HMAC_SECRET for tamper-resistant signatures
-          const hashSignature = crypto.createHmac('sha256', process.env.AUDIT_HMAC_SECRET).update(hashInput).digest('hex');
           
           const [newEntry] = await tx
             .insert(auditTrail)
@@ -4493,6 +4494,7 @@ export class DatabaseStorage implements IStorage {
               previousHash,
               hashSignature,
               keyVersion,
+              algorithmVersion, // Store algorithm version for verification
             })
             .returning();
           return newEntry;
