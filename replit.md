@@ -30,6 +30,7 @@ The backend is an Express.js application with Node.js and TypeScript, following 
 - **Call Settings & Preferences**: Client admins configure initial appointment reminder times and a single missed call follow-up retry (e.g., 90 minutes after first missed call).
 - **Team Management**: Client admins can invite team members (client_admin or client_user), manage roles, and activate/deactivate users via a secure, token-based invitation system.
 - **Audit Trail**: Comprehensive, tamper-proof audit logs with hash-chained integrity verification, advanced filtering, and CSV export. Includes all login attempts, user activity, data exports, and system actions, with a 7-year retention policy.
+- **Privacy Policy**: Comprehensive, publicly accessible privacy policy page (UK GDPR compliant) detailing data collection, processing, retention, and user rights. Accessible from login page without authentication.
 
 # External Dependencies
 
