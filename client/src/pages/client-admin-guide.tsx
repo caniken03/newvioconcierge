@@ -2,9 +2,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import Sidebar from "@/components/layout/sidebar";
 import Header from "@/components/layout/header";
 import { useAuth } from "@/hooks/use-auth";
@@ -24,16 +21,16 @@ export default function ClientAdminGuide() {
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-4">
             <i className="fas fa-user-cog mr-3 text-blue-500"></i>
-            Client Admin User Guide
+            VioConcierge User Guide
           </h1>
           <p className="text-xl text-muted-foreground mb-6">
-            Transform your appointment management with AI-powered voice reminders, automated workflows, and data-driven insights.
+            Master appointment management with AI-powered voice reminders. Target a 40-60% reduction in no-shows, recover revenue, and delight your customers.
           </p>
           <Alert className="mb-6">
             <i className="fas fa-rocket"></i>
-            <AlertTitle>Maximize Your ROI</AlertTitle>
+            <AlertTitle>Your Success Roadmap</AlertTitle>
             <AlertDescription>
-              This comprehensive guide provides proven strategies to reduce no-shows by 40-60%, improve customer satisfaction, and streamline your appointment operations.
+              This guide provides practical strategies, real-world examples, and step-by-step instructions to help you improve your appointment operations and work toward maximizing ROI.
             </AlertDescription>
           </Alert>
         </div>
@@ -43,17 +40,17 @@ export default function ClientAdminGuide() {
             <TabsTrigger value="getting-started">Getting Started</TabsTrigger>
             <TabsTrigger value="contact-mgmt">Contact Management</TabsTrigger>
             <TabsTrigger value="voice-ai">Voice AI Setup</TabsTrigger>
-            <TabsTrigger value="automation">Automation</TabsTrigger>
-            <TabsTrigger value="analytics">Analytics</TabsTrigger>
-            <TabsTrigger value="advanced">Advanced Features</TabsTrigger>
+            <TabsTrigger value="reduce-noshows">Reduce No-Shows</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics & ROI</TabsTrigger>
+            <TabsTrigger value="advanced">Advanced Tips</TabsTrigger>
           </TabsList>
 
           <TabsContent value="getting-started">
             <Card>
               <CardHeader>
-                <CardTitle>Getting Started: Your Journey to Appointment Success</CardTitle>
+                <CardTitle>Getting Started: Your First 30 Days</CardTitle>
                 <CardDescription>
-                  Follow this proven 30-day roadmap to transform your appointment management
+                  Follow this practical roadmap to work toward measurable results within a month
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -67,13 +64,14 @@ export default function ClientAdminGuide() {
                     </CardHeader>
                     <CardContent>
                       <ul className="space-y-2 text-sm">
-                        <li>• <strong>Day 1-2:</strong> Import your customer contacts and appointment data</li>
-                        <li>• <strong>Day 3-4:</strong> Configure your business profile and voice preferences</li>
-                        <li>• <strong>Day 5-7:</strong> Run test voice calls and optimize scripts</li>
+                        <li>• <strong>Day 1-2:</strong> Import contacts (CSV or calendar integration)</li>
+                        <li>• <strong>Day 3-4:</strong> Set up business profile & voice preferences</li>
+                        <li>• <strong>Day 5-6:</strong> Configure call timing & business hours</li>
+                        <li>• <strong>Day 7:</strong> Test with 5-10 sample appointments</li>
                       </ul>
                       <div className="mt-3 p-2 bg-white rounded border border-green-200">
                         <p className="text-xs text-green-600">
-                          <strong>Success Target:</strong> Complete customer database import with 95%+ contact accuracy
+                          <strong>Success Target:</strong> 95%+ contact accuracy, successful test calls
                         </p>
                       </div>
                     </CardContent>
@@ -88,13 +86,14 @@ export default function ClientAdminGuide() {
                     </CardHeader>
                     <CardContent>
                       <ul className="space-y-2 text-sm">
-                        <li>• <strong>Enable automation:</strong> Set up automated reminders and follow-ups</li>
-                        <li>• <strong>Integrate calendars:</strong> Connect Cal.com, Calendly, or manual scheduling</li>
-                        <li>• <strong>Train your team:</strong> Ensure all staff understand the new workflows</li>
+                        <li>• <strong>Enable automation:</strong> Set up 24-48 hour advance reminders</li>
+                        <li>• <strong>Calendar sync:</strong> Connect Cal.com or Calendly</li>
+                        <li>• <strong>Train team:</strong> Show staff how to handle confirmations</li>
+                        <li>• <strong>Monitor daily:</strong> Check call outcomes each morning</li>
                       </ul>
                       <div className="mt-3 p-2 bg-white rounded border border-blue-200">
                         <p className="text-xs text-blue-600">
-                          <strong>Success Target:</strong> 80%+ automation rate for routine appointment reminders
+                          <strong>Success Target:</strong> 80%+ call success rate, team adoption
                         </p>
                       </div>
                     </CardContent>
@@ -104,18 +103,19 @@ export default function ClientAdminGuide() {
                     <CardHeader>
                       <CardTitle className="text-lg text-purple-800">
                         <i className="fas fa-chart-line mr-2"></i>
-                        Week 4: Mastery
+                        Week 4: Results & Scale
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <ul className="space-y-2 text-sm">
-                        <li>• <strong>Analyze results:</strong> Review your first month's performance data</li>
-                        <li>• <strong>Fine-tune settings:</strong> Optimize based on customer feedback</li>
-                        <li>• <strong>Scale up:</strong> Enable advanced features like automated rescheduling</li>
+                        <li>• <strong>Measure results:</strong> Compare no-show rates to baseline</li>
+                        <li>• <strong>Refine scripts:</strong> Update based on customer feedback</li>
+                        <li>• <strong>Add features:</strong> Enable missed call follow-ups</li>
+                        <li>• <strong>Celebrate wins:</strong> Share results with team</li>
                       </ul>
                       <div className="mt-3 p-2 bg-white rounded border border-purple-200">
                         <p className="text-xs text-purple-600">
-                          <strong>Success Target:</strong> Measurable reduction in no-shows within 30 days
+                          <strong>Success Target:</strong> Measurable no-show reduction, positive ROI
                         </p>
                       </div>
                     </CardContent>
@@ -124,11 +124,20 @@ export default function ClientAdminGuide() {
 
                 <Alert className="bg-yellow-50 border-yellow-200">
                   <i className="fas fa-star text-yellow-600"></i>
-                  <AlertTitle className="text-yellow-800">Real Success Story</AlertTitle>
+                  <AlertTitle className="text-yellow-800">Success Example: Reducing No-Shows</AlertTitle>
                   <AlertDescription className="text-yellow-700">
-                    <strong>Sunshine Dental Practice:</strong> "Within 3 weeks of implementing VioConcierge, our no-show rate dropped from 23% to 8%. Our patients love the friendly voice reminders, and our staff saves 2 hours daily on appointment confirmations. We've recovered over $15,000 in lost revenue in just the first quarter!"
+                    <strong>Typical Scenario:</strong> Medical practice with 20% no-show rate, 400 monthly appointments at $150 average value.
                     <br /><br />
-                    <strong>Key Success Factors:</strong> Personalized voice scripts, 48-hour advance reminders, easy rescheduling options, and consistent follow-up.
+                    <strong>Implementation Strategy:</strong> Automated voice reminders 48 hours before + 24 hours before appointments, with easy rescheduling options.
+                    <br /><br />
+                    <strong>Expected Outcomes (Industry Average):</strong>
+                    <ul className="mt-2 space-y-1">
+                      <li>• No-show reduction: 40-60% (from 80 monthly no-shows to 32-48)</li>
+                      <li>• Staff time saved: 1-2 hours daily on manual confirmations</li>
+                      <li>• Potential monthly revenue recovery: $4,800-$7,200 (32-48 recovered appointments × $150)</li>
+                      <li>• ROI timeline: Typically positive within 30-60 days</li>
+                    </ul>
+                    <p className="mt-2 text-sm italic">*Results vary based on appointment volume, value, and implementation quality</p>
                   </AlertDescription>
                 </Alert>
 
@@ -139,21 +148,23 @@ export default function ClientAdminGuide() {
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <h5 className="font-semibold mb-2 text-green-700">Essential Setup (Day 1)</h5>
+                        <h5 className="font-semibold mb-2 text-green-700">📋 Essential Setup (Day 1)</h5>
                         <ul className="text-sm space-y-1">
-                          <li>□ Complete business profile</li>
-                          <li>□ Upload customer contact list</li>
-                          <li>□ Set business hours and time zone</li>
-                          <li>□ Configure basic voice preferences</li>
+                          <li>□ Complete business profile with accurate info</li>
+                          <li>□ Upload or import customer contact list</li>
+                          <li>□ Set your business hours and timezone</li>
+                          <li>□ Choose voice tone (professional/friendly/warm)</li>
+                          <li>□ Add arrival directions (parking, entrance, etc.)</li>
                         </ul>
                       </div>
                       <div>
-                        <h5 className="font-semibold mb-2 text-blue-700">Optimization Setup (Week 1)</h5>
+                        <h5 className="font-semibold mb-2 text-blue-700">🎯 First Campaign (Week 1)</h5>
                         <ul className="text-sm space-y-1">
-                          <li>□ Create custom voice scripts</li>
-                          <li>□ Set up appointment reminder timing</li>
-                          <li>□ Test voice calls with sample appointments</li>
-                          <li>□ Train staff on customer response handling</li>
+                          <li>□ Schedule 10 test appointments</li>
+                          <li>□ Set reminder for 24 hours before</li>
+                          <li>□ Monitor call outcomes closely</li>
+                          <li>□ Adjust script based on responses</li>
+                          <li>□ Roll out to all appointments</li>
                         </ul>
                       </div>
                     </div>
@@ -167,66 +178,69 @@ export default function ClientAdminGuide() {
             <div className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Master Contact Management for Maximum Impact</CardTitle>
+                  <CardTitle>Contact Management Best Practices</CardTitle>
                   <CardDescription>
-                    Strategic contact organization and data management for optimal appointment outcomes
+                    Quality contact data is the foundation of successful appointment reminders
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  <Alert className="bg-blue-50 border-blue-200">
+                    <i className="fas fa-lightbulb text-blue-600"></i>
+                    <AlertTitle className="text-blue-800">Golden Rule</AlertTitle>
+                    <AlertDescription className="text-blue-700">
+                      <strong>Contacts with complete, accurate information have 73% higher response rates and 45% fewer no-shows.</strong> Invest time in data quality—it pays off immediately.
+                    </AlertDescription>
+                  </Alert>
+
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Card className="bg-blue-50 border-blue-200">
+                    <Card className="bg-green-50 border-green-200">
                       <CardHeader>
-                        <CardTitle className="text-lg text-blue-800">
+                        <CardTitle className="text-lg text-green-800">
                           <i className="fas fa-database mr-2"></i>
-                          Contact Data Excellence
+                          Essential Contact Information
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="space-y-4">
-                          <div>
-                            <h5 className="font-semibold text-blue-700 mb-2">Essential Information</h5>
-                            <ul className="text-sm space-y-1">
-                              <li>• <strong>Primary Phone:</strong> Mobile preferred for SMS and voice</li>
-                              <li>• <strong>Email Address:</strong> For backup communications and confirmations</li>
-                              <li>• <strong>Communication Preference:</strong> Voice, SMS, or email priority</li>
-                              <li>• <strong>Best Contact Times:</strong> Morning, afternoon, evening preferences</li>
-                              <li>• <strong>Special Notes:</strong> Accessibility needs, language preferences</li>
-                            </ul>
+                        <div className="space-y-3">
+                          <div className="p-3 bg-white rounded border border-green-200">
+                            <strong className="text-green-800">📱 Primary Phone Number</strong>
+                            <p className="text-sm text-green-700 mt-1">Mobile preferred. Include country code. System auto-formats to E.164 standard.</p>
+                            <p className="text-xs text-green-600 mt-1">✓ Good: +1-415-555-0123 | ✗ Bad: (415) 555.0123</p>
                           </div>
-                          <Alert className="bg-blue-100 border-blue-300">
-                            <AlertDescription className="text-blue-800 text-sm">
-                              <strong>Pro Tip:</strong> Contacts with complete information have 73% higher response rates and 45% fewer no-shows.
-                            </AlertDescription>
-                          </Alert>
+                          <div className="p-3 bg-white rounded border border-green-200">
+                            <strong className="text-green-800">✉️ Email Address</strong>
+                            <p className="text-sm text-green-700 mt-1">Backup communication and confirmation receipts.</p>
+                            <p className="text-xs text-green-600 mt-1">Used for email summaries and rescheduling links</p>
+                          </div>
+                          <div className="p-3 bg-white rounded border border-green-200">
+                            <strong className="text-green-800">🏷️ Customer Name</strong>
+                            <p className="text-sm text-green-700 mt-1">First and last name for personalization.</p>
+                            <p className="text-xs text-green-600 mt-1">AI says: "Hi Sarah, this is calling from..."</p>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
 
-                    <Card className="bg-green-50 border-green-200">
+                    <Card className="bg-purple-50 border-purple-200">
                       <CardHeader>
-                        <CardTitle className="text-lg text-green-800">
-                          <i className="fas fa-tags mr-2"></i>
-                          Smart Segmentation
+                        <CardTitle className="text-lg text-purple-800">
+                          <i className="fas fa-users mr-2"></i>
+                          Smart Customer Segmentation
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="space-y-4">
-                          <div>
-                            <h5 className="font-semibold text-green-700 mb-2">Customer Categories</h5>
-                            <div className="space-y-2">
-                              <div className="p-2 bg-white rounded border border-green-200">
-                                <strong className="text-sm text-green-800">VIP Customers</strong>
-                                <p className="text-xs text-green-600">High-value, frequent appointments. Priority scheduling and personalized service.</p>
-                              </div>
-                              <div className="p-2 bg-white rounded border border-green-200">
-                                <strong className="text-sm text-green-800">New Customers</strong>
-                                <p className="text-xs text-green-600">First-time appointments. Extra confirmation and welcome messaging.</p>
-                              </div>
-                              <div className="p-2 bg-white rounded border border-green-200">
-                                <strong className="text-sm text-green-800">At-Risk Customers</strong>
-                                <p className="text-xs text-green-600">History of no-shows or cancellations. Earlier reminders and follow-ups.</p>
-                              </div>
-                            </div>
+                        <div className="space-y-3">
+                          <div className="p-3 bg-white rounded border border-purple-200">
+                            <Badge className="mb-1 bg-yellow-500">VIP Customers</Badge>
+                            <p className="text-sm text-purple-700">High-value, frequent visitors. Priority scheduling, personalized messages, special treatment.</p>
+                          </div>
+                          <div className="p-3 bg-white rounded border border-purple-200">
+                            <Badge className="mb-1 bg-green-500">New Customers</Badge>
+                            <p className="text-sm text-purple-700">First appointment. Extra confirmation, welcome messaging, directions included.</p>
+                          </div>
+                          <div className="p-3 bg-white rounded border border-purple-200">
+                            <Badge className="mb-1 bg-red-500">At-Risk</Badge>
+                            <p className="text-sm text-purple-700">History of no-shows. Earlier reminders (48-72 hours), follow-up calls, personal touch.</p>
                           </div>
                         </div>
                       </CardContent>
@@ -235,70 +249,75 @@ export default function ClientAdminGuide() {
 
                   <Card>
                     <CardHeader>
-                      <CardTitle>Contact Import & Data Management</CardTitle>
+                      <CardTitle>How to Import Contacts</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                            <h5 className="font-semibold text-purple-800 mb-2">
-                              <i className="fas fa-upload mr-2"></i>
-                              Import Methods
+                          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                            <h5 className="font-semibold text-blue-800 mb-2">
+                              <i className="fas fa-file-csv mr-2"></i>
+                              CSV Upload (Bulk)
                             </h5>
-                            <ul className="text-sm space-y-1 text-purple-700">
-                              <li>• <strong>CSV Upload:</strong> Bulk import from spreadsheets</li>
-                              <li>• <strong>Calendar Integration:</strong> Auto-sync from Cal.com/Calendly</li>
-                              <li>• <strong>Manual Entry:</strong> Individual contact creation</li>
-                              <li>• <strong>API Integration:</strong> Connect your existing CRM</li>
-                            </ul>
+                            <ol className="text-sm space-y-1 text-blue-700">
+                              <li>1. Export from your system</li>
+                              <li>2. Format: Name, Phone, Email</li>
+                              <li>3. Click "Import Contacts"</li>
+                              <li>4. Upload CSV (up to 10,000 rows)</li>
+                              <li>5. Review & confirm import</li>
+                            </ol>
+                          </div>
+                          <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                            <h5 className="font-semibold text-green-800 mb-2">
+                              <i className="fas fa-calendar-plus mr-2"></i>
+                              Calendar Sync (Auto)
+                            </h5>
+                            <ol className="text-sm space-y-1 text-green-700">
+                              <li>1. Go to Integrations</li>
+                              <li>2. Connect Cal.com or Calendly</li>
+                              <li>3. Authorize access</li>
+                              <li>4. Contacts auto-import</li>
+                              <li>5. Updates sync automatically</li>
+                            </ol>
                           </div>
                           <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
                             <h5 className="font-semibold text-orange-800 mb-2">
-                              <i className="fas fa-shield-alt mr-2"></i>
-                              Data Quality
+                              <i className="fas fa-user-plus mr-2"></i>
+                              Manual Entry (Individual)
                             </h5>
-                            <ul className="text-sm space-y-1 text-orange-700">
-                              <li>• <strong>Phone Validation:</strong> Automatic format checking</li>
-                              <li>• <strong>Duplicate Detection:</strong> Merge similar contacts</li>
-                              <li>• <strong>Missing Data Alerts:</strong> Identify incomplete records</li>
-                              <li>• <strong>Regular Cleanup:</strong> Remove inactive contacts</li>
-                            </ul>
-                          </div>
-                          <div className="bg-red-50 p-4 rounded-lg border border-red-200">
-                            <h5 className="font-semibold text-red-800 mb-2">
-                              <i className="fas fa-user-shield mr-2"></i>
-                              Privacy & Consent
-                            </h5>
-                            <ul className="text-sm space-y-1 text-red-700">
-                              <li>• <strong>Explicit Consent:</strong> Voice communication opt-in</li>
-                              <li>• <strong>Easy Opt-out:</strong> Respect customer preferences</li>
-                              <li>• <strong>Data Retention:</strong> Automatic cleanup policies</li>
-                              <li>• <strong>Compliance:</strong> HIPAA, GDPR adherence</li>
-                            </ul>
+                            <ol className="text-sm space-y-1 text-orange-700">
+                              <li>1. Click "Add Contact"</li>
+                              <li>2. Enter name & phone</li>
+                              <li>3. Add appointment details</li>
+                              <li>4. Set reminder preferences</li>
+                              <li>5. Save contact</li>
+                            </ol>
                           </div>
                         </div>
 
                         <Alert>
-                          <i className="fas fa-lightbulb"></i>
-                          <AlertTitle>Contact Management Best Practices</AlertTitle>
+                          <i className="fas fa-shield-check"></i>
+                          <AlertTitle>Data Quality Tips</AlertTitle>
                           <AlertDescription>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
                               <div>
-                                <strong>Do's:</strong>
+                                <strong className="text-green-700">✓ Do This:</strong>
                                 <ul className="text-sm space-y-1 mt-1">
-                                  <li>• Update contact info after each interaction</li>
-                                  <li>• Use consistent naming conventions</li>
-                                  <li>• Tag contacts by service type or location</li>
-                                  <li>• Regularly verify phone numbers and emails</li>
+                                  <li>• Verify phone numbers before importing</li>
+                                  <li>• Use consistent name formats (First Last)</li>
+                                  <li>• Include all appointment details</li>
+                                  <li>• Update contacts after each interaction</li>
+                                  <li>• Remove duplicates regularly</li>
                                 </ul>
                               </div>
                               <div>
-                                <strong>Don'ts:</strong>
+                                <strong className="text-red-700">✗ Avoid This:</strong>
                                 <ul className="text-sm space-y-1 mt-1">
-                                  <li>• Store unnecessary personal information</li>
-                                  <li>• Ignore bounce-back emails or failed calls</li>
-                                  <li>• Mix personal and business contact data</li>
-                                  <li>• Forget to honor opt-out requests</li>
+                                  <li>• Importing without phone validation</li>
+                                  <li>• Missing email addresses (backup needed)</li>
+                                  <li>• Outdated or inactive contacts</li>
+                                  <li>• Mixing formats (causes errors)</li>
+                                  <li>• Ignoring failed call notifications</li>
                                 </ul>
                               </div>
                             </div>
@@ -316,41 +335,55 @@ export default function ClientAdminGuide() {
             <div className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Voice AI Configuration for Maximum Customer Satisfaction</CardTitle>
+                  <CardTitle>Voice AI Configuration for Maximum Success</CardTitle>
                   <CardDescription>
-                    Create engaging, professional voice interactions that customers love
+                    Create friendly, professional voice interactions that customers love
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  <Alert className="bg-purple-50 border-purple-200">
+                    <i className="fas fa-magic text-purple-600"></i>
+                    <AlertTitle className="text-purple-800">The Voice AI Advantage</AlertTitle>
+                    <AlertDescription className="text-purple-700">
+                      <strong>Our AI voice agent sounds natural and professional, not robotic.</strong> Customers respond 40% better to personalized voice reminders than text messages. The key is making it sound like a helpful team member, not a cold machine.
+                    </AlertDescription>
+                  </Alert>
+
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <Card className="bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200">
                       <CardHeader>
                         <CardTitle className="text-lg text-blue-800">
                           <i className="fas fa-microphone mr-2"></i>
-                          Voice Personality & Tone
+                          Choose Your Voice Personality
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="space-y-4">
-                          <div>
-                            <h5 className="font-semibold text-blue-700 mb-2">Industry-Optimized Voices</h5>
-                            <div className="space-y-2">
-                              <div className="p-3 bg-white rounded border border-blue-200">
-                                <strong className="text-blue-800 text-sm">Healthcare & Medical</strong>
-                                <p className="text-xs text-blue-600 mt-1">Professional, reassuring, empathetic tone. Slower speaking pace. Medical terminology awareness.</p>
-                                <Badge variant="outline" className="mt-1 text-xs">95% patient satisfaction</Badge>
-                              </div>
-                              <div className="p-3 bg-white rounded border border-blue-200">
-                                <strong className="text-blue-800 text-sm">Beauty & Wellness</strong>
-                                <p className="text-xs text-blue-600 mt-1">Warm, friendly, upbeat personality. Natural conversational flow. Service-focused language.</p>
-                                <Badge variant="outline" className="mt-1 text-xs">88% rebooking rate</Badge>
-                              </div>
-                              <div className="p-3 bg-white rounded border border-blue-200">
-                                <strong className="text-blue-800 text-sm">Professional Services</strong>
-                                <p className="text-xs text-blue-600 mt-1">Business-appropriate, efficient, clear communication. Respect for time and scheduling.</p>
-                                <Badge variant="outline" className="mt-1 text-xs">92% response rate</Badge>
-                              </div>
+                        <div className="space-y-3">
+                          <div className="p-3 bg-white rounded border border-blue-200">
+                            <div className="flex items-center justify-between mb-1">
+                              <strong className="text-blue-800">Healthcare & Medical</strong>
+                              <Badge variant="outline" className="text-xs">95% satisfaction</Badge>
                             </div>
+                            <p className="text-sm text-blue-700">Professional, reassuring, empathetic. Slower pace. Uses medical terms correctly.</p>
+                            <p className="text-xs text-blue-600 mt-1 italic">"Hi Sarah, this is calling from Dr. Smith's office about your appointment tomorrow at 2 PM..."</p>
+                          </div>
+                          
+                          <div className="p-3 bg-white rounded border border-blue-200">
+                            <div className="flex items-center justify-between mb-1">
+                              <strong className="text-blue-800">Beauty & Wellness</strong>
+                              <Badge variant="outline" className="text-xs">88% rebooking</Badge>
+                            </div>
+                            <p className="text-sm text-blue-700">Warm, friendly, upbeat. Conversational and welcoming.</p>
+                            <p className="text-xs text-blue-600 mt-1 italic">"Hi! This is a reminder about your spa appointment with us tomorrow at 10 AM. We're excited to see you!"</p>
+                          </div>
+                          
+                          <div className="p-3 bg-white rounded border border-blue-200">
+                            <div className="flex items-center justify-between mb-1">
+                              <strong className="text-blue-800">Professional Services</strong>
+                              <Badge variant="outline" className="text-xs">92% response</Badge>
+                            </div>
+                            <p className="text-sm text-blue-700">Business-appropriate, efficient, respectful of time.</p>
+                            <p className="text-xs text-blue-600 mt-1 italic">"Good afternoon, this is confirming your consultation with Attorney Johnson tomorrow at 3 PM..."</p>
                           </div>
                         </div>
                       </CardContent>
@@ -359,27 +392,36 @@ export default function ClientAdminGuide() {
                     <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
                       <CardHeader>
                         <CardTitle className="text-lg text-green-800">
-                          <i className="fas fa-script mr-2"></i>
-                          Script Optimization
+                          <i className="fas fa-cogs mr-2"></i>
+                          Essential Settings to Configure
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                           <div>
-                            <h5 className="font-semibold text-green-700 mb-2">High-Converting Script Elements</h5>
-                            <ul className="text-sm space-y-2">
-                              <li>• <strong>Personal Greeting:</strong> "Hi [Name], this is Sarah from [Business]"</li>
-                              <li>• <strong>Appointment Details:</strong> Date, time, service, location</li>
-                              <li>• <strong>Easy Confirmation:</strong> "Press 1 to confirm, 2 to reschedule"</li>
-                              <li>• <strong>Value Reminder:</strong> Preparation tips or service benefits</li>
-                              <li>• <strong>Contact Options:</strong> "Call us at [number] for any questions"</li>
+                            <h5 className="font-semibold text-green-700 mb-2">1. Reminder Timing</h5>
+                            <ul className="text-sm space-y-1 text-green-700">
+                              <li>• <strong>Standard:</strong> 24 hours before appointment</li>
+                              <li>• <strong>High-value:</strong> 48-72 hours (give time to plan)</li>
+                              <li>• <strong>Same-day:</strong> 2-4 hours before (last reminder)</li>
                             </ul>
                           </div>
-                          <Alert className="bg-green-100 border-green-300">
-                            <AlertDescription className="text-green-800 text-sm">
-                              <strong>Success Formula:</strong> Personal + Clear + Actionable + Helpful = 40% higher response rates
-                            </AlertDescription>
-                          </Alert>
+                          <div>
+                            <h5 className="font-semibold text-green-700 mb-2">2. Call Window</h5>
+                            <ul className="text-sm space-y-1 text-green-700">
+                              <li>• <strong>Business hours:</strong> 9 AM - 6 PM (respectful)</li>
+                              <li>• <strong>Avoid:</strong> Early mornings, late evenings, Sundays</li>
+                              <li>• <strong>Best times:</strong> 10 AM - 12 PM, 2 PM - 5 PM</li>
+                            </ul>
+                          </div>
+                          <div>
+                            <h5 className="font-semibold text-green-700 mb-2">3. Follow-Up Strategy</h5>
+                            <ul className="text-sm space-y-1 text-green-700">
+                              <li>• <strong>No answer:</strong> Try once more after 90 minutes</li>
+                              <li>• <strong>Voicemail:</strong> Leave detailed message with callback</li>
+                              <li>• <strong>Failed call:</strong> Alert staff for manual follow-up</li>
+                            </ul>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -387,224 +429,310 @@ export default function ClientAdminGuide() {
 
                   <Card>
                     <CardHeader>
-                      <CardTitle>Advanced Voice AI Features</CardTitle>
+                      <CardTitle>Script Optimization Tips</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                          <h5 className="font-semibold text-purple-800 mb-2">
-                            <i className="fas fa-brain mr-2"></i>
-                            Smart Interactions
-                          </h5>
-                          <ul className="text-sm space-y-1 text-purple-700">
-                            <li>• Natural language understanding</li>
-                            <li>• Context-aware responses</li>
-                            <li>• Emotion detection and adaptation</li>
-                            <li>• Multi-language support</li>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <h5 className="font-semibold mb-3 text-green-700">✓ High-Converting Scripts Include:</h5>
+                          <div className="space-y-2">
+                            <div className="p-2 bg-green-50 rounded border border-green-200">
+                              <strong className="text-sm text-green-800">Personal Greeting</strong>
+                              <p className="text-xs text-green-600">"Hi [Name], this is [Your Business]"</p>
+                            </div>
+                            <div className="p-2 bg-green-50 rounded border border-green-200">
+                              <strong className="text-sm text-green-800">Specific Details</strong>
+                              <p className="text-xs text-green-600">Date, time, service, provider name</p>
+                            </div>
+                            <div className="p-2 bg-green-50 rounded border border-green-200">
+                              <strong className="text-sm text-green-800">Easy Action</strong>
+                              <p className="text-xs text-green-600">"Reply YES to confirm or call us to reschedule"</p>
+                            </div>
+                            <div className="p-2 bg-green-50 rounded border border-green-200">
+                              <strong className="text-sm text-green-800">Helpful Info</strong>
+                              <p className="text-xs text-green-600">Parking directions, what to bring, prep instructions</p>
+                            </div>
+                            <div className="p-2 bg-green-50 rounded border border-green-200">
+                              <strong className="text-sm text-green-800">Contact Option</strong>
+                              <p className="text-xs text-green-600">"Call us at [number] with any questions"</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div>
+                          <h5 className="font-semibold mb-3 text-red-700">✗ Avoid These Mistakes:</h5>
+                          <div className="space-y-2">
+                            <div className="p-2 bg-red-50 rounded border border-red-200">
+                              <strong className="text-sm text-red-800">Too Formal/Robotic</strong>
+                              <p className="text-xs text-red-600">"This is an automated reminder regarding..."</p>
+                            </div>
+                            <div className="p-2 bg-red-50 rounded border border-red-200">
+                              <strong className="text-sm text-red-800">Missing Key Details</strong>
+                              <p className="text-xs text-red-600">No date, time, or location mentioned</p>
+                            </div>
+                            <div className="p-2 bg-red-50 rounded border border-red-200">
+                              <strong className="text-sm text-red-800">No Clear Action</strong>
+                              <p className="text-xs text-red-600">Customer doesn't know what to do next</p>
+                            </div>
+                            <div className="p-2 bg-red-50 rounded border border-red-200">
+                              <strong className="text-sm text-red-800">Too Long</strong>
+                              <p className="text-xs text-red-600">More than 30 seconds (people hang up)</p>
+                            </div>
+                            <div className="p-2 bg-red-50 rounded border border-red-200">
+                              <strong className="text-sm text-red-800">Generic Message</strong>
+                              <p className="text-xs text-red-600">No personalization, sounds mass-produced</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Alert className="mt-4">
+                        <i className="fas fa-lightbulb"></i>
+                        <AlertTitle>Pro Formula for 40% Higher Response Rates</AlertTitle>
+                        <AlertDescription>
+                          <strong>Personal + Clear + Actionable + Helpful = Success</strong>
+                          <p className="mt-2 text-sm">
+                            Example: "Hi Sarah, this is Lisa from Sunshine Spa! Just confirming your massage appointment tomorrow (Thursday) at 10 AM. We're located at 123 Main Street—free parking in back. Please arrive 5 minutes early to fill out your preference card. Reply YES to confirm or call us at 555-0123 to reschedule. Can't wait to see you!"
+                          </p>
+                        </AlertDescription>
+                      </Alert>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Add Arrival Directions</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="mb-3">Help customers find you easily by adding travel and parking directions to your voice messages:</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-blue-50 p-3 rounded border border-blue-200">
+                          <strong className="text-blue-800">📍 Location Tips</strong>
+                          <ul className="text-sm text-blue-700 mt-2 space-y-1">
+                            <li>• "We're on the 2nd floor, Suite 205"</li>
+                            <li>• "Enter through the main lobby"</li>
+                            <li>• "Look for the blue awning"</li>
+                            <li>• "Next to Starbucks on Main Street"</li>
                           </ul>
                         </div>
-                        <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-                          <h5 className="font-semibold text-orange-800 mb-2">
-                            <i className="fas fa-clock mr-2"></i>
-                            Timing Optimization
-                          </h5>
-                          <ul className="text-sm space-y-1 text-orange-700">
-                            <li>• Customer time zone awareness</li>
-                            <li>• Best contact time learning</li>
-                            <li>• Retry logic for failed calls</li>
-                            <li>• Holiday and weekend handling</li>
-                          </ul>
-                        </div>
-                        <div className="bg-red-50 p-4 rounded-lg border border-red-200">
-                          <h5 className="font-semibold text-red-800 mb-2">
-                            <i className="fas fa-chart-line mr-2"></i>
-                            Quality Monitoring
-                          </h5>
-                          <ul className="text-sm space-y-1 text-red-700">
-                            <li>• Call success rate tracking</li>
-                            <li>• Customer satisfaction scoring</li>
-                            <li>• Voice quality analytics</li>
-                            <li>• Continuous improvement suggestions</li>
+                        <div className="bg-green-50 p-3 rounded border border-green-200">
+                          <strong className="text-green-800">🚗 Parking Instructions</strong>
+                          <ul className="text-sm text-green-700 mt-2 space-y-1">
+                            <li>• "Free parking in back lot"</li>
+                            <li>• "Validated parking in building garage"</li>
+                            <li>• "Street parking available (metered)"</li>
+                            <li>• "Drop-off zone at front entrance"</li>
                           </ul>
                         </div>
                       </div>
                     </CardContent>
                   </Card>
-
-                  <Alert className="bg-yellow-50 border-yellow-200">
-                    <i className="fas fa-magic text-yellow-600"></i>
-                    <AlertTitle className="text-yellow-800">Voice AI Success Story</AlertTitle>
-                    <AlertDescription className="text-yellow-700">
-                      <strong>Elite Spa & Wellness:</strong> "We customized our voice AI with a warm, spa-like tone and added relaxation tips in our reminders. Customer feedback has been incredible - 96% say our voice reminders actually enhance their spa experience. We've seen a 51% reduction in no-shows and 34% increase in add-on service bookings!"
-                      <br /><br />
-                      <strong>Key Customizations:</strong> Calming voice tone, wellness tips, service preparation reminders, and gentle upselling for complementary treatments.
-                    </AlertDescription>
-                  </Alert>
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
 
-          <TabsContent value="automation">
+          <TabsContent value="reduce-noshows">
             <div className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Automation Workflows That Drive Results</CardTitle>
+                  <CardTitle>Effective Strategies to Target 40-60% No-Show Reduction</CardTitle>
                   <CardDescription>
-                    Set up intelligent automation to reduce manual work and improve customer experience
+                    Real-world tactics that deliver measurable results
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Card className="bg-blue-50 border-blue-200">
+                  <Alert className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-300">
+                    <i className="fas fa-trophy text-green-600"></i>
+                    <AlertTitle className="text-green-800">Industry Benchmark: 40-60% No-Show Reduction</AlertTitle>
+                    <AlertDescription className="text-green-700">
+                      <strong>Our most successful clients typically see 40-60% reduction in no-shows within 30 days.</strong> The key is consistent application of these effective strategies.
+                    </AlertDescription>
+                  </Alert>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <Card className="border-l-4 border-l-blue-500">
                       <CardHeader>
                         <CardTitle className="text-lg text-blue-800">
-                          <i className="fas fa-robot mr-2"></i>
-                          Smart Reminder Sequences
+                          <i className="fas fa-clock mr-2"></i>
+                          Strategy #1: Perfect Timing
                         </CardTitle>
                       </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          <div>
-                            <h5 className="font-semibold text-blue-700 mb-2">Optimal Timing Strategy</h5>
-                            <div className="space-y-2">
-                              <div className="flex items-center space-x-3 p-2 bg-white rounded border border-blue-200">
-                                <Badge variant="outline">72 Hours</Badge>
-                                <div className="text-sm">
-                                  <strong>Initial Reminder:</strong> Appointment confirmation with details
-                                </div>
-                              </div>
-                              <div className="flex items-center space-x-3 p-2 bg-white rounded border border-blue-200">
-                                <Badge variant="outline">24 Hours</Badge>
-                                <div className="text-sm">
-                                  <strong>Final Reminder:</strong> Last chance to reschedule
-                                </div>
-                              </div>
-                              <div className="flex items-center space-x-3 p-2 bg-white rounded border border-blue-200">
-                                <Badge variant="outline">2 Hours</Badge>
-                                <div className="text-sm">
-                                  <strong>Departure Alert:</strong> Travel time and preparation tips
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          <Alert className="bg-blue-100 border-blue-300">
-                            <AlertDescription className="text-blue-800 text-sm">
-                              <strong>Research-Backed:</strong> This 3-touch sequence reduces no-shows by 58% compared to single reminders.
-                            </AlertDescription>
-                          </Alert>
+                      <CardContent className="space-y-3">
+                        <div className="p-3 bg-blue-50 rounded">
+                          <strong className="text-blue-800">48-Hour Advance Notice</strong>
+                          <p className="text-sm text-blue-700 mt-1">Gives customers time to plan or reschedule. <strong>Reduces no-shows by 30%.</strong></p>
+                        </div>
+                        <div className="p-3 bg-blue-50 rounded">
+                          <strong className="text-blue-800">24-Hour Reminder</strong>
+                          <p className="text-sm text-blue-700 mt-1">Second reminder catches those who forgot. <strong>Additional 15% reduction.</strong></p>
+                        </div>
+                        <div className="p-3 bg-blue-50 rounded">
+                          <strong className="text-blue-800">Morning-Of Reminder</strong>
+                          <p className="text-sm text-blue-700 mt-1">Final reminder for same-day appointments. <strong>Catches 5% more.</strong></p>
+                        </div>
+                        <div className="text-center mt-3 p-2 bg-blue-100 rounded">
+                          <strong className="text-blue-800">Total Impact: ~50% Reduction</strong>
                         </div>
                       </CardContent>
                     </Card>
 
-                    <Card className="bg-green-50 border-green-200">
+                    <Card className="border-l-4 border-l-green-500">
                       <CardHeader>
                         <CardTitle className="text-lg text-green-800">
-                          <i className="fas fa-exchange-alt mr-2"></i>
-                          Automated Rescheduling
+                          <i className="fas fa-user-friends mr-2"></i>
+                          Strategy #2: Personalization
                         </CardTitle>
                       </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          <div>
-                            <h5 className="font-semibold text-green-700 mb-2">Self-Service Workflow</h5>
-                            <ul className="text-sm space-y-2">
-                              <li>• <strong>Instant Options:</strong> AI provides 3-5 alternative time slots</li>
-                              <li>• <strong>One-Click Booking:</strong> Customers confirm new time via voice/SMS</li>
-                              <li>• <strong>Calendar Sync:</strong> Automatic updates to your scheduling system</li>
-                              <li>• <strong>Confirmation Loop:</strong> Immediate confirmation of new appointment</li>
-                            </ul>
-                          </div>
-                          <div className="bg-white p-3 rounded border border-green-200">
-                            <p className="text-xs text-green-600">
-                              <strong>Time Savings:</strong> Automated rescheduling saves 15 minutes per change, reducing admin work by 70%.
-                            </p>
-                          </div>
+                      <CardContent className="space-y-3">
+                        <div className="p-3 bg-green-50 rounded">
+                          <strong className="text-green-800">Use Customer Names</strong>
+                          <p className="text-sm text-green-700 mt-1">"Hi Sarah" feels personal, not automated. <strong>25% better response.</strong></p>
+                        </div>
+                        <div className="p-3 bg-green-50 rounded">
+                          <strong className="text-green-800">Mention Provider Name</strong>
+                          <p className="text-sm text-green-700 mt-1">"Your appointment with Dr. Smith" creates connection. <strong>18% improvement.</strong></p>
+                        </div>
+                        <div className="p-3 bg-green-50 rounded">
+                          <strong className="text-green-800">Reference Past Visits</strong>
+                          <p className="text-sm text-green-700 mt-1">"Looking forward to seeing you again!" builds loyalty. <strong>12% boost.</strong></p>
+                        </div>
+                        <div className="text-center mt-3 p-2 bg-green-100 rounded">
+                          <strong className="text-green-800">Total Impact: ~55% More Engagement</strong>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-l-4 border-l-purple-500">
+                      <CardHeader>
+                        <CardTitle className="text-lg text-purple-800">
+                          <i className="fas fa-redo mr-2"></i>
+                          Strategy #3: Easy Rescheduling
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="p-3 bg-purple-50 rounded">
+                          <strong className="text-purple-800">One-Click Reschedule</strong>
+                          <p className="text-sm text-purple-700 mt-1">Make it easy—they'll reschedule instead of no-showing. <strong>40% fewer no-shows.</strong></p>
+                        </div>
+                        <div className="p-3 bg-purple-50 rounded">
+                          <strong className="text-purple-800">No Penalties</strong>
+                          <p className="text-sm text-purple-700 mt-1">Encourage rescheduling vs. missing. <strong>35% convert to new appointments.</strong></p>
+                        </div>
+                        <div className="p-3 bg-purple-50 rounded">
+                          <strong className="text-purple-800">Suggest Alternatives</strong>
+                          <p className="text-sm text-purple-700 mt-1">"Can't make it? Reply with a better time." <strong>28% take action.</strong></p>
+                        </div>
+                        <div className="text-center mt-3 p-2 bg-purple-100 rounded">
+                          <strong className="text-purple-800">Total Impact: ~60% Rescued Appointments</strong>
                         </div>
                       </CardContent>
                     </Card>
                   </div>
 
-                  <Card>
+                  <Card className="bg-yellow-50 border-yellow-300">
                     <CardHeader>
-                      <CardTitle>Advanced Automation Strategies</CardTitle>
+                      <CardTitle className="text-yellow-900">The Ultimate No-Show Prevention Workflow</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-6">
-                        <div>
-                          <h5 className="font-semibold mb-3">Customer Journey Automation</h5>
-                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <div className="bg-purple-50 p-4 rounded-lg border border-purple-200 text-center">
-                              <i className="fas fa-user-plus text-2xl text-purple-600 mb-2"></i>
-                              <h6 className="font-semibold text-purple-800 text-sm">New Customer</h6>
-                              <p className="text-xs text-purple-700 mt-1">Welcome sequence, expectation setting, preparation guidelines</p>
-                            </div>
-                            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 text-center">
-                              <i className="fas fa-calendar-check text-2xl text-blue-600 mb-2"></i>
-                              <h6 className="font-semibold text-blue-800 text-sm">Appointment Confirmed</h6>
-                              <p className="text-xs text-blue-700 mt-1">Confirmation message, calendar invite, preparation reminders</p>
-                            </div>
-                            <div className="bg-green-50 p-4 rounded-lg border border-green-200 text-center">
-                              <i className="fas fa-check-circle text-2xl text-green-600 mb-2"></i>
-                              <h6 className="font-semibold text-green-800 text-sm">Service Complete</h6>
-                              <p className="text-xs text-green-700 mt-1">Thank you message, feedback request, next appointment scheduling</p>
-                            </div>
-                            <div className="bg-orange-50 p-4 rounded-lg border border-orange-200 text-center">
-                              <i className="fas fa-star text-2xl text-orange-600 mb-2"></i>
-                              <h6 className="font-semibold text-orange-800 text-sm">Follow-up</h6>
-                              <p className="text-xs text-orange-700 mt-1">Care instructions, satisfaction survey, loyalty program enrollment</p>
-                            </div>
+                      <div className="space-y-3">
+                        <div className="flex items-start space-x-3">
+                          <Badge className="mt-1 bg-yellow-600">Step 1</Badge>
+                          <div>
+                            <strong className="text-yellow-900">72 Hours Before:</strong>
+                            <p className="text-sm text-yellow-800">Initial reminder for high-value appointments. "Looking forward to your appointment!"</p>
                           </div>
                         </div>
-
-                        <div>
-                          <h5 className="font-semibold mb-3">Intelligent Escalation Rules</h5>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="bg-red-50 p-4 rounded-lg border border-red-200">
-                              <h6 className="font-semibold text-red-800 mb-2">No Response Triggers</h6>
-                              <ul className="text-sm space-y-1 text-red-700">
-                                <li>• After 2 failed voice calls → Send SMS backup</li>
-                                <li>• After 24 hours no response → Email notification</li>
-                                <li>• Same-day appointment → Staff manual call</li>
-                                <li>• VIP customer → Immediate staff notification</li>
-                              </ul>
-                            </div>
-                            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                              <h6 className="font-semibold text-yellow-800 mb-2">Staff Alert Conditions</h6>
-                              <ul className="text-sm space-y-1 text-yellow-700">
-                                <li>• Multiple reschedule requests</li>
-                                <li>• Customer expresses dissatisfaction</li>
-                                <li>• Technical issues with contact</li>
-                                <li>• Special accommodation requests</li>
-                              </ul>
-                            </div>
+                        <div className="flex items-start space-x-3">
+                          <Badge className="mt-1 bg-yellow-600">Step 2</Badge>
+                          <div>
+                            <strong className="text-yellow-900">24 Hours Before:</strong>
+                            <p className="text-sm text-yellow-800">Standard reminder with details. Include parking/directions. Offer easy rescheduling.</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start space-x-3">
+                          <Badge className="mt-1 bg-yellow-600">Step 3</Badge>
+                          <div>
+                            <strong className="text-yellow-900">2 Hours Before:</strong>
+                            <p className="text-sm text-yellow-800">Final reminder for same-day appointments. "See you in 2 hours!"</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start space-x-3">
+                          <Badge className="mt-1 bg-yellow-600">Step 4</Badge>
+                          <div>
+                            <strong className="text-yellow-900">If No Answer:</strong>
+                            <p className="text-sm text-yellow-800">Auto-retry after 90 minutes. Leave voicemail with callback number.</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start space-x-3">
+                          <Badge className="mt-1 bg-yellow-600">Step 5</Badge>
+                          <div>
+                            <strong className="text-yellow-900">Post-Appointment:</strong>
+                            <p className="text-sm text-yellow-800">Thank you message. Request feedback. Book next appointment.</p>
                           </div>
                         </div>
                       </div>
                     </CardContent>
                   </Card>
 
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-green-800">
+                          <i className="fas fa-check-circle mr-2"></i>
+                          What Works Best
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="space-y-2 text-sm">
+                          <li>✓ <strong>Multiple touchpoints:</strong> 2-3 reminders minimum</li>
+                          <li>✓ <strong>Personal tone:</strong> Friendly, not robotic</li>
+                          <li>✓ <strong>Clear value:</strong> Remind them why they booked</li>
+                          <li>✓ <strong>Easy actions:</strong> One-click confirm/reschedule</li>
+                          <li>✓ <strong>Helpful details:</strong> Parking, directions, what to bring</li>
+                          <li>✓ <strong>Respectful timing:</strong> Business hours only</li>
+                          <li>✓ <strong>Follow-up:</strong> Retry no-answers automatically</li>
+                        </ul>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-red-800">
+                          <i className="fas fa-times-circle mr-2"></i>
+                          Common Mistakes to Avoid
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="space-y-2 text-sm">
+                          <li>✗ <strong>Only one reminder:</strong> Not enough touchpoints</li>
+                          <li>✗ <strong>Too early:</strong> 7+ days before (they forget again)</li>
+                          <li>✗ <strong>Too late:</strong> Only same-day (no time to plan)</li>
+                          <li>✗ <strong>No follow-up:</strong> Giving up after one try</li>
+                          <li>✗ <strong>Generic message:</strong> Sounds like spam</li>
+                          <li>✗ <strong>Hard to reschedule:</strong> Creates no-shows</li>
+                          <li>✗ <strong>Wrong timing:</strong> Calling at 8 PM or 7 AM</li>
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  </div>
+
                   <Alert>
-                    <i className="fas fa-lightbulb"></i>
-                    <AlertTitle>Automation ROI Calculator</AlertTitle>
+                    <i className="fas fa-calculator"></i>
+                    <AlertTitle>Calculate Your Potential ROI</AlertTitle>
                     <AlertDescription>
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-3">
-                        <div className="text-center">
-                          <div className="text-lg font-bold text-green-600">15 min</div>
-                          <div className="text-xs text-muted-foreground">Saved per reminder</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-bold text-blue-600">70%</div>
-                          <div className="text-xs text-muted-foreground">Reduction in admin calls</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-bold text-purple-600">$2,400</div>
-                          <div className="text-xs text-muted-foreground">Monthly time savings value</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-bold text-orange-600">45%</div>
-                          <div className="text-xs text-muted-foreground">Increase in staff productivity</div>
-                        </div>
+                      <div className="mt-3 space-y-2">
+                        <p><strong>Sample Calculation (for illustration):</strong></p>
+                        <ul className="text-sm space-y-1 ml-4">
+                          <li>• Baseline no-show rate: 20% (100 monthly appointments = 20 no-shows)</li>
+                          <li>• Average appointment value: $150</li>
+                          <li>• Current monthly loss: 20 × $150 = $3,000</li>
+                          <li>• Potential improvement (40-50% reduction): 8-10 fewer no-shows</li>
+                          <li>• <strong className="text-green-700">Potential monthly value: $1,200-$1,500</strong></li>
+                          <li>• <strong className="text-green-700">Potential annual value: $14,400-$18,000</strong></li>
+                        </ul>
+                        <p className="text-sm mt-3 p-2 bg-green-100 rounded">
+                          <strong>Your Results:</strong> Calculate using your own numbers (appointment volume × average value × expected reduction rate). Results vary widely based on industry, implementation quality, and baseline metrics.
+                        </p>
                       </div>
                     </AlertDescription>
                   </Alert>
@@ -617,78 +745,92 @@ export default function ClientAdminGuide() {
             <div className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Analytics & Performance Insights</CardTitle>
+                  <CardTitle>Analytics & Performance Tracking</CardTitle>
                   <CardDescription>
-                    Transform data into actionable business intelligence for continuous improvement
+                    Measure results, identify opportunities, and prove ROI
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  <Alert className="bg-blue-50 border-blue-300">
+                    <i className="fas fa-chart-line text-blue-600"></i>
+                    <AlertTitle className="text-blue-800">Data-Driven Success</AlertTitle>
+                    <AlertDescription className="text-blue-700">
+                      <strong>What gets measured gets managed.</strong> Monitor these key metrics daily to optimize your appointment operations and maximize revenue.
+                    </AlertDescription>
+                  </Alert>
+
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+                    <Card className="bg-green-50 border-green-200">
                       <CardHeader>
-                        <CardTitle className="text-lg text-blue-800">
-                          <i className="fas fa-chart-bar mr-2"></i>
-                          Key Performance Metrics
+                        <CardTitle className="text-lg text-green-800">
+                          <i className="fas fa-tachometer-alt mr-2"></i>
+                          Essential Metrics to Track Daily
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="space-y-4">
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="text-center p-3 bg-white rounded border border-blue-200">
-                              <div className="text-2xl font-bold text-blue-600">8.2%</div>
-                              <div className="text-xs text-blue-700">Current No-Show Rate</div>
-                              <Badge variant="outline" className="mt-1 text-xs">↓47% vs baseline</Badge>
+                        <div className="space-y-3">
+                          <div className="p-3 bg-white rounded border border-green-200">
+                            <div className="flex justify-between items-center mb-1">
+                              <strong className="text-green-800">Call Success Rate</strong>
+                              <Badge className="bg-green-600">Target: 85%+</Badge>
                             </div>
-                            <div className="text-center p-3 bg-white rounded border border-blue-200">
-                              <div className="text-2xl font-bold text-green-600">94.1%</div>
-                              <div className="text-xs text-green-700">Call Success Rate</div>
-                              <Badge variant="outline" className="mt-1 text-xs">Industry leading</Badge>
+                            <p className="text-sm text-green-700">Percentage of calls that connect successfully. Low rate indicates phone number issues.</p>
+                          </div>
+                          
+                          <div className="p-3 bg-white rounded border border-green-200">
+                            <div className="flex justify-between items-center mb-1">
+                              <strong className="text-green-800">Confirmation Rate</strong>
+                              <Badge className="bg-green-600">Target: 70%+</Badge>
                             </div>
-                            <div className="text-center p-3 bg-white rounded border border-blue-200">
-                              <div className="text-2xl font-bold text-purple-600">4.7★</div>
-                              <div className="text-xs text-purple-700">Customer Satisfaction</div>
-                              <Badge variant="outline" className="mt-1 text-xs">+0.9 vs manual</Badge>
+                            <p className="text-sm text-green-700">How many customers confirm their appointment. Core indicator of reminder effectiveness.</p>
+                          </div>
+                          
+                          <div className="p-3 bg-white rounded border border-green-200">
+                            <div className="flex justify-between items-center mb-1">
+                              <strong className="text-green-800">No-Show Reduction</strong>
+                              <Badge className="bg-green-600">Target: 40-60%</Badge>
                             </div>
-                            <div className="text-center p-3 bg-white rounded border border-blue-200">
-                              <div className="text-2xl font-bold text-orange-600">1.9s</div>
-                              <div className="text-xs text-orange-700">Avg Response Time</div>
-                              <Badge variant="outline" className="mt-1 text-xs">Excellent</Badge>
+                            <p className="text-sm text-green-700">Improvement vs. baseline. This is your primary ROI metric.</p>
+                          </div>
+                          
+                          <div className="p-3 bg-white rounded border border-green-200">
+                            <div className="flex justify-between items-center mb-1">
+                              <strong className="text-green-800">Reschedule Rate</strong>
+                              <Badge className="bg-green-600">Target: 20%+</Badge>
                             </div>
+                            <p className="text-sm text-green-700">Customers who reschedule instead of no-showing. Higher is better.</p>
                           </div>
                         </div>
                       </CardContent>
                     </Card>
 
-                    <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+                    <Card className="bg-purple-50 border-purple-200">
                       <CardHeader>
-                        <CardTitle className="text-lg text-green-800">
-                          <i className="fas fa-dollar-sign mr-2"></i>
-                          Revenue Impact Analysis
+                        <CardTitle className="text-lg text-purple-800">
+                          <i className="fas fa-chart-pie mr-2"></i>
+                          Understanding Your Dashboard
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                           <div>
-                            <h6 className="font-semibold text-green-700 mb-2">Monthly Revenue Recovery</h6>
-                            <div className="space-y-2">
-                              <div className="flex justify-between items-center p-2 bg-white rounded border border-green-200">
-                                <span className="text-sm text-green-700">Prevented No-Shows</span>
-                                <span className="font-bold text-green-800">$12,400</span>
-                              </div>
-                              <div className="flex justify-between items-center p-2 bg-white rounded border border-green-200">
-                                <span className="text-sm text-green-700">Improved Scheduling</span>
-                                <span className="font-bold text-green-800">$3,200</span>
-                              </div>
-                              <div className="flex justify-between items-center p-2 bg-white rounded border border-green-200">
-                                <span className="text-sm text-green-700">Staff Time Savings</span>
-                                <span className="font-bold text-green-800">$2,800</span>
-                              </div>
-                              <Separator />
-                              <div className="flex justify-between items-center p-2 bg-green-100 rounded border border-green-300">
-                                <span className="font-bold text-green-800">Total Monthly ROI</span>
-                                <span className="text-lg font-bold text-green-900">$18,400</span>
-                              </div>
-                            </div>
+                            <h5 className="font-semibold text-purple-700 mb-2">Today's Schedule</h5>
+                            <p className="text-sm text-purple-700">Upcoming appointments, pending confirmations, and at-risk customers who need follow-up.</p>
+                          </div>
+                          
+                          <div>
+                            <h5 className="font-semibold text-purple-700 mb-2">Call Activity</h5>
+                            <p className="text-sm text-purple-700">Real-time view of calls in progress, completed, and scheduled. Track your voice AI's performance.</p>
+                          </div>
+                          
+                          <div>
+                            <h5 className="font-semibold text-purple-700 mb-2">Items Requiring Attention</h5>
+                            <p className="text-sm text-purple-700">Failed calls, unconfirmed appointments (24h window), and customers with no-show history.</p>
+                          </div>
+                          
+                          <div>
+                            <h5 className="font-semibold text-purple-700 mb-2">Performance Trends</h5>
+                            <p className="text-sm text-purple-700">Week-over-week and month-over-month comparisons. Identify patterns and seasonal changes.</p>
                           </div>
                         </div>
                       </CardContent>
@@ -697,72 +839,116 @@ export default function ClientAdminGuide() {
 
                   <Card>
                     <CardHeader>
-                      <CardTitle>Advanced Analytics Features</CardTitle>
+                      <CardTitle>How to Use Daily Email Summaries</CardTitle>
                     </CardHeader>
                     <CardContent>
+                      <p className="mb-4">Receive actionable insights delivered to your inbox every morning:</p>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                          <h6 className="font-semibold text-purple-800 mb-2">
-                            <i className="fas fa-magnifying-glass-chart mr-2"></i>
-                            Predictive Analytics
-                          </h6>
-                          <ul className="text-sm space-y-1 text-purple-700">
-                            <li>• No-show probability scoring</li>
-                            <li>• Optimal reminder timing prediction</li>
-                            <li>• Customer lifetime value forecasting</li>
-                            <li>• Seasonal trend analysis</li>
-                          </ul>
+                        <div className="bg-green-50 p-4 rounded border border-green-200">
+                          <h5 className="font-semibold text-green-800 mb-2">
+                            <i className="fas fa-check-circle mr-2"></i>
+                            Recently Confirmed
+                          </h5>
+                          <p className="text-sm text-green-700">See who confirmed yesterday. These appointments are solid—focus elsewhere.</p>
+                          <p className="text-xs text-green-600 mt-2">Shows up to 10 contacts with names and appointment times</p>
                         </div>
-                        <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-                          <h6 className="font-semibold text-orange-800 mb-2">
-                            <i className="fas fa-users mr-2"></i>
-                            Customer Insights
-                          </h6>
-                          <ul className="text-sm space-y-1 text-orange-700">
-                            <li>• Communication preference patterns</li>
-                            <li>• Response time analytics</li>
-                            <li>• Satisfaction correlation analysis</li>
-                            <li>• Behavioral segmentation</li>
-                          </ul>
+                        
+                        <div className="bg-yellow-50 p-4 rounded border border-yellow-200">
+                          <h5 className="font-semibold text-yellow-800 mb-2">
+                            <i className="fas fa-exclamation-triangle mr-2"></i>
+                            No Answer (Follow-Up Needed)
+                          </h5>
+                          <p className="text-sm text-yellow-700">These customers didn't pick up. Prioritize manual follow-up today.</p>
+                          <p className="text-xs text-yellow-600 mt-2">Call them personally or send a text</p>
                         </div>
-                        <div className="bg-red-50 p-4 rounded-lg border border-red-200">
-                          <h6 className="font-semibold text-red-800 mb-2">
-                            <i className="fas fa-cogs mr-2"></i>
-                            Operational Metrics
-                          </h6>
-                          <ul className="text-sm space-y-1 text-red-700">
-                            <li>• Voice quality monitoring</li>
-                            <li>• System performance tracking</li>
-                            <li>• Integration health status</li>
-                            <li>• Cost per interaction analysis</li>
-                          </ul>
+                        
+                        <div className="bg-red-50 p-4 rounded border border-red-200">
+                          <h5 className="font-semibold text-red-800 mb-2">
+                            <i className="fas fa-phone-slash mr-2"></i>
+                            Failed Calls
+                          </h5>
+                          <p className="text-sm text-red-700">Technical issues or wrong numbers. Update contact info and retry.</p>
+                          <p className="text-xs text-red-600 mt-2">Fix immediately to prevent no-shows</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 p-4 bg-blue-50 rounded border border-blue-200">
+                        <strong className="text-blue-800">⚙️ Configure Your Summary</strong>
+                        <p className="text-sm text-blue-700 mt-2">Go to Settings → Email Preferences to:</p>
+                        <ul className="text-sm text-blue-700 mt-1 ml-4 space-y-1">
+                          <li>• Set delivery time (e.g., 8 AM in your timezone)</li>
+                          <li>• Choose which sections to include</li>
+                          <li>• Add team members to receive copies</li>
+                        </ul>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Optimization Checklist (Weekly Review)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <div className="flex items-start space-x-3">
+                          <input type="checkbox" className="mt-1" />
+                          <div>
+                            <strong>Review Call Success Rate</strong>
+                            <p className="text-sm text-muted-foreground">If below 85%, check for phone number issues or time zone problems</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start space-x-3">
+                          <input type="checkbox" className="mt-1" />
+                          <div>
+                            <strong>Analyze Confirmation Patterns</strong>
+                            <p className="text-sm text-muted-foreground">Which days/times get best responses? Adjust call timing accordingly</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start space-x-3">
+                          <input type="checkbox" className="mt-1" />
+                          <div>
+                            <strong>Compare to Last Month</strong>
+                            <p className="text-sm text-muted-foreground">Are no-shows trending down? If not, adjust your reminder strategy</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start space-x-3">
+                          <input type="checkbox" className="mt-1" />
+                          <div>
+                            <strong>Identify At-Risk Customers</strong>
+                            <p className="text-sm text-muted-foreground">Track repeat no-showers and create a special follow-up protocol</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start space-x-3">
+                          <input type="checkbox" className="mt-1" />
+                          <div>
+                            <strong>Calculate Revenue Impact</strong>
+                            <p className="text-sm text-muted-foreground">Track recovered appointments × average value = ROI to share with team</p>
+                          </div>
                         </div>
                       </div>
                     </CardContent>
                   </Card>
 
-                  <Alert className="bg-blue-50 border-blue-200">
-                    <i className="fas fa-trophy text-blue-600"></i>
-                    <AlertTitle className="text-blue-800">Monthly Performance Review Template</AlertTitle>
-                    <AlertDescription className="text-blue-700">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                        <div>
-                          <strong>Operational Review:</strong>
-                          <ul className="text-sm space-y-1 mt-1">
-                            <li>• Compare no-show rates vs. previous month</li>
-                            <li>• Analyze voice call success patterns</li>
-                            <li>• Review customer feedback and satisfaction</li>
-                            <li>• Identify peak performance periods</li>
-                          </ul>
+                  <Alert>
+                    <i className="fas fa-trophy"></i>
+                    <AlertTitle>Success Benchmarks (First 90 Days)</AlertTitle>
+                    <AlertDescription>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
+                        <div className="text-center p-3 bg-green-50 rounded">
+                          <div className="text-2xl font-bold text-green-700">40-60%</div>
+                          <div className="text-xs text-green-600">No-Show Reduction</div>
                         </div>
-                        <div>
-                          <strong>Strategic Planning:</strong>
-                          <ul className="text-sm space-y-1 mt-1">
-                            <li>• Optimize reminder timing based on data</li>
-                            <li>• Adjust voice scripts for better engagement</li>
-                            <li>• Plan capacity for high-demand periods</li>
-                            <li>• Set goals for next month's improvements</li>
-                          </ul>
+                        <div className="text-center p-3 bg-blue-50 rounded">
+                          <div className="text-2xl font-bold text-blue-700">85%+</div>
+                          <div className="text-xs text-blue-600">Call Success Rate</div>
+                        </div>
+                        <div className="text-center p-3 bg-purple-50 rounded">
+                          <div className="text-2xl font-bold text-purple-700">70%+</div>
+                          <div className="text-xs text-purple-600">Confirmation Rate</div>
+                        </div>
+                        <div className="text-center p-3 bg-orange-50 rounded">
+                          <div className="text-2xl font-bold text-orange-700">$15K+</div>
+                          <div className="text-xs text-orange-600">Revenue Recovered</div>
                         </div>
                       </div>
                     </AlertDescription>
@@ -776,76 +962,81 @@ export default function ClientAdminGuide() {
             <div className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Advanced Features & Integrations</CardTitle>
+                  <CardTitle>Advanced Features & Pro Tips</CardTitle>
                   <CardDescription>
-                    Unlock the full potential of VioConcierge with premium features and custom integrations
+                    Power user strategies to maximize platform capabilities
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Card className="bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-200">
+                    <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200">
                       <CardHeader>
                         <CardTitle className="text-lg text-purple-800">
-                          <i className="fas fa-link mr-2"></i>
-                          Calendar Integrations
+                          <i className="fas fa-calendar-check mr-2"></i>
+                          Calendar Integration Mastery
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                           <div>
-                            <h6 className="font-semibold text-purple-700 mb-2">Supported Platforms</h6>
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between p-2 bg-white rounded border border-purple-200">
-                                <div className="flex items-center space-x-2">
-                                  <i className="fab fa-calendly text-blue-500"></i>
-                                  <span className="text-sm font-medium">Calendly</span>
-                                </div>
-                                <Badge variant="outline">Real-time sync</Badge>
-                              </div>
-                              <div className="flex items-center justify-between p-2 bg-white rounded border border-purple-200">
-                                <div className="flex items-center space-x-2">
-                                  <i className="fas fa-calendar text-green-500"></i>
-                                  <span className="text-sm font-medium">Cal.com</span>
-                                </div>
-                                <Badge variant="outline">Webhook support</Badge>
-                              </div>
-                              <div className="flex items-center justify-between p-2 bg-white rounded border border-purple-200">
-                                <div className="flex items-center space-x-2">
-                                  <i className="fab fa-google text-red-500"></i>
-                                  <span className="text-sm font-medium">Google Calendar</span>
-                                </div>
-                                <Badge variant="outline">API integration</Badge>
-                              </div>
-                            </div>
+                            <h5 className="font-semibold text-purple-700 mb-2">Cal.com Setup</h5>
+                            <ol className="text-sm text-purple-700 space-y-1">
+                              <li>1. Go to Integrations → Connect Cal.com</li>
+                              <li>2. Authorize webhook access</li>
+                              <li>3. Select event types to sync</li>
+                              <li>4. Enable reschedule detection</li>
+                              <li>5. Test with sample booking</li>
+                            </ol>
                           </div>
+                          <div>
+                            <h5 className="font-semibold text-purple-700 mb-2">Calendly Setup</h5>
+                            <ol className="text-sm text-purple-700 space-y-1">
+                              <li>1. Go to Integrations → Connect Calendly</li>
+                              <li>2. Enter API key (from Calendly settings)</li>
+                              <li>3. Choose which event types sync</li>
+                              <li>4. Set up webhook signature</li>
+                              <li>5. Appointments auto-import instantly</li>
+                            </ol>
+                          </div>
+                          <Alert className="bg-purple-100 border-purple-300 mt-3">
+                            <AlertDescription className="text-purple-800 text-sm">
+                              <strong>Pro Tip:</strong> Both integrations detect rescheduling automatically, preventing duplicate reminder calls.
+                            </AlertDescription>
+                          </Alert>
                         </div>
                       </CardContent>
                     </Card>
 
-                    <Card className="bg-gradient-to-br from-green-50 to-teal-50 border-green-200">
+                    <Card className="bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200">
                       <CardHeader>
-                        <CardTitle className="text-lg text-green-800">
-                          <i className="fas fa-shield-alt mr-2"></i>
-                          HIPAA Compliance
+                        <CardTitle className="text-lg text-blue-800">
+                          <i className="fas fa-users-cog mr-2"></i>
+                          Team Management Best Practices
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                           <div>
-                            <h6 className="font-semibold text-green-700 mb-2">Healthcare-Grade Security</h6>
-                            <ul className="text-sm space-y-1 text-green-700">
-                              <li>• <strong>Encryption:</strong> End-to-end data protection</li>
-                              <li>• <strong>Access Controls:</strong> Role-based permissions</li>
-                              <li>• <strong>Audit Logging:</strong> Complete activity tracking</li>
-                              <li>• <strong>Data Retention:</strong> Automated compliance policies</li>
-                              <li>• <strong>BAA Agreement:</strong> Business Associate Agreement included</li>
+                            <h5 className="font-semibold text-blue-700 mb-2">Invite Team Members</h5>
+                            <ol className="text-sm text-blue-700 space-y-1">
+                              <li>1. Go to Team Management</li>
+                              <li>2. Click "Invite Team Member"</li>
+                              <li>3. Enter email and choose role:</li>
+                              <li className="ml-4">• <strong>Client Admin:</strong> Full access, can manage team</li>
+                              <li className="ml-4">• <strong>Client User:</strong> View-only, can't change settings</li>
+                              <li>4. They receive secure invitation link</li>
+                              <li>5. Track login activity in Audit Trail</li>
+                            </ol>
+                          </div>
+                          <div>
+                            <h5 className="font-semibold text-blue-700 mb-2">Security Best Practices</h5>
+                            <ul className="text-sm text-blue-700 space-y-1">
+                              <li>• Limit Admin access to trusted staff</li>
+                              <li>• Deactivate users when they leave</li>
+                              <li>• Review audit trail monthly</li>
+                              <li>• Use strong, unique passwords</li>
                             </ul>
                           </div>
-                          <Alert className="bg-green-100 border-green-300">
-                            <AlertDescription className="text-green-800 text-xs">
-                              <strong>Medical Practice Ready:</strong> All healthcare-specific requirements automatically configured.
-                            </AlertDescription>
-                          </Alert>
                         </div>
                       </CardContent>
                     </Card>
@@ -853,61 +1044,144 @@ export default function ClientAdminGuide() {
 
                   <Card>
                     <CardHeader>
-                      <CardTitle>Premium Feature Spotlight</CardTitle>
+                      <CardTitle>Data Export & Compliance</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                          <h6 className="font-semibold text-yellow-800 mb-2">
-                            <i className="fas fa-palette mr-2"></i>
-                            Custom Branding
-                          </h6>
-                          <ul className="text-sm space-y-1 text-yellow-700">
-                            <li>• Custom hold music and tones</li>
-                            <li>• Branded voice messages</li>
-                            <li>• Personalized email templates</li>
-                            <li>• Logo integration in communications</li>
-                          </ul>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <h5 className="font-semibold mb-3 text-green-700">Export Your Data</h5>
+                          <div className="space-y-2">
+                            <div className="p-3 bg-green-50 rounded border border-green-200">
+                              <strong className="text-green-800">CSV Exports (Reporting)</strong>
+                              <ul className="text-sm text-green-700 mt-1 space-y-1">
+                                <li>• Contact database</li>
+                                <li>• Appointment history</li>
+                                <li>• Call logs and outcomes</li>
+                                <li>• Audit trail (compliance)</li>
+                              </ul>
+                            </div>
+                            <div className="p-3 bg-blue-50 rounded border border-blue-200">
+                              <strong className="text-blue-800">JSON Export (GDPR)</strong>
+                              <ul className="text-sm text-blue-700 mt-1 space-y-1">
+                                <li>• Full data export for compliance</li>
+                                <li>• GDPR Article 20 compliant</li>
+                                <li>• Customer data portability</li>
+                              </ul>
+                            </div>
+                          </div>
                         </div>
-                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                          <h6 className="font-semibold text-blue-800 mb-2">
-                            <i className="fas fa-code mr-2"></i>
-                            API Access
-                          </h6>
-                          <ul className="text-sm space-y-1 text-blue-700">
-                            <li>• RESTful API endpoints</li>
-                            <li>• Webhook notifications</li>
-                            <li>• Custom integration development</li>
-                            <li>• Real-time data access</li>
-                          </ul>
-                        </div>
-                        <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                          <h6 className="font-semibold text-purple-800 mb-2">
-                            <i className="fas fa-headset mr-2"></i>
-                            Priority Support
-                          </h6>
-                          <ul className="text-sm space-y-1 text-purple-700">
-                            <li>• Dedicated account manager</li>
-                            <li>• 24/7 technical support</li>
-                            <li>• Priority feature requests</li>
-                            <li>• Custom training sessions</li>
-                          </ul>
+                        
+                        <div>
+                          <h5 className="font-semibold mb-3 text-purple-700">Compliance Features</h5>
+                          <div className="space-y-2">
+                            <div className="p-3 bg-purple-50 rounded border border-purple-200">
+                              <strong className="text-purple-800">Audit Trail</strong>
+                              <p className="text-sm text-purple-700 mt-1">Every action logged with timestamp, user, and details. 7-year retention for compliance.</p>
+                            </div>
+                            <div className="p-3 bg-purple-50 rounded border border-purple-200">
+                              <strong className="text-purple-800">Privacy Controls</strong>
+                              <p className="text-sm text-purple-700 mt-1">Data deletion, opt-out management, consent tracking all built-in.</p>
+                            </div>
+                            <div className="p-3 bg-purple-50 rounded border border-purple-200">
+                              <strong className="text-purple-800">Data Isolation</strong>
+                              <p className="text-sm text-purple-700 mt-1">Your data is completely separated. Bank-level encryption and security.</p>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </CardContent>
                   </Card>
 
-                  <Alert className="bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200">
-                    <i className="fas fa-star text-amber-600"></i>
-                    <AlertTitle className="text-amber-800">Success Implementation Strategy</AlertTitle>
-                    <AlertDescription className="text-amber-700">
-                      <div className="mt-3">
-                        <strong>Phase 1 (Month 1-2):</strong> Core Features - Focus on contact management, basic voice reminders, and calendar integration.
-                        <br />
-                        <strong>Phase 2 (Month 3-4):</strong> Automation - Enable advanced workflows, automated rescheduling, and intelligent escalations.
-                        <br />
-                        <strong>Phase 3 (Month 5+):</strong> Optimization - Leverage analytics, custom branding, and advanced integrations for maximum ROI.
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Troubleshooting Common Issues</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div className="p-4 bg-orange-50 rounded border border-orange-200">
+                          <div className="flex items-start space-x-3">
+                            <i className="fas fa-exclamation-triangle text-orange-600 mt-1"></i>
+                            <div className="flex-1">
+                              <strong className="text-orange-800">Issue: Low Call Success Rate (below 80%)</strong>
+                              <p className="text-sm text-orange-700 mt-1"><strong>Solutions:</strong></p>
+                              <ul className="text-sm text-orange-700 mt-1 space-y-1">
+                                <li>• Verify phone numbers are correct (mobile preferred)</li>
+                                <li>• Check call timing isn't too early/late</li>
+                                <li>• Ensure phone numbers include country code</li>
+                                <li>• Remove inactive or disconnected numbers</li>
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-4 bg-red-50 rounded border border-red-200">
+                          <div className="flex items-start space-x-3">
+                            <i className="fas fa-times-circle text-red-600 mt-1"></i>
+                            <div className="flex-1">
+                              <strong className="text-red-800">Issue: High No-Show Rate (still above 15%)</strong>
+                              <p className="text-sm text-red-700 mt-1"><strong>Solutions:</strong></p>
+                              <ul className="text-sm text-red-700 mt-1 space-y-1">
+                                <li>• Add earlier reminder (48 hours before)</li>
+                                <li>• Make rescheduling easier (one-click option)</li>
+                                <li>• Personalize voice scripts more</li>
+                                <li>• Check voice tone matches your brand</li>
+                                <li>• Enable missed call follow-ups</li>
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-4 bg-yellow-50 rounded border border-yellow-200">
+                          <div className="flex items-start space-x-3">
+                            <i className="fas fa-phone-slash text-yellow-600 mt-1"></i>
+                            <div className="flex-1">
+                              <strong className="text-yellow-800">Issue: Customers Complaining About Timing</strong>
+                              <p className="text-sm text-yellow-700 mt-1"><strong>Solutions:</strong></p>
+                              <ul className="text-sm text-yellow-700 mt-1 space-y-1">
+                                <li>• Adjust business hours in settings</li>
+                                <li>• Respect customer time zones</li>
+                                <li>• Avoid calling during meals (12-1 PM, 5-7 PM)</li>
+                                <li>• Test different call windows for your audience</li>
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-4 bg-blue-50 rounded border border-blue-200">
+                          <div className="flex items-start space-x-3">
+                            <i className="fas fa-question-circle text-blue-600 mt-1"></i>
+                            <div className="flex-1">
+                              <strong className="text-blue-800">Need More Help?</strong>
+                              <p className="text-sm text-blue-700 mt-1">Access in-platform support:</p>
+                              <ul className="text-sm text-blue-700 mt-1 space-y-1">
+                                <li>• Click the ? icon in header for contextual help</li>
+                                <li>• Check your email for training resources</li>
+                                <li>• Review analytics for optimization insights</li>
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
                       </div>
+                    </CardContent>
+                  </Card>
+
+                  <Alert className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-300">
+                    <i className="fas fa-rocket text-green-600"></i>
+                    <AlertTitle className="text-green-800">Your Success is Our Success</AlertTitle>
+                    <AlertDescription className="text-green-700">
+                      <p className="mb-2">
+                        <strong>You're now equipped to reduce no-shows by 40-60% and recover thousands in lost revenue.</strong> Remember:
+                      </p>
+                      <ul className="space-y-1">
+                        <li>• Start with quality contact data</li>
+                        <li>• Use multiple reminder touchpoints (48h, 24h, same-day)</li>
+                        <li>• Make rescheduling easy (prevents no-shows)</li>
+                        <li>• Monitor your analytics daily</li>
+                        <li>• Optimize based on what your data shows</li>
+                      </ul>
+                      <p className="mt-3 font-semibold">
+                        Most clients see measurable results within 30 days. Let's make your business more profitable! 🎉
+                      </p>
                     </AlertDescription>
                   </Alert>
                 </CardContent>
@@ -915,31 +1189,6 @@ export default function ClientAdminGuide() {
             </div>
           </TabsContent>
         </Tabs>
-
-        <div className="mt-8 p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
-          <h3 className="text-lg font-bold text-blue-800 mb-2">Ready to Maximize Your Success?</h3>
-          <p className="text-blue-700 mb-4">
-            Take advantage of additional resources and support to accelerate your appointment management transformation.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
-              <i className="fas fa-phone mr-2"></i>
-              Schedule Strategy Call
-            </Button>
-            <Button size="sm" variant="outline">
-              <i className="fas fa-graduation-cap mr-2"></i>
-              Training Videos
-            </Button>
-            <Button size="sm" variant="outline">
-              <i className="fas fa-users mr-2"></i>
-              User Community
-            </Button>
-            <Button size="sm" variant="outline">
-              <i className="fas fa-envelope mr-2"></i>
-              Email Support
-            </Button>
-          </div>
-            </div>
           </div>
         </main>
       </div>
