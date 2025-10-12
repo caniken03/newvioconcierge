@@ -682,6 +682,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // SECURITY: Log successful authentication
       console.log(`✅ Successful auth: ${email} (${userRole}) from ${clientIp}`);
 
+      // Create login notification for security awareness
+      try {
+        await inAppNotificationService.createNotification({
+          userId: user.id,
+          tenantId: user.tenantId,
+          type: 'security_event',
+          category: 'info',
+          title: 'Successful Login',
+          message: `You logged in from ${clientIp}`,
+          priority: 'normal',
+          metadata: JSON.stringify({
+            ip: clientIp,
+            userAgent,
+            timestamp: new Date().toISOString(),
+          }),
+        });
+      } catch (notifError) {
+        console.error('Failed to create login notification:', notifError);
+        // Don't fail the login if notification creation fails
+      }
+
       // SECURITY: Enhanced response with security headers
       res.set({
         'X-Content-Type-Options': 'nosniff',
@@ -1162,6 +1183,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ),
           emergencyOverride: false,
         });
+      }
+
+      // Create notification for ALL super admins about new tenant
+      try {
+        const allUsers = await storage.getAllUsers();
+        const superAdmins = allUsers.filter(u => u.role === 'super_admin' && u.isActive);
+        
+        for (const admin of superAdmins) {
+          try {
+            await inAppNotificationService.createNotification({
+              userId: admin.id,
+              tenantId: admin.tenantId,
+              type: 'tenant_update',
+              category: 'success',
+              title: 'New Tenant Created',
+              message: `${tenantData.businessName} has been successfully created`,
+              priority: 'normal',
+              actionUrl: `/tenants/${tenant.id}`,
+              actionLabel: 'View Tenant',
+              metadata: JSON.stringify({
+                tenantId: tenant.id,
+                tenantName: tenantData.businessName,
+                businessType: tenantData.businessTemplate,
+                createdBy: req.user.fullName,
+              }),
+            });
+          } catch (individualNotifError) {
+            console.error(`Failed to notify super admin ${admin.id}:`, individualNotifError);
+          }
+        }
+      } catch (notifError) {
+        console.error('Failed to create tenant creation notifications:', notifError);
       }
 
       res.status(201).json({ 
@@ -4583,6 +4636,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
           callOutcome,
           durationSeconds,
         });
+
+        // Create notification for call outcome
+        try {
+          const contact = await storage.getContact(session.contactId!);
+          
+          // Determine notification details
+          let notificationCategory: 'success' | 'warning' | 'error' | 'info' = 'info';
+          let notificationTitle = 'Call Completed';
+          let notificationMessage = contact 
+            ? `Call with ${contact.name} completed` 
+            : `Call completed with outcome: ${callOutcome}`;
+          
+          if (callOutcome === 'confirmed') {
+            notificationCategory = 'success';
+            notificationTitle = 'Appointment Confirmed';
+            notificationMessage = contact 
+              ? `${contact.name}'s appointment has been confirmed via call`
+              : 'Appointment confirmed via call';
+          } else if (callOutcome === 'failed' || callOutcome === 'busy') {
+            notificationCategory = 'error';
+            notificationTitle = 'Call Failed';
+            notificationMessage = contact
+              ? `Failed to reach ${contact.name} - ${callOutcome}`
+              : `Call failed - ${callOutcome}`;
+          } else if (callOutcome === 'no_answer' || callOutcome === 'voicemail') {
+            notificationCategory = 'warning';
+            notificationTitle = callOutcome === 'voicemail' ? 'Voicemail Left' : 'No Answer';
+            notificationMessage = contact
+              ? `${contact.name} - ${callOutcome === 'voicemail' ? 'Voicemail message left' : 'No answer, may need retry'}`
+              : `${callOutcome === 'voicemail' ? 'Voicemail message left' : 'No answer on call'}`;
+          }
+
+          // Get tenant users to notify (admin and users with appropriate permissions)
+          const tenantUsers = await storage.getUsersByTenant(session.tenantId);
+          const notificationPromises = tenantUsers
+            .filter(user => user.role === 'client_admin' || user.role === 'client_user')
+            .map(user => 
+              inAppNotificationService.createNotification({
+                userId: user.id,
+                tenantId: session.tenantId,
+                type: 'call_status',
+                category: notificationCategory,
+                title: notificationTitle,
+                message: notificationMessage,
+                priority: callOutcome === 'confirmed' ? 'high' : 'normal',
+                actionUrl: contact ? `/contacts/${contact.id}` : `/calls`,
+                actionLabel: contact ? 'View Contact' : 'View Calls',
+                relatedContactId: contact?.id,
+                relatedCallSessionId: session.id,
+                metadata: JSON.stringify({
+                  callOutcome,
+                  contactName: contact?.name,
+                  appointmentTime: contact?.appointmentTime,
+                  sessionId: session.id,
+                  contactId: contact?.id,
+                }),
+              })
+            );
+          
+          // Use Promise.allSettled to ensure all notifications are attempted
+          const results = await Promise.allSettled(notificationPromises);
+          const failed = results.filter(r => r.status === 'rejected');
+          if (failed.length > 0) {
+            console.error(`Failed to send ${failed.length} call outcome notifications`);
+          }
+        } catch (notifError) {
+          console.error('Failed to create call outcome notifications:', notifError);
+        }
 
         // Update contact based on call outcome
         if (callOutcome === 'confirmed') {
