@@ -23,6 +23,7 @@ import { calendlyService } from "./services/calendly";
 import { businessTemplateService } from "./services/business-templates";
 import { reschedulingWorkflowService } from "./services/rescheduling-workflow";
 import { notificationService } from "./services/notification-service";
+import { inAppNotificationService } from "./services/in-app-notification-service";
 import { normalizePhoneNumber } from "./utils/phone-normalization";
 import { emailService } from "./services/email";
 import { dailySummaryService } from "./services/daily-summary-service";
@@ -3547,6 +3548,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Failed to send test daily summary:', error);
       res.status(500).json({ message: 'Failed to send test daily summary' });
+    }
+  });
+
+  // In-app notification routes
+  app.get('/api/notifications', authenticateJWT, async (req: any, res) => {
+    try {
+      const { limit, unreadOnly } = req.query;
+      const userNotifications = await inAppNotificationService.getUserNotifications(
+        req.user.id,
+        req.user.tenantId,
+        {
+          limit: limit ? parseInt(limit as string) : 20,
+          unreadOnly: unreadOnly === 'true',
+        }
+      );
+      res.json(userNotifications);
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+      res.status(500).json({ message: 'Failed to fetch notifications' });
+    }
+  });
+
+  app.get('/api/notifications/unread-count', authenticateJWT, async (req: any, res) => {
+    try {
+      const count = await inAppNotificationService.getUnreadCount(
+        req.user.id,
+        req.user.tenantId
+      );
+      res.json({ count });
+    } catch (error) {
+      console.error('Failed to fetch unread count:', error);
+      res.status(500).json({ message: 'Failed to fetch unread count' });
+    }
+  });
+
+  app.patch('/api/notifications/:id/read', authenticateJWT, async (req: any, res) => {
+    try {
+      const notification = await inAppNotificationService.markAsRead(
+        req.params.id,
+        req.user.id
+      );
+      if (!notification) {
+        return res.status(404).json({ message: 'Notification not found' });
+      }
+      res.json(notification);
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+      res.status(500).json({ message: 'Failed to mark notification as read' });
+    }
+  });
+
+  app.post('/api/notifications/mark-all-read', authenticateJWT, async (req: any, res) => {
+    try {
+      const count = await inAppNotificationService.markAllAsRead(
+        req.user.id,
+        req.user.tenantId
+      );
+      res.json({ count });
+    } catch (error) {
+      console.error('Failed to mark all as read:', error);
+      res.status(500).json({ message: 'Failed to mark all as read' });
+    }
+  });
+
+  app.delete('/api/notifications/:id', authenticateJWT, async (req: any, res) => {
+    try {
+      const notification = await inAppNotificationService.dismissNotification(
+        req.params.id,
+        req.user.id
+      );
+      if (!notification) {
+        return res.status(404).json({ message: 'Notification not found' });
+      }
+      res.json({ message: 'Notification dismissed' });
+    } catch (error) {
+      console.error('Failed to dismiss notification:', error);
+      res.status(500).json({ message: 'Failed to dismiss notification' });
     }
   });
 
