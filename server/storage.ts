@@ -4823,26 +4823,25 @@ export class DatabaseStorage implements IStorage {
           continue;
         }
 
-        // Recreate hash and verify HMAC (must match creation logic exactly)
-        // Note: Convert null to undefined to match JSON.stringify behavior during creation
-        // JSON.stringify omits undefined fields but includes null, so we normalize
-        const hashInput = JSON.stringify({
+        // Verify HMAC using canonical verification (supports both v1 legacy and v2 canonical)
+        const isHashValid = verifyCanonicalAuditHash({
           sequenceNumber: entry.sequenceNumber,
-          tenantId: entry.tenantId === null ? undefined : entry.tenantId,
-          userId: entry.userId === null ? undefined : entry.userId,
+          tenantId: entry.tenantId,
+          userId: entry.userId,
           action: entry.action,
-          resource: entry.resource === null ? undefined : entry.resource,
-          timestamp: entry.timestamp.toISOString(),
+          resource: entry.resource,
+          timestamp: entry.timestamp,
           outcome: entry.outcome,
           previousHash: entry.previousHash,
           correlationId: entry.correlationId,
-          keyVersion: entry.keyVersion || 1
+          keyVersion: entry.keyVersion,
+          algorithmVersion: entry.algorithmVersion,
+          hashSignature: entry.hashSignature,
         });
-
-        const expectedHash = crypto.createHmac('sha256', process.env.AUDIT_HMAC_SECRET || '').update(hashInput).digest('hex');
         
-        if (entry.hashSignature !== expectedHash) {
-          errors.push(`HMAC verification failed at sequence ${entry.sequenceNumber}: hash tampering detected`);
+        if (!isHashValid) {
+          const alg = entry.algorithmVersion ?? 1;
+          errors.push(`HMAC verification failed at sequence ${entry.sequenceNumber} (algorithm v${alg}): hash tampering detected`);
           if (brokenChainAt === null) brokenChainAt = entry.sequenceNumber;
           continue;
         }
