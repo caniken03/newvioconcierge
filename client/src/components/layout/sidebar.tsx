@@ -242,6 +242,9 @@ export default function Sidebar() {
             <NavLink href="/super-admin-guide" icon="fas fa-book-open" testId="nav-super-admin-guide">
               User Guide
             </NavLink>
+            <NavLink href="/client-onboarding-checklist" icon="fas fa-clipboard-check" testId="nav-client-onboarding-checklist">
+              Onboarding Checklist
+            </NavLink>
           </div>
         )}
 

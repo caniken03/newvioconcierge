@@ -28,6 +28,7 @@ import ClientAdminGuide from "@/pages/client-admin-guide";
 import TeamManagement from "@/pages/team-management";
 import AuditTrail from "@/pages/audit-trail";
 import PrivacyPolicy from "@/pages/privacy-policy";
+import ClientOnboardingChecklist from "@/pages/client-onboarding-checklist";
 
 // Role-based route protection component
 function ProtectedRoute({ 
@@ -113,6 +114,9 @@ function Router() {
       </Route>
       <Route path="/super-admin-guide">
         <ProtectedRoute component={SuperAdminGuide} allowedRoles={['super_admin']} user={user} />
+      </Route>
+      <Route path="/client-onboarding-checklist">
+        <ProtectedRoute component={ClientOnboardingChecklist} allowedRoles={['super_admin']} user={user} />
       </Route>
       
       {/* Client Admin and Client User Routes */}
