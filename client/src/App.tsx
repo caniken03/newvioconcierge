@@ -25,6 +25,7 @@ import AbuseProtection from "@/pages/abuse-protection";
 import SuperAdminGuide from "@/pages/super-admin-guide";
 import ClientAdminGuide from "@/pages/client-admin-guide";
 import TeamManagement from "@/pages/team-management";
+import AuditTrail from "@/pages/audit-trail";
 
 // Role-based route protection component
 function ProtectedRoute({ 
@@ -128,6 +129,9 @@ function Router() {
       </Route>
       <Route path="/team">
         <ProtectedRoute component={TeamManagement} allowedRoles={['client_admin']} user={user} />
+      </Route>
+      <Route path="/audit-trail">
+        <ProtectedRoute component={AuditTrail} allowedRoles={['client_admin', 'super_admin']} user={user} />
       </Route>
       
       {/* All authenticated users routes */}

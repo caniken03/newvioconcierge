@@ -285,9 +285,14 @@ export default function Sidebar() {
             </NavLink>
             
             {user.role === 'client_admin' && (
-              <NavLink href="/team" icon="fas fa-users" testId="nav-team-management">
-                Team Management
-              </NavLink>
+              <>
+                <NavLink href="/team" icon="fas fa-users" testId="nav-team-management">
+                  Team Management
+                </NavLink>
+                <NavLink href="/audit-trail" icon="fas fa-shield-alt" testId="nav-audit-trail">
+                  Audit Trail
+                </NavLink>
+              </>
             )}
             
             {!collapsed && (
