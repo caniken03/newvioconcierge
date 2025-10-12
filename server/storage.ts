@@ -4673,9 +4673,6 @@ export class DatabaseStorage implements IStorage {
         };
       }
 
-      // Generate tenant-specific HMAC key (same as creation)
-      const tenantSecret = crypto.createHash('sha256').update(`${tenantId}-audit-key-${process.env.SESSION_SECRET}`).digest();
-
       let previousHash = 'GENESIS';
       
       for (let i = 0; i < auditEntries.length; i++) {
@@ -4695,7 +4692,7 @@ export class DatabaseStorage implements IStorage {
           continue;
         }
 
-        // Recreate hash and verify HMAC
+        // Recreate hash and verify HMAC (must match creation logic exactly)
         const hashInput = JSON.stringify({
           sequenceNumber: entry.sequenceNumber,
           tenantId: entry.tenantId,
@@ -4705,10 +4702,11 @@ export class DatabaseStorage implements IStorage {
           timestamp: entry.timestamp.toISOString(),
           outcome: entry.outcome,
           previousHash: entry.previousHash,
-          correlationId: entry.correlationId
+          correlationId: entry.correlationId,
+          keyVersion: entry.keyVersion || 1
         });
 
-        const expectedHash = crypto.createHmac('sha256', tenantSecret).update(hashInput).digest('hex');
+        const expectedHash = crypto.createHmac('sha256', process.env.AUDIT_HMAC_SECRET || '').update(hashInput).digest('hex');
         
         if (entry.hashSignature !== expectedHash) {
           errors.push(`HMAC verification failed at sequence ${entry.sequenceNumber}: hash tampering detected`);

@@ -267,7 +267,10 @@ export default function AuditTrail() {
                     <div>
                       <p className="font-semibold text-red-900 dark:text-red-100">Integrity Issue Detected</p>
                       <p className="text-sm text-red-700 dark:text-red-300">
-                        Chain broken at entry {verification.brokenChainAt}. Verified {verification.verifiedEntries}/{verification.totalEntries} entries. Contact support immediately.
+                        {verification.brokenChainAt 
+                          ? `Chain broken at entry ${verification.brokenChainAt}. Verified ${verification.verifiedEntries}/${verification.totalEntries} entries.`
+                          : `Integrity verification failed. Verified ${verification.verifiedEntries}/${verification.totalEntries} entries.`
+                        } Contact support immediately.
                       </p>
                       {verification.lastVerifiedHash && (
                         <p className="text-xs text-red-600 dark:text-red-400 mt-2 font-mono">
