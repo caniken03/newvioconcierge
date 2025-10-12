@@ -122,35 +122,135 @@ class DailySummaryServiceImpl implements DailySummaryService {
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const today = new Date();
 
-    // Get call stats
-    const callStats = await db
+    // Get detailed call information with outcomes
+    const recentCalls = await db
       .select({
-        status: callSessions.status,
-        count: sql<number>`count(*)::int`,
+        contactName: contacts.name,
+        appointmentTime: contacts.appointmentTime,
+        appointmentType: contacts.appointmentType,
+        appointmentStatus: contacts.appointmentStatus,
+        callStatus: callSessions.status,
+        callOutcome: callSessions.callOutcome,
+        createdAt: callSessions.createdAt,
       })
       .from(callSessions)
+      .leftJoin(contacts, eq(callSessions.contactId, contacts.id))
       .where(
         and(
           eq(callSessions.tenantId, tenantId),
           gte(callSessions.createdAt, yesterday)
         )
       )
-      .groupBy(callSessions.status);
+      .orderBy(callSessions.createdAt);
 
-    // Get appointment stats from contacts
-    const appointmentStats = await db
+    // Get count of recent appointment status changes
+    const confirmedCount = await db
       .select({
-        status: contacts.appointmentStatus,
         count: sql<number>`count(*)::int`,
       })
       .from(contacts)
       .where(
         and(
           eq(contacts.tenantId, tenantId),
-          gte(contacts.createdAt, yesterday)
+          eq(contacts.appointmentStatus, 'confirmed'),
+          gte(contacts.updatedAt, yesterday)
+        )
+      );
+
+    const cancelledCount = await db
+      .select({
+        count: sql<number>`count(*)::int`,
+      })
+      .from(contacts)
+      .where(
+        and(
+          eq(contacts.tenantId, tenantId),
+          eq(contacts.appointmentStatus, 'cancelled'),
+          gte(contacts.updatedAt, yesterday)
+        )
+      );
+
+    const rescheduledCount = await db
+      .select({
+        count: sql<number>`count(*)::int`,
+      })
+      .from(contacts)
+      .where(
+        and(
+          eq(contacts.tenantId, tenantId),
+          eq(contacts.appointmentStatus, 'rescheduled'),
+          gte(contacts.updatedAt, yesterday)
+        )
+      );
+
+    // Get detailed appointment lists (limited for display)
+    const confirmedAppointments = await db
+      .select({
+        contactName: contacts.name,
+        appointmentTime: contacts.appointmentTime,
+        appointmentType: contacts.appointmentType,
+        updatedAt: contacts.updatedAt,
+      })
+      .from(contacts)
+      .where(
+        and(
+          eq(contacts.tenantId, tenantId),
+          eq(contacts.appointmentStatus, 'confirmed'),
+          gte(contacts.updatedAt, yesterday)
         )
       )
-      .groupBy(contacts.appointmentStatus);
+      .orderBy(contacts.updatedAt)
+      .limit(10);
+
+    const cancelledAppointments = await db
+      .select({
+        contactName: contacts.name,
+        appointmentTime: contacts.appointmentTime,
+        appointmentType: contacts.appointmentType,
+      })
+      .from(contacts)
+      .where(
+        and(
+          eq(contacts.tenantId, tenantId),
+          eq(contacts.appointmentStatus, 'cancelled'),
+          gte(contacts.updatedAt, yesterday)
+        )
+      )
+      .orderBy(contacts.updatedAt)
+      .limit(10);
+
+    const rescheduledAppointments = await db
+      .select({
+        contactName: contacts.name,
+        appointmentTime: contacts.appointmentTime,
+        appointmentType: contacts.appointmentType,
+      })
+      .from(contacts)
+      .where(
+        and(
+          eq(contacts.tenantId, tenantId),
+          eq(contacts.appointmentStatus, 'rescheduled'),
+          gte(contacts.updatedAt, yesterday)
+        )
+      )
+      .orderBy(contacts.updatedAt)
+      .limit(10);
+
+    // Categorize calls by outcome
+    const noAnswerCalls = recentCalls.filter(c => 
+      c.callOutcome?.toLowerCase().includes('no answer') || 
+      c.callOutcome?.toLowerCase().includes('no-answer')
+    );
+    
+    const voicemailCalls = recentCalls.filter(c => 
+      c.callOutcome?.toLowerCase().includes('voicemail')
+    );
+    
+    const failedCalls = recentCalls.filter(c => 
+      c.callStatus === 'failed' && 
+      !c.callOutcome?.toLowerCase().includes('no answer') && 
+      !c.callOutcome?.toLowerCase().includes('voicemail')
+    );
 
     // Get upcoming appointments (next 24 hours)
     const upcomingAppointments = await db
@@ -168,17 +268,47 @@ class DailySummaryServiceImpl implements DailySummaryService {
         )
       )
       .orderBy(contacts.appointmentTime)
-      .limit(5);
+      .limit(10);
 
-    // Process stats
+    // Process stats (using actual counts, not limited arrays)
     const stats = {
-      totalCalls: callStats.reduce((sum, stat) => sum + stat.count, 0),
-      successfulCalls: callStats.find(s => s.status === 'completed')?.count || 0,
-      failedCalls: callStats.find(s => s.status === 'failed')?.count || 0,
-      pendingCalls: callStats.find(s => s.status === 'scheduled')?.count || 0,
-      confirmedAppointments: appointmentStats.find(s => s.status === 'confirmed')?.count || 0,
-      cancelledAppointments: appointmentStats.find(s => s.status === 'cancelled')?.count || 0,
-      rescheduledAppointments: appointmentStats.find(s => s.status === 'rescheduled')?.count || 0,
+      totalCalls: recentCalls.length,
+      successfulCalls: recentCalls.filter(c => c.callStatus === 'completed').length,
+      failedCalls: recentCalls.filter(c => c.callStatus === 'failed').length,
+      pendingCalls: recentCalls.filter(c => c.callStatus === 'queued' || c.callStatus === 'in_progress').length,
+      confirmedAppointments: confirmedCount[0]?.count || 0,
+      cancelledAppointments: cancelledCount[0]?.count || 0,
+      rescheduledAppointments: rescheduledCount[0]?.count || 0,
+    };
+
+    const detailedData = {
+      confirmedAppointments: confirmedAppointments.map(apt => ({
+        contactName: apt.contactName,
+        appointmentTime: apt.appointmentTime,
+        appointmentType: apt.appointmentType || 'General Appointment',
+      })),
+      cancelledAppointments: cancelledAppointments.map(apt => ({
+        contactName: apt.contactName,
+        appointmentTime: apt.appointmentTime,
+        appointmentType: apt.appointmentType || 'General Appointment',
+      })),
+      rescheduledAppointments: rescheduledAppointments.map(apt => ({
+        contactName: apt.contactName,
+        appointmentTime: apt.appointmentTime,
+        appointmentType: apt.appointmentType || 'General Appointment',
+      })),
+      noAnswerCalls: noAnswerCalls.map(c => ({
+        contactName: c.contactName || 'Unknown',
+        appointmentTime: c.appointmentTime,
+      })),
+      voicemailCalls: voicemailCalls.map(c => ({
+        contactName: c.contactName || 'Unknown',
+        appointmentTime: c.appointmentTime,
+      })),
+      failedCalls: failedCalls.map(c => ({
+        contactName: c.contactName || 'Unknown',
+        outcome: c.callOutcome || 'Failed',
+      })),
     };
 
     // Get tenant/company name (simplified - you may need to fetch from tenant_config)
@@ -190,6 +320,7 @@ class DailySummaryServiceImpl implements DailySummaryService {
       companyName,
       date: today,
       stats,
+      detailedData,
       upcomingAppointments: upcomingAppointments
         .filter(apt => apt.appointmentDate !== null)
         .map(apt => ({

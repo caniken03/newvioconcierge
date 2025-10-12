@@ -10,11 +10,42 @@ interface CallStats {
   rescheduledAppointments: number;
 }
 
+interface DetailedData {
+  confirmedAppointments: Array<{
+    contactName: string;
+    appointmentTime: Date | null;
+    appointmentType: string;
+  }>;
+  cancelledAppointments: Array<{
+    contactName: string;
+    appointmentTime: Date | null;
+    appointmentType: string;
+  }>;
+  rescheduledAppointments: Array<{
+    contactName: string;
+    appointmentTime: Date | null;
+    appointmentType: string;
+  }>;
+  noAnswerCalls: Array<{
+    contactName: string;
+    appointmentTime: Date | null;
+  }>;
+  voicemailCalls: Array<{
+    contactName: string;
+    appointmentTime: Date | null;
+  }>;
+  failedCalls: Array<{
+    contactName: string;
+    outcome: string;
+  }>;
+}
+
 interface DailySummaryData {
   userName: string;
   companyName: string;
   date: Date;
   stats: CallStats;
+  detailedData: DetailedData;
   upcomingAppointments: Array<{
     contactName: string;
     appointmentDate: Date;
@@ -23,7 +54,7 @@ interface DailySummaryData {
 }
 
 export function generateDailySummaryEmail(data: DailySummaryData): string {
-  const { userName, companyName, date, stats, upcomingAppointments } = data;
+  const { userName, companyName, date, stats, detailedData, upcomingAppointments } = data;
   const formattedDate = format(date, 'MMMM d, yyyy');
   
   const successRate = stats.totalCalls > 0 
@@ -219,6 +250,90 @@ export function generateDailySummaryEmail(data: DailySummaryData): string {
           <div class="stat-label">Rescheduled</div>
         </div>
       </div>
+
+      ${detailedData.confirmedAppointments.length > 0 ? `
+        <h2 class="section-title">✅ Recently Confirmed</h2>
+        <div class="appointment-list">
+          ${detailedData.confirmedAppointments.map(apt => `
+            <div class="appointment-item">
+              <div class="appointment-name">${apt.contactName}</div>
+              <div class="appointment-details">
+                ${apt.appointmentTime ? format(new Date(apt.appointmentTime), 'MMM d, yyyy h:mm a') : 'Time TBD'} • ${apt.appointmentType}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+
+      ${detailedData.rescheduledAppointments.length > 0 ? `
+        <h2 class="section-title">📅 Recently Rescheduled</h2>
+        <div class="appointment-list">
+          ${detailedData.rescheduledAppointments.map(apt => `
+            <div class="appointment-item" style="border-left-color: #f59e0b;">
+              <div class="appointment-name">${apt.contactName}</div>
+              <div class="appointment-details">
+                ${apt.appointmentTime ? format(new Date(apt.appointmentTime), 'MMM d, yyyy h:mm a') : 'Time TBD'} • ${apt.appointmentType}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+
+      ${detailedData.cancelledAppointments.length > 0 ? `
+        <h2 class="section-title">❌ Recently Cancelled</h2>
+        <div class="appointment-list">
+          ${detailedData.cancelledAppointments.map(apt => `
+            <div class="appointment-item" style="border-left-color: #ef4444;">
+              <div class="appointment-name">${apt.contactName}</div>
+              <div class="appointment-details">
+                ${apt.appointmentTime ? 'Was scheduled for ' + format(new Date(apt.appointmentTime), 'MMM d, yyyy h:mm a') : 'Time TBD'} • ${apt.appointmentType}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+
+      ${detailedData.noAnswerCalls.length > 0 ? `
+        <h2 class="section-title">📞 No Answer - Needs Follow-up</h2>
+        <div class="appointment-list">
+          ${detailedData.noAnswerCalls.map(call => `
+            <div class="appointment-item" style="border-left-color: #f59e0b;">
+              <div class="appointment-name">${call.contactName}</div>
+              <div class="appointment-details">
+                ${call.appointmentTime ? 'Appointment: ' + format(new Date(call.appointmentTime), 'MMM d, yyyy h:mm a') : 'No appointment set'}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+
+      ${detailedData.voicemailCalls.length > 0 ? `
+        <h2 class="section-title">📨 Voicemail Left</h2>
+        <div class="appointment-list">
+          ${detailedData.voicemailCalls.map(call => `
+            <div class="appointment-item" style="border-left-color: #8b5cf6;">
+              <div class="appointment-name">${call.contactName}</div>
+              <div class="appointment-details">
+                ${call.appointmentTime ? 'Appointment: ' + format(new Date(call.appointmentTime), 'MMM d, yyyy h:mm a') : 'No appointment set'}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+
+      ${detailedData.failedCalls.length > 0 ? `
+        <h2 class="section-title">⚠️ Failed Calls</h2>
+        <div class="appointment-list">
+          ${detailedData.failedCalls.map(call => `
+            <div class="appointment-item" style="border-left-color: #ef4444;">
+              <div class="appointment-name">${call.contactName}</div>
+              <div class="appointment-details">
+                ${call.outcome}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
       
       ${upcomingAppointments.length > 0 ? `
         <h2 class="section-title">🔜 Upcoming Appointments (Next 24h)</h2>
