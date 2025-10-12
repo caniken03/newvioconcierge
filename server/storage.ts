@@ -4693,12 +4693,14 @@ export class DatabaseStorage implements IStorage {
         }
 
         // Recreate hash and verify HMAC (must match creation logic exactly)
+        // Note: Convert null to undefined to match JSON.stringify behavior during creation
+        // JSON.stringify omits undefined fields but includes null, so we normalize
         const hashInput = JSON.stringify({
           sequenceNumber: entry.sequenceNumber,
-          tenantId: entry.tenantId,
-          userId: entry.userId,
+          tenantId: entry.tenantId === null ? undefined : entry.tenantId,
+          userId: entry.userId === null ? undefined : entry.userId,
           action: entry.action,
-          resource: entry.resource,
+          resource: entry.resource === null ? undefined : entry.resource,
           timestamp: entry.timestamp.toISOString(),
           outcome: entry.outcome,
           previousHash: entry.previousHash,
