@@ -400,11 +400,13 @@ export default function Header() {
                   ))
                 )}
               </div>
-              <div className="p-3 border-t border-border">
-                <Button variant="outline" size="sm" className="w-full" asChild data-testid="button-view-all-notifications">
-                  <Link href="/notifications">View All Notifications</Link>
-                </Button>
-              </div>
+              {notifications.length > 0 && (
+                <div className="p-3 border-t border-border">
+                  <p className="text-xs text-center text-muted-foreground">
+                    Showing recent notifications
+                  </p>
+                </div>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
           

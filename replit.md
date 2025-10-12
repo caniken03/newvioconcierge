@@ -32,6 +32,7 @@ The backend is an Express.js application with Node.js and TypeScript, following 
 - **Audit Trail**: Comprehensive, tamper-proof audit logs with hash-chained integrity verification, advanced filtering, and CSV export. Includes all login attempts, user activity, data exports, and system actions, with a 7-year retention policy.
 - **Privacy Policy**: Comprehensive, publicly accessible privacy policy page (UK GDPR compliant) detailing data collection, processing, retention, and user rights. Accessible from login page without authentication.
 - **Dark Mode**: Full dark mode support with Tailwind class-based theming. Theme toggle available on login page (unauthenticated users) and in header (authenticated users). Theme preference persists via localStorage across sessions.
+- **In-App Notifications**: Real-time notification system with bell icon in header displaying unread count badge. Notifications are created automatically for key events (login, tenant creation, call outcomes). Users can mark individual notifications as read or mark all as read. Categories include: security_event, tenant_update, call_status, appointment, user_action. Notifications refresh every 30 seconds and support filtering by type, priority (low/normal/high/urgent), and read status. Multi-user broadcast uses Promise.allSettled for reliable delivery.
 
 # External Dependencies
 
