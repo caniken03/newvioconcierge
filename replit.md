@@ -25,7 +25,7 @@ The backend is an Express.js application with Node.js and TypeScript, following 
 - **Calendar Integration**: Supports Cal.com and Calendly for appointment reschedule detection.
 - **Analytics**: Dashboard for Call Success Rate, Appointment Confirmation, No-Show Reduction, and Daily Call Volume.
 - **Data Export & Compliance**: CSV export for contacts, appointments, and call logs; GDPR Article 20 compliant JSON export.
-- **Daily Email Summaries**: Configurable daily summaries of call stats and appointment statuses, delivered timezone-aware.
+- **Daily Email Summaries**: Configurable daily summaries with detailed contact information (names, appointment times, outcomes) instead of just aggregate numbers. Shows actionable breakdowns: Recently Confirmed, Rescheduled, Cancelled, No Answer (needs follow-up), Voicemail Left, and Failed Calls. Delivered timezone-aware with up to 10 contacts per section.
 - **User Account Settings**: Users can update personal information (full name, email) with email uniqueness enforced within tenant boundaries.
 - **Call Settings & Preferences**: Client admins configure initial appointment reminder times and a single missed call follow-up retry (e.g., 90 minutes after first missed call).
 - **Team Management**: Client admins can invite team members (client_admin or client_user), manage roles, and activate/deactivate users via a secure, token-based invitation system.
