@@ -103,16 +103,11 @@ export default function Header() {
 
   // Fetch notifications
   const { 
-    data: notifications = [], 
+    data: notificationsData, 
     isLoading: notificationsLoading,
     isError: notificationsError 
   } = useQuery<Notification[]>({
-    queryKey: ['/api/notifications'],
-    queryFn: async () => {
-      const response = await fetch('/api/notifications?limit=5&unreadOnly=true');
-      if (!response.ok) throw new Error('Failed to fetch notifications');
-      return response.json();
-    },
+    queryKey: ['/api/notifications?limit=5&unreadOnly=true'],
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 
@@ -122,14 +117,10 @@ export default function Header() {
     isError: unreadCountError 
   } = useQuery<{ count: number }>({
     queryKey: ['/api/notifications/unread-count'],
-    queryFn: async () => {
-      const response = await fetch('/api/notifications/unread-count');
-      if (!response.ok) throw new Error('Failed to fetch unread count');
-      return response.json();
-    },
     refetchInterval: 30000,
   });
 
+  const notifications = notificationsData || [];
   const unreadCount = unreadCountData?.count || 0;
 
   // Mark as read mutation
@@ -138,7 +129,7 @@ export default function Header() {
       await apiRequest('PATCH', `/api/notifications/${notificationId}/read`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications?limit=5&unreadOnly=true'] });
       queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
     },
   });
@@ -149,7 +140,7 @@ export default function Header() {
       await apiRequest('POST', '/api/notifications/mark-all-read');
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications?limit=5&unreadOnly=true'] });
       queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
     },
   });
