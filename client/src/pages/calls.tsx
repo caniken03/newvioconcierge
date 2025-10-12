@@ -59,7 +59,7 @@ export default function CallManagement() {
     enabled: !!user,
   });
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, callOutcome?: string) => {
     const variants: Record<string, "default" | "destructive" | "outline" | "secondary"> = {
       queued: "secondary",
       scheduled: "secondary",
@@ -67,24 +67,41 @@ export default function CallManagement() {
       in_progress: "default",
       active: "default",
       completed: "secondary",
-      failed: "destructive",
-      cancelled: "outline"
+      failed: "outline",
+      cancelled: "outline",
+      confirmed: "default",
+      voicemail: "secondary",
+      no_answer: "destructive",
+      busy: "outline"
     };
     
-    const labels = {
+    const labels: Record<string, string> = {
       queued: "Queued",
       scheduled: "Scheduled",
       initiated: "Calling",
       in_progress: "Calling",
       active: "Calling",
       completed: "Completed", 
-      failed: "Failed",
-      cancelled: "Cancelled"
+      failed: "No Answer",
+      cancelled: "Cancelled",
+      confirmed: "Confirmed",
+      voicemail: "Voicemail",
+      no_answer: "No Answer",
+      busy: "Busy"
     };
 
+    // If status is completed or failed, use the outcome for more specific display
+    let displayStatus = status;
+    let displayVariant = variants[status] || "secondary";
+    
+    if ((status === 'completed' || status === 'failed') && callOutcome) {
+      displayStatus = callOutcome;
+      displayVariant = variants[callOutcome] || variants[status] || "secondary";
+    }
+
     return (
-      <Badge variant={variants[status] || "secondary"} className="whitespace-nowrap text-xs">
-        {labels[status as keyof typeof labels] || status}
+      <Badge variant={displayVariant} className="whitespace-nowrap text-xs">
+        {labels[displayStatus] || displayStatus}
       </Badge>
     );
   };
@@ -292,7 +309,7 @@ export default function CallManagement() {
                               ? new Date(call.appointmentDate).toLocaleString(undefined, { month: 'short', day: 'numeric' })
                               : '-'}
                           </TableCell>
-                          <TableCell>{getStatusBadge(call.status)}</TableCell>
+                          <TableCell>{getStatusBadge(call.status, call.callOutcome)}</TableCell>
                           <TableCell>{getOutcomeBadge(call.callOutcome)}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className="text-xs">{call.attempts || 0}</Badge>
@@ -360,7 +377,7 @@ export default function CallManagement() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Status</p>
-                    <div className="mt-1">{getStatusBadge(selectedCall.status)}</div>
+                    <div className="mt-1">{getStatusBadge(selectedCall.status, selectedCall.callOutcome)}</div>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Outcome</p>

@@ -192,11 +192,19 @@ export default function Appointments() {
       voicemail: { icon: PhoneOff, label: "Voicemail", color: "text-yellow-600" },
       no_answer: { icon: XCircle, label: "No answer", color: "text-red-600" },
       busy: { icon: AlertCircle, label: "Busy", color: "text-orange-600" },
-      failed: { icon: XCircle, label: "Failed", color: "text-red-600" },
     };
 
     const indicator = indicators[outcome as keyof typeof indicators];
-    if (!indicator) return null;
+    
+    // If no specific indicator found, use a default display with the actual outcome
+    if (!indicator) {
+      return (
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <AlertCircle className="h-3 w-3" />
+          <span>Last call: {outcome}</span>
+        </div>
+      );
+    }
 
     const Icon = indicator.icon;
     return (
@@ -572,18 +580,35 @@ export default function Appointments() {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium">Call Status</span>
-                      <Badge variant={activeCallSession.status === 'completed' ? 'default' : 'secondary'}>
+                      <Badge variant={
+                        activeCallSession.callOutcome === 'confirmed' ? 'default' : 
+                        activeCallSession.callOutcome === 'voicemail' ? 'secondary' :
+                        activeCallSession.callOutcome === 'no_answer' ? 'destructive' :
+                        activeCallSession.callOutcome === 'busy' ? 'outline' :
+                        activeCallSession.status === 'completed' ? 'default' :
+                        'secondary'
+                      }>
                         {activeCallSession.status === 'queued' ? 'Queued' : 
+                         activeCallSession.status === 'initiated' ? 'Calling' :
                          activeCallSession.status === 'in_progress' ? 'Calling' :
+                         activeCallSession.status === 'active' ? 'Calling' :
+                         activeCallSession.status === 'completed' && activeCallSession.callOutcome === 'confirmed' ? 'Confirmed' :
+                         activeCallSession.status === 'completed' && activeCallSession.callOutcome === 'voicemail' ? 'Voicemail' :
                          activeCallSession.status === 'completed' ? 'Completed' :
-                         activeCallSession.status === 'failed' ? 'Failed' : activeCallSession.status}
+                         activeCallSession.status === 'failed' && activeCallSession.callOutcome === 'no_answer' ? 'No Answer' :
+                         activeCallSession.status === 'failed' && activeCallSession.callOutcome === 'voicemail' ? 'Voicemail' :
+                         activeCallSession.status === 'failed' && activeCallSession.callOutcome === 'busy' ? 'Busy' :
+                         activeCallSession.status === 'failed' ? activeCallSession.callOutcome || 'No Answer' :
+                         activeCallSession.status}
                       </Badge>
                     </div>
 
                     <Progress 
                       value={
                         activeCallSession.status === 'queued' ? 25 :
-                        activeCallSession.status === 'in_progress' ? 50 :
+                        activeCallSession.status === 'initiated' ? 40 :
+                        activeCallSession.status === 'in_progress' ? 60 :
+                        activeCallSession.status === 'active' ? 75 :
                         (activeCallSession.status === 'completed' || activeCallSession.status === 'failed') ? 100 : 0
                       } 
                       className="h-2"
@@ -597,7 +622,7 @@ export default function Appointments() {
                             <span>Call is being initiated...</span>
                           </>
                         )}
-                        {activeCallSession.status === 'in_progress' && (
+                        {(activeCallSession.status === 'initiated' || activeCallSession.status === 'in_progress' || activeCallSession.status === 'active') && (
                           <>
                             <PhoneCall className="h-4 w-4 text-blue-500 animate-pulse" />
                             <span>AI agent is calling contact...</span>
@@ -606,13 +631,18 @@ export default function Appointments() {
                         {activeCallSession.status === 'completed' && (
                           <>
                             <CheckCircle className="h-4 w-4 text-green-500" />
-                            <span>Call completed - {activeCallSession.callOutcome || 'Success'}</span>
+                            <span>Call completed - {activeCallSession.callOutcome === 'confirmed' ? 'Confirmed' : activeCallSession.callOutcome === 'voicemail' ? 'Voicemail left' : activeCallSession.callOutcome || 'Success'}</span>
                           </>
                         )}
                         {activeCallSession.status === 'failed' && (
                           <>
                             <XCircle className="h-4 w-4 text-red-500" />
-                            <span>Call failed - {activeCallSession.callOutcome || 'Connection error'}</span>
+                            <span>
+                              {activeCallSession.callOutcome === 'no_answer' ? 'No answer' :
+                               activeCallSession.callOutcome === 'voicemail' ? 'Voicemail left' :
+                               activeCallSession.callOutcome === 'busy' ? 'Line was busy' :
+                               activeCallSession.callOutcome || 'No answer'}
+                            </span>
                           </>
                         )}
                       </div>
@@ -624,7 +654,7 @@ export default function Appointments() {
                       )}
                     </div>
 
-                    {(activeCallSession.status === 'queued' || activeCallSession.status === 'in_progress') && (
+                    {(activeCallSession.status === 'queued' || activeCallSession.status === 'initiated' || activeCallSession.status === 'in_progress' || activeCallSession.status === 'active') && (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Loader2 className="h-3 w-3 animate-spin" />
                         <span>Monitoring call status...</span>
