@@ -1,0 +1,300 @@
+
+# **VioConcierge Privacy Policy**
+
+**Version 1.0 – February 2025**
+
+*Last updated: February 2025*
+This Privacy Policy explains how **Smart AI Solutions** (“we”, “us”, “our”) collects, uses, stores, and protects personal data when you use the **VioConcierge** AI voice scheduling and automation platform.
+
+We are committed to transparency, privacy, and full compliance with the **UK GDPR**, the **Data Protection Act 2018**, and **PECR**.
+
+---
+
+## **1. Who We Are**
+
+**Smart AI Solutions**
+Provider of the **VioConcierge** AI voice and automation platform.
+We act primarily as a **Data Processor**, providing services to business clients (“Clients”).
+Clients act as **Data Controllers** and determine how personal data is used.
+
+**Official contact:**
+📧 Email: **[info@smartaisolutions.ai](mailto:info@smartaisolutions.ai)**
+📌 Data Protection Lead / Privacy Lead
+
+---
+
+## **2. Scope of this Policy**
+
+This policy applies to:
+✅ Use of the VioConcierge platform by business clients and their authorised users
+✅ Personal data processed during AI-powered call handling, scheduling, and tenant access
+✅ Information collected from callers interacting with the AI system
+✅ Our website (if used to access VioConcierge)
+
+This policy does **not** override Client responsibilities as Data Controllers.
+
+---
+
+## **3. Data We Collect**
+
+### **A. Client (Business) User Data**
+
+* Name
+* Email address
+* Phone number (optional)
+* Login credentials
+* Organisation / company info
+* User roles and permissions
+* Usage activity and preferences
+
+### **B. Callers / End Users**
+
+* First name (if provided)
+* Phone number (incoming call or SMS)
+* Appointment date/time preferences
+* Call content (voice, if recording enabled)
+* Call transcript or summary (optional)
+* Call metadata (duration, timestamps, outcome)
+
+### ✅ VioConcierge is **not designed to store special category (sensitive) data.**
+
+We do **not** store medical records, diagnoses, treatment details, or any clinical notes.
+We encourage clients to **use generic appointment names** (e.g., “Consultation”, “Follow-up”).
+
+---
+
+## **4. How We Collect Data**
+
+We collect data via:
+
+* Platform usage and account creation
+* Inbound/outbound calls via VioConcierge
+* Optional call recordings (if enabled by client)
+* Client configuration and settings
+* Audit logs and security tracking
+* Support or billing interactions
+
+---
+
+## **5. Why We Use Data (Purpose of Processing)**
+
+We process data to:
+✅ Provide and operate the VioConcierge platform
+✅ Handle calls and schedule appointments
+✅ Generate transcripts or summaries (optional)
+✅ Maintain security, authentication, and access control
+✅ Provide client support
+✅ Maintain audit logs for accountability
+✅ Improve service performance and reliability
+✅ Issue billing invoices
+✅ Comply with legal requirements (e.g. retention, breach notification)
+
+We do **not** use personal data for external marketing or data resale.
+
+---
+
+## **6. Legal Basis for Processing (UK GDPR)**
+
+Depending on the situation, we rely on one or more of the following:
+
+**✅ Contract** – to deliver the VioConcierge service to clients
+**✅ Legitimate Interest** – call handling, quality assurance, security, audit logs, limited recordings
+**✅ Legal Obligation** – financial record retention, breach notification
+**✅ Consent** – only for optional actions (e.g. marketing emails OR if a client chooses to require caller consent)
+
+---
+
+## **7. Call Recording & Voice Data**
+
+**Recording Setting:**
+✅ Recording is **ON by default** to ensure quality and dispute resolution
+✅ Clients may disable recording at any time
+
+**Storage Model:**
+✅ Recordings are stored in a **separate, secure central recording system**, not in the tenant dashboard
+✅ Only **Smart AI Solutions Super Admins** have **direct access** to audio recordings
+✅ All access is **fully logged and visible to the client in the audit trail**
+
+**Retention:**
+✅ Default retention: **30 days**
+✅ After 30 days, recordings are **automatically and permanently deleted**
+
+**Transcripts/Summaries (Optional):**
+✅ Stored in tenant account
+✅ Retained for 12 months by default
+
+**We do NOT use call recordings or transcripts to train external AI models.**
+
+---
+
+## **8. Data Storage & Hosting**
+
+✅ All data is stored **exclusively in the United Kingdom**
+✅ Hosted by **Supabase (UK data centres)**
+✅ Voice processing handled via **Retell AI (UK/EU routing)**
+✅ No international transfers by default
+✅ If transfers are ever required, we will use **Standard Contractual Clauses (SCCs)** and **Transfer Impact Assessments**
+
+---
+
+## **9. Data Retention**
+
+We retain data only as long as necessary:
+
+| Data Type               | Retention                                    |
+| ----------------------- | -------------------------------------------- |
+| Call Recordings         | 30 days                                      |
+| Transcripts / Summaries | 12 months                                    |
+| Call Metadata           | 24 months                                    |
+| Appointment Logs        | 24 months                                    |
+| Contact / Caller Data   | Account lifetime + 12 months                 |
+| User Accounts           | Deleted or anonymised immediately on removal |
+| Billing / Invoices      | 6 years (legal requirement)                  |
+| Audit Logs              | 7 years                                      |
+| System Logs             | 90 days                                      |
+| Backups                 | 30-day rolling                               |
+
+After retention periods, data is **securely deleted or anonymised**.
+
+---
+
+## **10. Data Sharing**
+
+We do **not** sell or share data for marketing.
+
+Data is only shared with:
+✅ Subprocessors (Supabase, Retell AI) under strict DPA agreements
+✅ Legal authorities if required by law
+✅ The client (controller) as part of platform functionality
+
+---
+
+## **11. Subprocessors**
+
+We use only trusted providers:
+✅ Supabase – database, auth, storage
+✅ Retell AI – voice processing
+✅ (Optional future providers only if enabled by client)
+
+We maintain a full Subprocessor Register and ensure GDPR-compliant agreements.
+
+---
+
+## **12. Security Measures**
+
+We protect data using:
+✅ Encryption (AES-256 at rest, TLS 1.2+ in transit)
+✅ Role-based access control (RBAC)
+✅ Least privilege access
+✅ Multi-factor authentication (for internal admin)
+✅ Tamper-proof, hash-chained audit logs
+✅ Firewalls and network security
+✅ Regular backups and disaster recovery testing
+✅ Incident response plan with 72h breach notification
+
+---
+
+## **13. Audit Logging & Accountability**
+
+We keep a detailed audit trail of all actions:
+
+✅ Who accessed data
+✅ What action was taken
+✅ Which record or resource
+✅ Time, duration, IP (anonymised)
+✅ Device/browser
+✅ Purpose (if applicable)
+✅ Result: success / failure / blocked
+✅ **Cryptographically signed and hash-chained**
+✅ **Retained for 7 years**
+
+Clients can view activity for their own tenant.
+
+---
+
+## **14. Your Data Rights (Under GDPR)**
+
+Individuals have the right to:
+
+* Access data
+* Correct data
+* Delete data (“Right to be Forgotten”)
+* Restrict processing
+* Object to processing
+* Data portability
+
+**Important:**
+Smart AI Solutions acts as a **Processor**.
+Requests should be made to the **Client (Data Controller)**.
+We will assist clients in fulfilling any request.
+
+---
+
+## **15. Cookies & Analytics**
+
+If using the VioConcierge website:
+✅ We may use essential cookies for performance or login
+✅ Optional analytics or cookies will ask for consent
+✅ Users can control cookies via their browser
+
+If no cookies are used in the platform UI, this will be stated.
+
+---
+
+## **16. AI Ethics & Automated Decisions**
+
+✅ AI in VioConcierge assists users and callers
+✅ AI does **not** make legally binding or harmful automated decisions
+✅ No profiling with significant effects
+✅ Clients can override any AI actions
+✅ We do not manipulate or deceive callers
+✅ No external AI model training using client data
+
+---
+
+## **17. Children’s Data**
+
+The VioConcierge platform is designed for use by businesses.
+It is **not intended for children under 16**.
+We do not knowingly collect data from minors.
+
+---
+
+## **18. No Sale of Data & Data Ownership**
+
+✅ We NEVER sell personal data
+✅ Clients fully own their data
+✅ We act only under client instructions
+
+---
+
+## **19. International Transfers**
+
+✅ No international transfers by default
+✅ If required, we implement GDPR safeguards (SCCs, TIAs)
+
+---
+
+## **20. Updates to This Policy**
+
+We may update this policy to reflect changes in law or platform functionality.
+✅ The latest version will always be published on our website.
+✅ Clients will be notified of any significant changes.
+
+---
+
+## **21. Contact Us**
+
+For privacy or data protection questions:
+
+**Smart AI Solutions**
+📧 Email: **[info@smartaisolutions.ai](mailto:info@smartaisolutions.ai)**
+(Data Protection Lead / Privacy Lead)
+
+---
+
+# ✅ Summary
+
+VioConcierge is designed with privacy, transparency, and security at its core.
+We minimise data collection, avoid sensitive data, provide strict access control, and give clients full ownership and visibility.
+
