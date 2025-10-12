@@ -9,6 +9,10 @@ import SystemHealthStatus from "@/components/health/SystemHealthStatus";
 import AlertsBanner from "@/components/health/AlertsBanner";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { formatDistanceToNow } from "date-fns";
+import type { Notification } from "@shared/schema";
 
 interface PageConfig {
   title: string;
@@ -96,6 +100,77 @@ export default function Header() {
   if (!user) return null;
 
   const pageConfig = getPageConfig(location, user.role);
+
+  // Fetch notifications
+  const { 
+    data: notifications = [], 
+    isLoading: notificationsLoading,
+    isError: notificationsError 
+  } = useQuery<Notification[]>({
+    queryKey: ['/api/notifications'],
+    queryFn: async () => {
+      const response = await fetch('/api/notifications?limit=5&unreadOnly=true');
+      if (!response.ok) throw new Error('Failed to fetch notifications');
+      return response.json();
+    },
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
+
+  // Fetch unread count
+  const { 
+    data: unreadCountData,
+    isError: unreadCountError 
+  } = useQuery<{ count: number }>({
+    queryKey: ['/api/notifications/unread-count'],
+    queryFn: async () => {
+      const response = await fetch('/api/notifications/unread-count');
+      if (!response.ok) throw new Error('Failed to fetch unread count');
+      return response.json();
+    },
+    refetchInterval: 30000,
+  });
+
+  const unreadCount = unreadCountData?.count || 0;
+
+  // Mark as read mutation
+  const markAsReadMutation = useMutation({
+    mutationFn: async (notificationId: string) => {
+      await apiRequest('PATCH', `/api/notifications/${notificationId}/read`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
+    },
+  });
+
+  // Mark all as read mutation
+  const markAllAsReadMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest('POST', '/api/notifications/mark-all-read');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
+    },
+  });
+
+  const handleNotificationClick = (notificationId: string) => {
+    markAsReadMutation.mutate(notificationId);
+  };
+
+  const getCategoryColor = (category: string) => {
+    switch (category) {
+      case 'error':
+        return 'bg-destructive';
+      case 'warning':
+        return 'bg-yellow-500';
+      case 'success':
+        return 'bg-green-500';
+      case 'info':
+      default:
+        return 'bg-blue-500';
+    }
+  };
 
   const getQuickActions = () => {
     if (user.role === 'super_admin') {
@@ -255,51 +330,79 @@ export default function Header() {
                 data-testid="button-notifications"
               >
                 <i className="fas fa-bell text-lg"></i>
-                <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center">
-                  3
-                </Badge>
+                {!unreadCountError && unreadCount > 0 && (
+                  <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </Badge>
+                )}
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto">
               <div className="p-3 border-b border-border">
-                <h3 className="font-semibold text-sm">Notifications</h3>
-                <p className="text-xs text-muted-foreground">You have 3 unread notifications</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-sm">Notifications</h3>
+                    <p className="text-xs text-muted-foreground">
+                      {unreadCountError ? (
+                        <span className="text-destructive">Failed to load count</span>
+                      ) : unreadCount === 0 ? (
+                        'No unread notifications'
+                      ) : (
+                        `You have ${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}`
+                      )}
+                    </p>
+                  </div>
+                  {!unreadCountError && unreadCount > 0 && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => markAllAsReadMutation.mutate()}
+                      disabled={markAllAsReadMutation.isPending}
+                      data-testid="button-mark-all-read"
+                    >
+                      Mark all read
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="max-h-64 overflow-y-auto">
-                <div className="p-3 border-b border-border hover:bg-accent cursor-pointer" data-testid="notification-item">
-                  <div className="flex items-start space-x-2">
-                    <div className="w-2 h-2 bg-destructive rounded-full mt-2 flex-shrink-0"></div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">System Alert</p>
-                      <p className="text-xs text-muted-foreground">Storage system issues detected</p>
-                      <p className="text-xs text-muted-foreground mt-1">5 minutes ago</p>
-                    </div>
+                {notificationsLoading ? (
+                  <div className="p-8 text-center text-sm text-muted-foreground">
+                    Loading notifications...
                   </div>
-                </div>
-                <div className="p-3 border-b border-border hover:bg-accent cursor-pointer" data-testid="notification-item">
-                  <div className="flex items-start space-x-2">
-                    <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2 flex-shrink-0"></div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">New Tenant Registration</p>
-                      <p className="text-xs text-muted-foreground">Dental Practice has completed setup</p>
-                      <p className="text-xs text-muted-foreground mt-1">2 hours ago</p>
-                    </div>
+                ) : notificationsError ? (
+                  <div className="p-8 text-center text-sm text-destructive">
+                    Failed to load notifications. Please try again later.
                   </div>
-                </div>
-                <div className="p-3 border-b border-border hover:bg-accent cursor-pointer" data-testid="notification-item">
-                  <div className="flex items-start space-x-2">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">Performance Update</p>
-                      <p className="text-xs text-muted-foreground">Monthly platform analytics report ready</p>
-                      <p className="text-xs text-muted-foreground mt-1">1 day ago</p>
-                    </div>
+                ) : notifications.length === 0 ? (
+                  <div className="p-8 text-center text-sm text-muted-foreground">
+                    No new notifications
                   </div>
-                </div>
+                ) : (
+                  notifications.map((notification) => (
+                    <div 
+                      key={notification.id}
+                      className="p-3 border-b border-border hover:bg-accent cursor-pointer transition-colors" 
+                      data-testid={`notification-item-${notification.id}`}
+                      onClick={() => handleNotificationClick(notification.id)}
+                    >
+                      <div className="flex items-start space-x-2">
+                        <div className={`w-2 h-2 ${getCategoryColor(notification.category)} rounded-full mt-2 flex-shrink-0`}></div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">{notification.title}</p>
+                          <p className="text-xs text-muted-foreground">{notification.message}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {notification.createdAt ? formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true }) : 'Recently'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
               <div className="p-3 border-t border-border">
-                <Button variant="outline" size="sm" className="w-full" data-testid="button-view-all-notifications">
-                  View All Notifications
+                <Button variant="outline" size="sm" className="w-full" asChild data-testid="button-view-all-notifications">
+                  <Link href="/notifications">View All Notifications</Link>
                 </Button>
               </div>
             </DropdownMenuContent>
