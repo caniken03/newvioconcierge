@@ -173,26 +173,22 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-6 text-center space-y-3">
             <button
               onClick={() => setIsForgotPasswordOpen(true)}
-              className="text-sm text-primary hover:underline"
+              className="text-sm text-primary hover:underline block w-full"
               data-testid="link-forgot-password"
             >
               Forgot your password?
             </button>
+            <Link href="/privacy-policy">
+              <a className="text-sm text-muted-foreground hover:text-primary transition-colors block w-full" data-testid="link-privacy-policy">
+                Privacy Policy
+              </a>
+            </Link>
           </div>
         </CardContent>
       </Card>
-
-      {/* Footer with Privacy Policy Link */}
-      <div className="mt-6 text-center">
-        <Link href="/privacy-policy">
-          <a className="text-sm text-muted-foreground hover:text-primary transition-colors" data-testid="link-privacy-policy">
-            Privacy Policy
-          </a>
-        </Link>
-      </div>
 
       <ForgotPasswordModal
         isOpen={isForgotPasswordOpen}
