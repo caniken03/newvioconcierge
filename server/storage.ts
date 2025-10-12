@@ -4640,10 +4640,15 @@ export class DatabaseStorage implements IStorage {
     verifiedEntries: number;
     errors: string[];
     lastVerifiedSequence: number;
+    brokenChainAt: number | null;
+    lastVerifiedHash: string | null;
+    verificationDate: string;
   }> {
     const crypto = await import('crypto');
     const errors: string[] = [];
     let verifiedEntries = 0;
+    let brokenChainAt: number | null = null;
+    let lastVerifiedHash: string | null = null;
 
     try {
       // Get all audit trail entries for tenant in sequence order
@@ -4662,6 +4667,9 @@ export class DatabaseStorage implements IStorage {
           verifiedEntries: 0,
           errors: [],
           lastVerifiedSequence: 0,
+          brokenChainAt: null,
+          lastVerifiedHash: null,
+          verificationDate: new Date().toISOString(),
         };
       }
 
@@ -4676,12 +4684,14 @@ export class DatabaseStorage implements IStorage {
         // Verify sequence number continuity
         if (entry.sequenceNumber !== i + 1) {
           errors.push(`Sequence number gap at entry ${i + 1}: expected ${i + 1}, got ${entry.sequenceNumber}`);
+          if (brokenChainAt === null) brokenChainAt = entry.sequenceNumber;
           continue;
         }
 
         // Verify previous hash chain
         if (entry.previousHash !== previousHash) {
           errors.push(`Hash chain broken at sequence ${entry.sequenceNumber}: expected previous hash ${previousHash}, got ${entry.previousHash}`);
+          if (brokenChainAt === null) brokenChainAt = entry.sequenceNumber;
           continue;
         }
 
@@ -4702,12 +4712,14 @@ export class DatabaseStorage implements IStorage {
         
         if (entry.hashSignature !== expectedHash) {
           errors.push(`HMAC verification failed at sequence ${entry.sequenceNumber}: hash tampering detected`);
+          if (brokenChainAt === null) brokenChainAt = entry.sequenceNumber;
           continue;
         }
 
         // Entry verified successfully
         verifiedEntries++;
         previousHash = entry.hashSignature;
+        lastVerifiedHash = entry.hashSignature;
       }
 
       return {
@@ -4716,6 +4728,9 @@ export class DatabaseStorage implements IStorage {
         verifiedEntries,
         errors,
         lastVerifiedSequence: verifiedEntries > 0 ? auditEntries[verifiedEntries - 1].sequenceNumber : 0,
+        brokenChainAt,
+        lastVerifiedHash,
+        verificationDate: new Date().toISOString(),
       };
 
     } catch (error) {
@@ -4725,6 +4740,9 @@ export class DatabaseStorage implements IStorage {
         verifiedEntries: 0,
         errors: [`Verification failed: ${error instanceof Error ? error.message : 'Unknown error'}`],
         lastVerifiedSequence: 0,
+        brokenChainAt: null,
+        lastVerifiedHash: null,
+        verificationDate: new Date().toISOString(),
       };
     }
   }
