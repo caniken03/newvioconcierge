@@ -242,33 +242,57 @@ export default function SuperAdminDashboard() {
         </div>
         <div className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Link href="/tenants">
-              <Button className="w-full h-20 flex flex-col items-center justify-center space-y-2" variant="outline" data-testid="button-manage-tenants">
-                <i className="fas fa-building text-lg"></i>
-                <span className="text-sm font-medium">Manage Tenants</span>
-                <span className="text-xs text-muted-foreground">{tenants.length} active</span>
-              </Button>
+            <Link href="/tenants" data-testid="link-manage-tenants">
+              <div className="group relative bg-card border border-border rounded-lg p-6 hover:shadow-lg hover:border-primary/50 transition-all duration-200 cursor-pointer">
+                <div className="flex flex-col items-center text-center space-y-3">
+                  <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <i className="fas fa-building text-xl"></i>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Manage Tenants</p>
+                    <p className="text-xs text-muted-foreground mt-1">{tenants.length} active</p>
+                  </div>
+                </div>
+              </div>
             </Link>
-            <Link href="/health">
-              <Button className="w-full h-20 flex flex-col items-center justify-center space-y-2" variant="outline" data-testid="button-system-health">
-                <i className="fas fa-heartbeat text-lg"></i>
-                <span className="text-sm font-medium">System Health</span>
-                <span className="text-xs text-muted-foreground">All systems OK</span>
-              </Button>
+            <Link href="/health" data-testid="link-system-health">
+              <div className="group relative bg-card border border-border rounded-lg p-6 hover:shadow-lg hover:border-primary/50 transition-all duration-200 cursor-pointer">
+                <div className="flex flex-col items-center text-center space-y-3">
+                  <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <i className="fas fa-heartbeat text-xl"></i>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">System Health</p>
+                    <p className="text-xs text-muted-foreground mt-1">All systems OK</p>
+                  </div>
+                </div>
+              </div>
             </Link>
-            <Link href="/compliance">
-              <Button className="w-full h-20 flex flex-col items-center justify-center space-y-2" variant="outline" data-testid="button-compliance">
-                <i className="fas fa-shield-alt text-lg"></i>
-                <span className="text-sm font-medium">Compliance</span>
-                <span className="text-xs text-muted-foreground">Monitor HIPAA</span>
-              </Button>
+            <Link href="/compliance" data-testid="link-compliance">
+              <div className="group relative bg-card border border-border rounded-lg p-6 hover:shadow-lg hover:border-primary/50 transition-all duration-200 cursor-pointer">
+                <div className="flex flex-col items-center text-center space-y-3">
+                  <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <i className="fas fa-shield-alt text-xl"></i>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Compliance</p>
+                    <p className="text-xs text-muted-foreground mt-1">Monitor HIPAA</p>
+                  </div>
+                </div>
+              </div>
             </Link>
-            <Link href="/analytics-center">
-              <Button className="w-full h-20 flex flex-col items-center justify-center space-y-2" variant="outline" data-testid="button-analytics">
-                <i className="fas fa-chart-bar text-lg"></i>
-                <span className="text-sm font-medium">Analytics Center</span>
-                <span className="text-xs text-muted-foreground">View reports</span>
-              </Button>
+            <Link href="/analytics-center" data-testid="link-analytics-center">
+              <div className="group relative bg-card border border-border rounded-lg p-6 hover:shadow-lg hover:border-primary/50 transition-all duration-200 cursor-pointer">
+                <div className="flex flex-col items-center text-center space-y-3">
+                  <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <i className="fas fa-chart-bar text-xl"></i>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Analytics Center</p>
+                    <p className="text-xs text-muted-foreground mt-1">View reports</p>
+                  </div>
+                </div>
+              </div>
             </Link>
           </div>
         </div>
