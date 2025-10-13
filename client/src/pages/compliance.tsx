@@ -225,7 +225,7 @@ export default function Compliance() {
 
   const handleConfigure = () => {
     // Navigate to System Settings
-    setLocation('/admin/system-settings');
+    setLocation('/system');
   };
 
   if (!user || user.role !== 'super_admin') {
