@@ -14,6 +14,9 @@ interface User {
     name: string;
     companyName: string;
   };
+  isImpersonating?: boolean;
+  originalUserId?: string;
+  originalRole?: string;
 }
 
 interface LoginCredentials {

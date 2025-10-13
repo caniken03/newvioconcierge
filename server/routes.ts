@@ -762,6 +762,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       role: user.role,
       tenantId: user.tenantId,
       tenant: tenantInfo,
+      // Include impersonation data if present
+      isImpersonating: user.isImpersonating || false,
+      originalUserId: user.originalUserId,
+      originalRole: user.originalRole,
     });
   });
 

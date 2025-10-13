@@ -1,12 +1,16 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import ContactModal from "@/components/modals/contact-modal";
 import CallNowModal from "@/components/call-now-modal";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import { 
   Calendar, 
   Phone, 
@@ -24,14 +28,46 @@ import {
   MessageSquare,
   Target,
   Zap,
-  ExternalLink
+  ExternalLink,
+  ArrowLeft,
+  Eye
 } from "lucide-react";
 
 export default function ClientAdminDashboard() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<any>(null);
   const [, setLocation] = useLocation();
+
+  // Exit impersonation mutation
+  const exitImpersonationMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/admin/exit-impersonation');
+      return response.json();
+    },
+    onSuccess: (data) => {
+      // Store the original super admin token
+      localStorage.setItem('auth_token', data.token);
+      
+      toast({
+        title: "Exited tenant view",
+        description: "Returning to super admin dashboard...",
+      });
+      
+      // Redirect back to super admin dashboard
+      window.location.href = '/super-admin';
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to exit",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   // Navigation handlers with specific filtering
   const navigateToAppointments = (filter?: string) => {
@@ -146,6 +182,34 @@ export default function ClientAdminDashboard() {
 
   return (
     <div className="p-6 space-y-6" data-testid="client-admin-dashboard">
+      {/* Impersonation Banner */}
+      {user?.isImpersonating && (
+        <Alert className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800" data-testid="impersonation-banner">
+          <Eye className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+          <AlertDescription className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-blue-900 dark:text-blue-100 font-medium">
+                Viewing as: {user.tenant?.companyName || user.tenant?.name || 'Tenant'}
+              </span>
+              <Badge variant="outline" className="border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300">
+                Super Admin View
+              </Badge>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => exitImpersonationMutation.mutate()}
+              disabled={exitImpersonationMutation.isPending}
+              className="ml-4"
+              data-testid="button-exit-impersonation"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              {exitImpersonationMutation.isPending ? "Exiting..." : "Exit Tenant View"}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Primary KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card 
