@@ -42,6 +42,12 @@ export default function ClientAdminDashboard() {
   const [selectedContact, setSelectedContact] = useState<any>(null);
   const [, setLocation] = useLocation();
 
+  // DEBUG: Log impersonation data
+  console.log('🔍 ClientAdminDashboard - Full user object:', user);
+  console.log('🔍 isImpersonating value:', user?.isImpersonating);
+  console.log('🔍 originalUserId:', user?.originalUserId);
+  console.log('🔍 originalRole:', user?.originalRole);
+
   // Exit impersonation mutation
   const exitImpersonationMutation = useMutation({
     mutationFn: async () => {
