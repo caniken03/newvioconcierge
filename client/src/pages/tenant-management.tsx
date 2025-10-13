@@ -48,6 +48,7 @@ export default function TenantManagement() {
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [tenantToDelete, setTenantToDelete] = useState<string | null>(null);
+  const [displayCount, setDisplayCount] = useState(10); // Show 10 tenants initially
 
   // Fetch tenants
   const { data: tenants = [], isLoading } = useQuery<Tenant[]>({
@@ -216,7 +217,19 @@ export default function TenantManagement() {
     }
   };
 
-  const displayedTenants = searchQuery.length > 2 ? searchResults : tenants;
+  // Reset display count when search query changes
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setDisplayCount(10); // Reset to show first 10 when searching
+  };
+
+  const allTenants = searchQuery.length > 2 ? searchResults : tenants;
+  const displayedTenants = allTenants.slice(0, displayCount);
+  const hasMore = allTenants.length > displayCount;
+
+  const loadMore = () => {
+    setDisplayCount(prev => prev + 10);
+  };
 
   if (!user || user.role !== 'super_admin') {
     return (
@@ -326,7 +339,7 @@ export default function TenantManagement() {
                       type="text"
                       placeholder="Search by name, company, email or tenant number..."
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onChange={(e) => handleSearchChange(e.target.value)}
                       className="pl-10 pr-4 py-2 text-sm w-64"
                       data-testid="input-search-tenants"
                     />
@@ -492,6 +505,21 @@ export default function TenantManagement() {
                     )}
                   </tbody>
                 </table>
+              )}
+              
+              {/* Load More Button */}
+              {hasMore && !isLoading && displayedTenants.length > 0 && (
+                <div className="flex justify-center py-6 border-t border-border">
+                  <Button
+                    variant="outline"
+                    onClick={loadMore}
+                    data-testid="button-load-more-tenants"
+                    className="px-6"
+                  >
+                    <i className="fas fa-chevron-down mr-2"></i>
+                    Load More ({allTenants.length - displayCount} remaining)
+                  </Button>
+                </div>
               )}
             </div>
           </Card>
