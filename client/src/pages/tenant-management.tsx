@@ -182,10 +182,9 @@ export default function TenantManagement() {
         description: `Now acting as admin for ${tenant.name}. You can make changes on their behalf.`,
       });
       
-      // Redirect immediately to client admin dashboard
-      // Note: We don't invalidate queries here because the new token has client_admin role
-      // which can't access super admin endpoints. The redirect will load fresh data.
-      window.location.href = '/client-admin';
+      // Redirect to /dashboard which provides the layout wrapper (Sidebar + Header)
+      // The Dashboard component will detect client_admin role and render ClientAdminDashboard
+      window.location.href = '/dashboard';
     },
     onError: (error: Error) => {
       toast({
