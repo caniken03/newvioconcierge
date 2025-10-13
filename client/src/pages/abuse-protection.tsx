@@ -32,7 +32,6 @@ import {
   ShieldCheck,
   Zap,
   BarChart3,
-  Settings,
   RefreshCw,
   PlayCircle,
   PauseCircle
@@ -58,20 +57,20 @@ export default function AbuseProtection() {
   }
 
   // Fetch abuse protection dashboard data
-  const { data: dashboard, isLoading: dashboardLoading } = useQuery({
+  const { data: dashboard, isLoading: dashboardLoading, refetch: refetchDashboard, isFetching: dashboardFetching } = useQuery({
     queryKey: ['/api/admin/abuse-protection/dashboard'],
     refetchInterval: 30000 // Refresh every 30 seconds
   });
 
   // Fetch abuse detection events
-  const { data: abuseEvents, isLoading: eventsLoading } = useQuery({
+  const { data: abuseEvents, isLoading: eventsLoading, refetch: refetchEvents } = useQuery({
     queryKey: (selectedTenant && selectedTenant !== 'all') || (selectedSeverity && selectedSeverity !== 'all')
       ? ['/api/admin/abuse-protection/events', selectedTenant, selectedSeverity]
       : ['/api/admin/abuse-protection/events']
   });
 
   // Fetch active suspensions
-  const { data: activeSuspensions, isLoading: suspensionsLoading } = useQuery({
+  const { data: activeSuspensions, isLoading: suspensionsLoading, refetch: refetchSuspensions } = useQuery({
     queryKey: ['/api/admin/abuse-protection/suspensions']
   });
 
@@ -187,6 +186,12 @@ export default function AbuseProtection() {
     }
   });
 
+  const handleRefresh = () => {
+    refetchDashboard();
+    refetchEvents();
+    refetchSuspensions();
+  };
+
   const getSeverityColor = (severity: string) => {
     switch (severity) {
       case 'critical': return 'bg-red-500';
@@ -222,16 +227,15 @@ export default function AbuseProtection() {
                   Real-time monitoring and protection against platform abuse
                 </p>
               </div>
-              <div className="flex items-center space-x-2">
-                <Button variant="outline" data-testid="button-refresh-dashboard">
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Refresh
-                </Button>
-                <Button variant="outline" data-testid="button-protection-settings">
-                  <Settings className="w-4 h-4 mr-2" />
-                  Settings
-                </Button>
-              </div>
+              <Button 
+                variant="outline" 
+                onClick={handleRefresh}
+                disabled={dashboardFetching}
+                data-testid="button-refresh-dashboard"
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${dashboardFetching ? 'animate-spin' : ''}`} />
+                {dashboardFetching ? 'Refreshing...' : 'Refresh'}
+              </Button>
             </div>
 
             {/* Protection Status Overview */}
