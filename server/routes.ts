@@ -4262,6 +4262,111 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Recent Platform Activity Feed for Super Admin Dashboard
+  app.get('/api/admin/recent-activity', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 10;
+      const activities: any[] = [];
+
+      // Helper function to get time ago string
+      const getTimeAgo = (date: Date): string => {
+        const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+        if (seconds < 60) return 'just now';
+        if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
+        if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+        return `${Math.floor(seconds / 86400)} days ago`;
+      };
+
+      // Get recent tenant creations (last 24 hours)
+      const tenants = await storage.getAllTenants();
+      const recentTenants = tenants
+        .filter(t => {
+          if (!t.createdAt) return false;
+          const createdAt = new Date(t.createdAt);
+          const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          return createdAt > dayAgo;
+        })
+        .sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA;
+        })
+        .slice(0, 5);
+
+      recentTenants.forEach(tenant => {
+        if (!tenant.createdAt) return;
+        activities.push({
+          id: `tenant-${tenant.id}`,
+          type: 'tenant_created',
+          icon: 'plus',
+          iconBg: 'bg-green-100',
+          iconColor: 'text-green-600',
+          title: 'New tenant created',
+          description: `${tenant.name || 'Unknown'} - ${getTimeAgo(new Date(tenant.createdAt))}`,
+          timestamp: new Date(tenant.createdAt)
+        });
+      });
+
+      // Get recent abuse events (unresolved)
+      const abuseEvents = await storage.getAbuseDetectionEvents();
+      const recentAbuseEvents = abuseEvents
+        .filter(e => !e.isResolved && e.createdAt)
+        .sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA;
+        })
+        .slice(0, 3);
+
+      recentAbuseEvents.forEach(event => {
+        if (!event.createdAt) return;
+        const tenant = tenants.find(t => t.id === event.tenantId);
+        let icon = 'exclamation-triangle';
+        let iconBg = 'bg-orange-100';
+        let iconColor = 'text-orange-600';
+        let title = 'Rate limit threshold reached';
+        
+        if (event.eventType === 'business_hours_violation') {
+          title = 'Business hours violation detected';
+          icon = 'clock';
+          iconBg = 'bg-purple-100';
+          iconColor = 'text-purple-600';
+        } else if (event.eventType === 'suspicious_pattern') {
+          title = 'Suspicious pattern detected';
+          icon = 'shield';
+          iconBg = 'bg-red-100';
+          iconColor = 'text-red-600';
+        } else if (event.severity === 'critical') {
+          title = 'Critical security event';
+          icon = 'shield';
+          iconBg = 'bg-red-100';
+          iconColor = 'text-red-600';
+        }
+
+        activities.push({
+          id: `abuse-${event.id}`,
+          type: 'abuse_event',
+          icon,
+          iconBg,
+          iconColor,
+          title,
+          description: `${tenant?.name || 'Unknown'} - ${getTimeAgo(new Date(event.createdAt))}`,
+          timestamp: new Date(event.createdAt)
+        });
+      });
+
+      // Sort all activities by timestamp and limit
+      const sortedActivities = activities
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+        .slice(0, limit);
+
+      res.json(sortedActivities);
+    } catch (error) {
+      console.error('Error fetching recent activity:', error);
+      res.status(500).json({ message: 'Failed to fetch recent activity' });
+    }
+  });
+
   // Enhanced Analytics Center API for super admin platform-wide insights
   app.get('/api/admin/analytics/platform', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
     try {

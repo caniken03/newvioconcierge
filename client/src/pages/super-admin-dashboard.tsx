@@ -15,6 +15,11 @@ export default function SuperAdminDashboard() {
     queryKey: ['/api/admin/dashboard/analytics'],
   });
 
+  const { data: recentActivity = [], isLoading: activityLoading } = useQuery<any[]>({
+    queryKey: ['/api/admin/recent-activity'],
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
   if (isLoading) {
     return (
       <div className="p-6">
@@ -141,44 +146,37 @@ export default function SuperAdminDashboard() {
             </div>
           </div>
           <div className="p-6">
-            <div className="space-y-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-green-100 text-green-600 rounded-full flex items-center justify-center">
-                  <i className="fas fa-plus text-xs"></i>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-foreground">New tenant created</p>
-                  <p className="text-xs text-muted-foreground">Healthcare Solutions Inc. - 2 minutes ago</p>
-                </div>
+            {activityLoading ? (
+              <div className="space-y-4">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="flex items-center space-x-3 animate-pulse">
+                    <div className="w-8 h-8 bg-muted rounded-full"></div>
+                    <div className="flex-1">
+                      <div className="h-4 bg-muted rounded mb-2 w-3/4"></div>
+                      <div className="h-3 bg-muted rounded w-1/2"></div>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
-                  <i className="fas fa-phone text-xs"></i>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-foreground">Call volume spike detected</p>
-                  <p className="text-xs text-muted-foreground">Dental Care Plus - 15 minutes ago</p>
-                </div>
+            ) : recentActivity.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-sm text-muted-foreground">No recent activity</p>
               </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center">
-                  <i className="fas fa-exclamation-triangle text-xs"></i>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-foreground">Rate limit threshold reached</p>
-                  <p className="text-xs text-muted-foreground">Restaurant Chain Co. - 1 hour ago</p>
-                </div>
+            ) : (
+              <div className="space-y-4">
+                {recentActivity.map((activity: any) => (
+                  <div key={activity.id} className="flex items-center space-x-3">
+                    <div className={`w-8 h-8 ${activity.iconBg} ${activity.iconColor} rounded-full flex items-center justify-center`}>
+                      <i className={`fas fa-${activity.icon} text-xs`}></i>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-foreground">{activity.title}</p>
+                      <p className="text-xs text-muted-foreground">{activity.description}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center">
-                  <i className="fas fa-calendar text-xs"></i>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-foreground">Calendar integration updated</p>
-                  <p className="text-xs text-muted-foreground">Professional Services LLC - 3 hours ago</p>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </Card>
 
