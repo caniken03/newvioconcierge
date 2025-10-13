@@ -17,17 +17,122 @@ import {
   Clock,
   Download,
   Settings,
-  Loader2
+  Loader2,
+  Database,
+  FileDown,
+  Trash2
 } from "lucide-react";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Compliance() {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isDownloadingLogs, setIsDownloadingLogs] = useState(false);
+  const [isCleaning, setIsCleaning] = useState(false);
   
   // Fetch compliance overview data
   const { data: complianceData, isLoading } = useQuery<any>({
     queryKey: ['/api/admin/compliance/overview'],
     enabled: user?.role === 'super_admin',
   });
+
+  const handleCreateBackup = async () => {
+    try {
+      setIsBackingUp(true);
+      const response = await fetch('/api/admin/compliance/backup', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) throw new Error('Failed to create backup');
+      
+      const data = await response.json();
+      
+      toast({
+        title: "Backup Created",
+        description: `System backup completed successfully. ${data.recordsBackedUp} records backed up.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Backup Failed",
+        description: error.message || "Failed to create system backup",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBackingUp(false);
+    }
+  };
+
+  const handleDownloadLogs = async () => {
+    try {
+      setIsDownloadingLogs(true);
+      const response = await fetch('/api/admin/compliance/logs', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (!response.ok) throw new Error('Failed to download logs');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `system-logs-${new Date().toISOString().split('T')[0]}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "Logs Downloaded",
+        description: "System logs have been downloaded successfully",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Download Failed",
+        description: error.message || "Failed to download system logs",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloadingLogs(false);
+    }
+  };
+
+  const handleCleanTemporaryData = async () => {
+    try {
+      setIsCleaning(true);
+      const response = await fetch('/api/admin/compliance/clean', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) throw new Error('Failed to clean temporary data');
+      
+      const data = await response.json();
+      
+      toast({
+        title: "Cleanup Complete",
+        description: `Successfully cleaned ${data.recordsDeleted} temporary records`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Cleanup Failed",
+        description: error.message || "Failed to clean temporary data",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCleaning(false);
+    }
+  };
 
   if (!user || user.role !== 'super_admin') {
     return (
@@ -384,6 +489,57 @@ export default function Compliance() {
                     </CardContent>
                   </Card>
                 </div>
+
+                {/* System Actions */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>System Actions</CardTitle>
+                    <CardDescription>Perform system-wide maintenance tasks</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-3">
+                      <Button 
+                        variant="outline" 
+                        onClick={handleCreateBackup}
+                        disabled={isBackingUp}
+                        data-testid="button-create-backup"
+                      >
+                        {isBackingUp ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Database className="w-4 h-4 mr-2" />
+                        )}
+                        Create System Backup
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={handleDownloadLogs}
+                        disabled={isDownloadingLogs}
+                        data-testid="button-download-logs"
+                      >
+                        {isDownloadingLogs ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <FileDown className="w-4 h-4 mr-2" />
+                        )}
+                        Download System Logs
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={handleCleanTemporaryData}
+                        disabled={isCleaning}
+                        data-testid="button-clean-temporary-data"
+                      >
+                        {isCleaning ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4 mr-2" />
+                        )}
+                        Clean Temporary Data
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
               </>
             )}
 
