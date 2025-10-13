@@ -76,7 +76,7 @@ export default function AnalyticsCenter() {
 
   // Fetch platform-wide analytics
   const { data: platformData, isLoading: platformLoading } = useQuery<PlatformAnalytics>({
-    queryKey: ['/api/admin/analytics/platform', timePeriod],
+    queryKey: [`/api/admin/analytics/platform?timePeriod=${timePeriod}`],
     refetchInterval: 30000,
   });
 
