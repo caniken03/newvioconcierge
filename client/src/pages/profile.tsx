@@ -1166,8 +1166,13 @@ export default function Profile() {
 
               <Separator />
 
-              {/* Daily Summary Preferences */}
-              <DailySummarySettings />
+              {/* Daily Summary Preferences - Only for Client Admin and Client User */}
+              {user.role !== 'super_admin' && (
+                <>
+                  <DailySummarySettings />
+                  <Separator />
+                </>
+              )}
 
               <div className="flex justify-end pt-4">
                 <Button 
