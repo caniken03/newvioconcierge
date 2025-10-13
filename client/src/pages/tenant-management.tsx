@@ -23,6 +23,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import TenantSetupWizard from "@/components/tenant-wizard/TenantSetupWizard";
 import { 
   Dialog,
@@ -123,10 +124,11 @@ function TenantSettingsEditor({ tenantToEdit, isOpen, onClose }: TenantSettingsE
           </div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="retell">Retell AI</TabsTrigger>
               <TabsTrigger value="calendar">Calendar</TabsTrigger>
               <TabsTrigger value="business">Business</TabsTrigger>
+              <TabsTrigger value="features">Features</TabsTrigger>
             </TabsList>
 
             <div className="flex-1 overflow-y-auto mt-4">
@@ -376,6 +378,187 @@ function TenantSettingsEditor({ tenantToEdit, isOpen, onClose }: TenantSettingsE
                       onChange={(e) => handleInputChange('quietEnd', e.target.value)}
                       data-testid="input-quiet-end"
                     />
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* Feature Toggles */}
+              <TabsContent value="features" className="space-y-6 mt-0">
+                <div>
+                  <h4 className="font-semibold mb-4">Core Premium Features</h4>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex-1">
+                        <h5 className="font-medium text-foreground">Premium Access</h5>
+                        <p className="text-sm text-muted-foreground mt-1">Unlock all premium features for this tenant</p>
+                      </div>
+                      <Switch
+                        checked={formData.premiumAccess || false}
+                        onCheckedChange={(checked) => handleInputChange('premiumAccess', checked)}
+                        data-testid="switch-premium-access"
+                      />
+                    </div>
+                    
+                    <div className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex-1">
+                        <h5 className="font-medium text-foreground">HIPAA Compliance</h5>
+                        <p className="text-sm text-muted-foreground mt-1">Enable HIPAA compliance features for healthcare</p>
+                      </div>
+                      <Switch
+                        checked={formData.hipaaCompliant || false}
+                        onCheckedChange={(checked) => handleInputChange('hipaaCompliant', checked)}
+                        data-testid="switch-hipaa-compliant"
+                      />
+                    </div>
+                    
+                    <div className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex-1">
+                        <h5 className="font-medium text-foreground">Custom Branding</h5>
+                        <p className="text-sm text-muted-foreground mt-1">Allow white-labeling with custom logos and brand colors</p>
+                      </div>
+                      <Switch
+                        checked={formData.customBranding || false}
+                        onCheckedChange={(checked) => handleInputChange('customBranding', checked)}
+                        data-testid="switch-custom-branding"
+                      />
+                    </div>
+                    
+                    <div className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex-1">
+                        <h5 className="font-medium text-foreground">API Access</h5>
+                        <p className="text-sm text-muted-foreground mt-1">Grant full API access for integrations</p>
+                      </div>
+                      <Switch
+                        checked={formData.apiAccess || false}
+                        onCheckedChange={(checked) => handleInputChange('apiAccess', checked)}
+                        data-testid="switch-api-access"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold mb-4">Additional Features</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div 
+                      className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${
+                        (formData.featuresEnabled || []).includes('advancedAnalytics') ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                      }`}
+                      onClick={() => {
+                        const features = formData.featuresEnabled || [];
+                        const newFeatures = features.includes('advancedAnalytics')
+                          ? features.filter((f: string) => f !== 'advancedAnalytics')
+                          : [...features, 'advancedAnalytics'];
+                        handleInputChange('featuresEnabled', newFeatures);
+                      }}
+                    >
+                      <span className="text-sm font-medium">Advanced Analytics & Reporting</span>
+                      <Switch
+                        checked={(formData.featuresEnabled || []).includes('advancedAnalytics')}
+                        onCheckedChange={() => {}}
+                        data-testid="switch-advanced-analytics"
+                      />
+                    </div>
+
+                    <div 
+                      className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${
+                        (formData.featuresEnabled || []).includes('bulkOperations') ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                      }`}
+                      onClick={() => {
+                        const features = formData.featuresEnabled || [];
+                        const newFeatures = features.includes('bulkOperations')
+                          ? features.filter((f: string) => f !== 'bulkOperations')
+                          : [...features, 'bulkOperations'];
+                        handleInputChange('featuresEnabled', newFeatures);
+                      }}
+                    >
+                      <span className="text-sm font-medium">Bulk Contact Operations</span>
+                      <Switch
+                        checked={(formData.featuresEnabled || []).includes('bulkOperations')}
+                        onCheckedChange={() => {}}
+                        data-testid="switch-bulk-operations"
+                      />
+                    </div>
+
+                    <div 
+                      className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${
+                        (formData.featuresEnabled || []).includes('multiLocation') ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                      }`}
+                      onClick={() => {
+                        const features = formData.featuresEnabled || [];
+                        const newFeatures = features.includes('multiLocation')
+                          ? features.filter((f: string) => f !== 'multiLocation')
+                          : [...features, 'multiLocation'];
+                        handleInputChange('featuresEnabled', newFeatures);
+                      }}
+                    >
+                      <span className="text-sm font-medium">Multi-Location Support</span>
+                      <Switch
+                        checked={(formData.featuresEnabled || []).includes('multiLocation')}
+                        onCheckedChange={() => {}}
+                        data-testid="switch-multi-location"
+                      />
+                    </div>
+
+                    <div 
+                      className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${
+                        (formData.featuresEnabled || []).includes('customFields') ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                      }`}
+                      onClick={() => {
+                        const features = formData.featuresEnabled || [];
+                        const newFeatures = features.includes('customFields')
+                          ? features.filter((f: string) => f !== 'customFields')
+                          : [...features, 'customFields'];
+                        handleInputChange('featuresEnabled', newFeatures);
+                      }}
+                    >
+                      <span className="text-sm font-medium">Custom Contact Fields</span>
+                      <Switch
+                        checked={(formData.featuresEnabled || []).includes('customFields')}
+                        onCheckedChange={() => {}}
+                        data-testid="switch-custom-fields"
+                      />
+                    </div>
+
+                    <div 
+                      className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${
+                        (formData.featuresEnabled || []).includes('advancedScheduling') ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                      }`}
+                      onClick={() => {
+                        const features = formData.featuresEnabled || [];
+                        const newFeatures = features.includes('advancedScheduling')
+                          ? features.filter((f: string) => f !== 'advancedScheduling')
+                          : [...features, 'advancedScheduling'];
+                        handleInputChange('featuresEnabled', newFeatures);
+                      }}
+                    >
+                      <span className="text-sm font-medium">Advanced Scheduling Rules</span>
+                      <Switch
+                        checked={(formData.featuresEnabled || []).includes('advancedScheduling')}
+                        onCheckedChange={() => {}}
+                        data-testid="switch-advanced-scheduling"
+                      />
+                    </div>
+
+                    <div 
+                      className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${
+                        (formData.featuresEnabled || []).includes('prioritySupport') ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                      }`}
+                      onClick={() => {
+                        const features = formData.featuresEnabled || [];
+                        const newFeatures = features.includes('prioritySupport')
+                          ? features.filter((f: string) => f !== 'prioritySupport')
+                          : [...features, 'prioritySupport'];
+                        handleInputChange('featuresEnabled', newFeatures);
+                      }}
+                    >
+                      <span className="text-sm font-medium">Priority Customer Support</span>
+                      <Switch
+                        checked={(formData.featuresEnabled || []).includes('prioritySupport')}
+                        onCheckedChange={() => {}}
+                        data-testid="switch-priority-support"
+                      />
+                    </div>
                   </div>
                 </div>
               </TabsContent>

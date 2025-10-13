@@ -1068,6 +1068,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Tenant configuration not found' });
       }
 
+      // Parse featuresEnabled JSON array
+      let featuresEnabled: string[] = [];
+      try {
+        featuresEnabled = tenant.featuresEnabled ? JSON.parse(tenant.featuresEnabled) : [];
+      } catch {
+        featuresEnabled = [];
+      }
+
       // Return configuration data (sensitive fields included for super admin editing)
       res.json({
         id: config.id,
@@ -1106,6 +1114,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         publicTransportInstructions: config.publicTransportInstructions || '',
         parkingInstructions: config.parkingInstructions || '',
         arrivalNotes: config.arrivalNotes || '',
+        // Feature toggles (from tenant table)
+        premiumAccess: tenant.premiumAccess || false,
+        hipaaCompliant: tenant.hipaaCompliant || false,
+        customBranding: tenant.customBranding || false,
+        apiAccess: tenant.apiAccess || false,
+        featuresEnabled: featuresEnabled,
       });
     } catch (error) {
       console.error('Error fetching tenant config:', error);
@@ -1160,12 +1174,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         publicTransportInstructions: z.string().optional(),
         parkingInstructions: z.string().optional(),
         arrivalNotes: z.string().optional(),
+        // Feature toggles (tenant table fields)
+        premiumAccess: z.boolean().optional(),
+        hipaaCompliant: z.boolean().optional(),
+        customBranding: z.boolean().optional(),
+        apiAccess: z.boolean().optional(),
+        featuresEnabled: z.array(z.string()).optional(),
       });
 
       const updates = updateSchema.parse(req.body);
 
-      // Update tenant configuration
-      const updatedConfig = await storage.updateTenantConfig(tenantId, updates);
+      // Separate tenant updates from config updates
+      const tenantUpdates: any = {};
+      const configUpdates: any = {};
+      
+      // Feature toggles go to tenant table
+      if (updates.premiumAccess !== undefined) tenantUpdates.premiumAccess = updates.premiumAccess;
+      if (updates.hipaaCompliant !== undefined) tenantUpdates.hipaaCompliant = updates.hipaaCompliant;
+      if (updates.customBranding !== undefined) tenantUpdates.customBranding = updates.customBranding;
+      if (updates.apiAccess !== undefined) tenantUpdates.apiAccess = updates.apiAccess;
+      if (updates.featuresEnabled !== undefined) tenantUpdates.featuresEnabled = JSON.stringify(updates.featuresEnabled);
+      
+      // Everything else goes to config table
+      Object.keys(updates).forEach(key => {
+        if (!['premiumAccess', 'hipaaCompliant', 'customBranding', 'apiAccess', 'featuresEnabled'].includes(key)) {
+          configUpdates[key] = (updates as any)[key];
+        }
+      });
+
+      // Update tenant table if there are tenant updates
+      if (Object.keys(tenantUpdates).length > 0) {
+        await storage.updateTenant(tenantId, tenantUpdates);
+      }
+
+      // Update tenant config
+      const updatedConfig = await storage.updateTenantConfig(tenantId, configUpdates);
 
       res.json({
         success: true,
