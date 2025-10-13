@@ -44,7 +44,7 @@ export default function Compliance() {
       const response = await fetch('/api/admin/compliance/backup', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
           'Content-Type': 'application/json',
         },
       });
@@ -73,7 +73,7 @@ export default function Compliance() {
       setIsDownloadingLogs(true);
       const response = await fetch('/api/admin/compliance/logs', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
       });
 
@@ -110,7 +110,7 @@ export default function Compliance() {
       const response = await fetch('/api/admin/compliance/clean', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
           'Content-Type': 'application/json',
         },
       });
