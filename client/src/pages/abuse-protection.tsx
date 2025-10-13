@@ -88,11 +88,17 @@ export default function AbuseProtection() {
   // Mutation to resolve abuse events
   const resolveEventMutation = useMutation({
     mutationFn: async (eventId: string) => {
+      const token = localStorage.getItem('auth_token');
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch(`/api/admin/abuse-protection/events/${eventId}/resolve`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         credentials: 'include'
       });
       if (!response.ok) {
@@ -120,11 +126,17 @@ export default function AbuseProtection() {
   // Mutation to suspend tenant
   const suspendTenantMutation = useMutation({
     mutationFn: async (data: { tenantId: string; reason: string }) => {
+      const token = localStorage.getItem('auth_token');
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch('/api/admin/abuse-protection/suspend', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         credentials: 'include',
         body: JSON.stringify({
           tenantId: data.tenantId,
@@ -149,11 +161,17 @@ export default function AbuseProtection() {
   // Mutation to reactivate tenant
   const reactivateTenantMutation = useMutation({
     mutationFn: async (tenantId: string) => {
+      const token = localStorage.getItem('auth_token');
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch(`/api/admin/abuse-protection/reactivate/${tenantId}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         credentials: 'include'
       });
       if (!response.ok) throw new Error('Failed to reactivate tenant');
