@@ -147,7 +147,7 @@ export default function SuperAdminDashboard() {
           <div className="px-6 py-4 border-b border-border">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">Recent Activity</h3>
-              <Link href="/health">
+              <Link href="/audit-trail">
                 <Button variant="outline" size="sm" data-testid="button-view-all-activity">
                   View All
                 </Button>
