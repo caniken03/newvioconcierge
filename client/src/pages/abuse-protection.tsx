@@ -95,7 +95,11 @@ export default function AbuseProtection() {
         },
         credentials: 'include'
       });
-      if (!response.ok) throw new Error('Failed to resolve event');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        console.error('Resolve event error:', response.status, errorData);
+        throw new Error(errorData.message || `Failed to resolve event (${response.status})`);
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -103,8 +107,13 @@ export default function AbuseProtection() {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/abuse-protection/events'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/abuse-protection/dashboard'] });
     },
-    onError: () => {
-      toast({ title: "Failed to resolve event", variant: "destructive" });
+    onError: (error: any) => {
+      console.error('Mutation error:', error);
+      toast({ 
+        title: "Failed to resolve event", 
+        description: error.message || 'An error occurred',
+        variant: "destructive" 
+      });
     }
   });
 
