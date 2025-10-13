@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Shield, 
   AlertTriangle, 
@@ -43,6 +43,7 @@ export default function AbuseProtection() {
   const { toast } = useToast();
   const [selectedTenant, setSelectedTenant] = useState<string>("");
   const [selectedSeverity, setSelectedSeverity] = useState<string>("");
+  const [visibleEventsCount, setVisibleEventsCount] = useState<number>(15);
 
   if (!user || user.role !== 'super_admin') {
     return (
@@ -79,6 +80,11 @@ export default function AbuseProtection() {
     queryKey: ['/api/admin/tenants']
   });
 
+  // Reset visible events count when filters change
+  useEffect(() => {
+    setVisibleEventsCount(15);
+  }, [selectedTenant, selectedSeverity]);
+
   // Mutation to resolve abuse events
   const resolveEventMutation = useMutation({
     mutationFn: async (eventId: string) => {
@@ -104,7 +110,7 @@ export default function AbuseProtection() {
   // Mutation to suspend tenant
   const suspendTenantMutation = useMutation({
     mutationFn: async (data: { tenantId: string; reason: string }) => {
-      return apiRequest('/api/admin/abuse-protection/suspend', {
+      const response = await fetch('/api/admin/abuse-protection/suspend', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -116,6 +122,8 @@ export default function AbuseProtection() {
           triggeredBy: 'admin_action'
         })
       });
+      if (!response.ok) throw new Error('Failed to suspend tenant');
+      return response.json();
     },
     onSuccess: () => {
       toast({ title: "Tenant suspended successfully" });
@@ -342,50 +350,72 @@ export default function AbuseProtection() {
                         <div className="flex items-center justify-center py-8">
                           <div className="text-muted-foreground">Loading abuse events...</div>
                         </div>
-                      ) : (abuseEvents as any)?.length === 0 ? (
+                      ) : !abuseEvents || (Array.isArray(abuseEvents) && abuseEvents.length === 0) ? (
                         <div className="text-center py-8">
                           <CheckCircle className="w-12 h-12 mx-auto mb-4 text-green-500" />
                           <p className="text-muted-foreground">No abuse events detected</p>
                         </div>
                       ) : (
-                        (abuseEvents as any)?.map((event: any) => (
-                          <div key={event.id} className="flex items-start space-x-4 p-4 border rounded-lg">
-                            <div className="flex-shrink-0">
-                              {getEventTypeIcon(event.eventType)}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center space-x-2">
-                                  <Badge variant="outline" className={`${getSeverityColor(event.severity)} text-white`}>
-                                    {event.severity.toUpperCase()}
-                                  </Badge>
-                                  <span className="text-sm font-medium">{event.eventType.replace('_', ' ')}</span>
+                        <>
+                          {Array.isArray(abuseEvents) && abuseEvents.slice(0, visibleEventsCount).map((event: any) => (
+                            <div key={event.id} className="flex items-start space-x-4 p-4 border rounded-lg">
+                              <div className="flex-shrink-0">
+                                {getEventTypeIcon(event.eventType)}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center space-x-2">
+                                    <Badge variant="outline" className={`${getSeverityColor(event.severity)} text-white`}>
+                                      {event.severity.toUpperCase()}
+                                    </Badge>
+                                    <span className="text-sm font-medium">{event.eventType.replace('_', ' ')}</span>
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">
+                                    {new Date(event.createdAt).toLocaleString()}
+                                  </span>
                                 </div>
-                                <span className="text-xs text-muted-foreground">
-                                  {new Date(event.createdAt).toLocaleString()}
-                                </span>
-                              </div>
-                              <p className="text-sm text-muted-foreground mb-2">{event.description}</p>
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs text-muted-foreground">
-                                  Tenant: {(tenants as any)?.find((t: any) => t.id === event.tenantId)?.name || event.tenantId}
-                                </span>
-                                {!event.isResolved && (
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline"
-                                    onClick={() => resolveEventMutation.mutate(event.id)}
-                                    disabled={resolveEventMutation.isPending}
-                                    data-testid={`button-resolve-${event.id}`}
-                                  >
-                                    <CheckCircle className="w-3 h-3 mr-1" />
-                                    Resolve
-                                  </Button>
-                                )}
+                                <p className="text-sm text-muted-foreground mb-2">{event.description}</p>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-muted-foreground">
+                                    Tenant: {(tenants as any)?.find((t: any) => t.id === event.tenantId)?.name || event.tenantId}
+                                  </span>
+                                  {!event.isResolved && (
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline"
+                                      onClick={() => resolveEventMutation.mutate(event.id)}
+                                      disabled={resolveEventMutation.isPending}
+                                      data-testid={`button-resolve-${event.id}`}
+                                    >
+                                      <CheckCircle className="w-3 h-3 mr-1" />
+                                      Resolve
+                                    </Button>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))
+                          ))}
+                          
+                          {/* Load More Button */}
+                          {Array.isArray(abuseEvents) && abuseEvents.length > visibleEventsCount && (
+                            <div className="flex justify-center pt-4">
+                              <Button
+                                variant="outline"
+                                onClick={() => setVisibleEventsCount(prev => prev + 15)}
+                                data-testid="button-load-more-events"
+                              >
+                                Load More Events ({abuseEvents.length - visibleEventsCount} remaining)
+                              </Button>
+                            </div>
+                          )}
+
+                          {/* Showing X of Y indicator */}
+                          {Array.isArray(abuseEvents) && abuseEvents.length > 0 && (
+                            <div className="text-center text-sm text-muted-foreground pt-2">
+                              Showing {Math.min(visibleEventsCount, abuseEvents.length)} of {abuseEvents.length} events
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   </CardContent>
