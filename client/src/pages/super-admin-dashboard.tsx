@@ -114,18 +114,27 @@ export default function SuperAdminDashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">System Health</p>
-                <p className="text-2xl font-bold text-green-600" data-testid="metric-system-health">
-                  {analytics.systemHealth || 'Excellent'}
+                <p className="text-sm font-medium text-muted-foreground">Platform Performance</p>
+                <p className={`text-2xl font-bold ${
+                  analytics.systemHealth === 'excellent' ? 'text-green-600' : 
+                  analytics.systemHealth === 'good' ? 'text-blue-600' : 
+                  analytics.systemHealth === 'fair' ? 'text-yellow-600' : 
+                  'text-red-600'
+                }`} data-testid="metric-platform-performance">
+                  {analytics.systemHealth ? analytics.systemHealth.charAt(0).toUpperCase() + analytics.systemHealth.slice(1) : 'Excellent'}
                 </p>
               </div>
-              <div className="w-10 h-10 bg-green-100 text-green-600 rounded-lg flex items-center justify-center">
-                <i className="fas fa-heartbeat"></i>
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                analytics.systemHealth === 'excellent' ? 'bg-green-100 text-green-600' : 
+                analytics.systemHealth === 'good' ? 'bg-blue-100 text-blue-600' : 
+                analytics.systemHealth === 'fair' ? 'bg-yellow-100 text-yellow-600' : 
+                'bg-red-100 text-red-600'
+              }`}>
+                <i className="fas fa-chart-line"></i>
               </div>
             </div>
             <div className="flex items-center mt-4">
-              <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-              <span className="text-xs text-muted-foreground">All systems operational</span>
+              <span className="text-xs text-muted-foreground">Based on call success rates</span>
             </div>
           </CardContent>
         </Card>
