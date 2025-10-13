@@ -2048,37 +2048,28 @@ export default function Contacts() {
                                     <p className="text-sm text-blue-600">
                                       VioConcierge calls for appointment:
                                     </p>
-                                    <div className="text-sm text-muted-foreground space-y-0.5">
+                                    <div className="text-sm text-muted-foreground">
                                       {(() => {
                                         const appointmentDate = new Date(contact.appointmentTime);
                                         
-                                        // First call: 24 hours before (default initial reminder)
-                                        const firstCallTime = new Date(appointmentDate.getTime() - 24 * 60 * 60 * 1000);
-                                        const day1 = firstCallTime.toLocaleDateString('en-GB', { weekday: 'short' });
-                                        const date1 = firstCallTime.getDate();
-                                        const month1 = firstCallTime.toLocaleDateString('en-GB', { month: 'short' });
-                                        const time1 = firstCallTime.toLocaleTimeString('en-GB', { 
-                                          hour: '2-digit', 
-                                          minute: '2-digit', 
-                                          hour12: false 
-                                        });
-                                        
-                                        // Second call: 1 hour before (follow-up reminder)
-                                        const secondCallTime = new Date(appointmentDate.getTime() - 60 * 60 * 1000);
-                                        const day2 = secondCallTime.toLocaleDateString('en-GB', { weekday: 'short' });
-                                        const date2 = secondCallTime.getDate();
-                                        const month2 = secondCallTime.toLocaleDateString('en-GB', { month: 'short' });
-                                        const time2 = secondCallTime.toLocaleTimeString('en-GB', { 
+                                        // Initial call: 24 hours before (default)
+                                        const callTime = new Date(appointmentDate.getTime() - 24 * 60 * 60 * 1000);
+                                        const day = callTime.toLocaleDateString('en-GB', { weekday: 'short' });
+                                        const date = callTime.getDate();
+                                        const month = callTime.toLocaleDateString('en-GB', { month: 'short' });
+                                        const time = callTime.toLocaleTimeString('en-GB', { 
                                           hour: '2-digit', 
                                           minute: '2-digit', 
                                           hour12: false 
                                         });
                                         
                                         return (
-                                          <>
-                                            <p>1st: {day1}, {date1} {month1}, {time1} (24h before)</p>
-                                            <p>2nd: {day2}, {date2} {month2}, {time2} (1h before)</p>
-                                          </>
+                                          <div>
+                                            <p>{day}, {date} {month}, {time}</p>
+                                            <p className="text-xs text-muted-foreground mt-0.5">
+                                              Follow-up call only if missed
+                                            </p>
+                                          </div>
                                         );
                                       })()}
                                     </div>

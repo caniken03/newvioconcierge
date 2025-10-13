@@ -119,6 +119,16 @@ export class CallSchedulerService {
         return;
       }
 
+      // CRITICAL: Skip call if appointment already confirmed
+      // This prevents calling customers who already confirmed via a previous call
+      if (contact.appointmentStatus === 'confirmed') {
+        console.log(`✅ Skipping task ${task.id} - appointment already confirmed for ${contact.name}`);
+        await storage.updateFollowUpTask(task.id, {
+          status: 'completed'
+        });
+        return;
+      }
+
       // Get tenant configuration for AI service settings
       const tenantConfig = await storage.getTenantConfig(task.tenantId);
       
@@ -316,41 +326,30 @@ export class CallSchedulerService {
 
       // Get tenant configuration for reminder timing
       const tenantConfig = await storage.getTenantConfig(tenantId);
-      const reminderHours = tenantConfig?.reminderHoursBefore || [24, 1]; // Default to 24h and 1h
       
-      // Create reminder intervals from configurable hours
-      const reminderIntervals = reminderHours.map((hours, index) => ({
-        hours,
-        type: index === 0 ? 'initial_call' as const : 'follow_up' as const,
-        description: `${hours} hour${hours !== 1 ? 's' : ''} before`
-      }));
+      // IMPORTANT: Only schedule ONE initial call (first value from config or default 24h)
+      // Follow-up calls are ONLY scheduled if the initial call is missed (handled in createRetryTask)
+      const reminderHoursArray = tenantConfig?.reminderHoursBefore || [24];
+      const initialReminderHours = Array.isArray(reminderHoursArray) ? reminderHoursArray[0] : reminderHoursArray;
+      
+      const reminderTime = new Date(appointmentTime.getTime() - (initialReminderHours * 60 * 60 * 1000));
 
-      let scheduledCount = 0;
+      // Only schedule if reminder time is in the future
+      if (reminderTime > new Date()) {
+        const reminderTask = await storage.createFollowUpTask({
+          tenantId,
+          contactId,
+          scheduledTime: reminderTime,
+          taskType: 'initial_call',
+          autoExecution: true,
+          attempts: 0,
+          maxAttempts: 2 // Original call + 1 follow-up only (if missed)
+        });
 
-      for (const interval of reminderIntervals) {
-        const reminderTime = new Date(appointmentTime.getTime() - (interval.hours * 60 * 60 * 1000));
-
-        // Only schedule if reminder time is in the future
-        if (reminderTime > new Date()) {
-          const reminderTask = await storage.createFollowUpTask({
-            tenantId,
-            contactId,
-            scheduledTime: reminderTime,
-            taskType: interval.type,
-            autoExecution: true,
-            attempts: 0,
-            maxAttempts: 2 // Original call + 1 follow-up only
-          });
-
-          console.log(`📅 Scheduled ${interval.description} reminder for ${contact.name} at ${reminderTime.toISOString()}`);
-          scheduledCount++;
-        }
-      }
-
-      if (scheduledCount === 0) {
-        console.log(`⏰ Appointment too soon, no reminders scheduled for ${contact.name} (appointment: ${appointmentTime.toISOString()})`);
+        console.log(`📅 Scheduled initial reminder ${initialReminderHours}h before appointment for ${contact.name} at ${reminderTime.toISOString()}`);
+        console.log(`   📞 Follow-up call will ONLY be scheduled if this call is missed/not answered`);
       } else {
-        console.log(`✅ Scheduled ${scheduledCount} reminders for ${contact.name} (appointment: ${appointmentTime.toISOString()})`);
+        console.log(`⏰ Appointment too soon, no reminders scheduled for ${contact.name} (appointment: ${appointmentTime.toISOString()})`);
       }
 
     } catch (error) {
