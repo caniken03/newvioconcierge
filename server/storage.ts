@@ -259,6 +259,7 @@ export interface IStorage {
   // Follow-up task operations
   getFollowUpTask(id: string): Promise<FollowUpTask | undefined>;
   getFollowUpTasksByTenant(tenantId: string): Promise<FollowUpTask[]>;
+  getFollowUpTasksByContact(contactId: string): Promise<FollowUpTask[]>;
   createFollowUpTask(task: InsertFollowUpTask): Promise<FollowUpTask>;
   updateFollowUpTask(id: string, updates: Partial<InsertFollowUpTask>): Promise<FollowUpTask>;
   getOverdueFollowUpTasks(): Promise<FollowUpTask[]>;
@@ -2327,6 +2328,14 @@ export class DatabaseStorage implements IStorage {
       .from(followUpTasks)
       .where(eq(followUpTasks.tenantId, tenantId))
       .orderBy(asc(followUpTasks.scheduledTime));
+  }
+
+  async getFollowUpTasksByContact(contactId: string): Promise<FollowUpTask[]> {
+    return await db
+      .select()
+      .from(followUpTasks)
+      .where(eq(followUpTasks.contactId, contactId))
+      .orderBy(desc(followUpTasks.scheduledTime));
   }
 
   async createFollowUpTask(task: InsertFollowUpTask): Promise<FollowUpTask> {

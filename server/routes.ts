@@ -4894,6 +4894,47 @@ Log Level: INFO
             callAnalysis: payload.call_analysis,
           }),
         });
+
+        // CRITICAL: Schedule follow-up call if initial call was not successful
+        // This is the ONE follow-up call per the business rules
+        const needsFollowUp = ['no_answer', 'voicemail', 'busy', 'failed'].includes(callOutcome);
+        const appointmentNotConfirmed = contactUpdate.appointmentStatus !== 'confirmed';
+        
+        if (needsFollowUp && appointmentNotConfirmed && session.contactId) {
+          try {
+            // Check if there's already a pending follow-up task for this contact
+            const existingTasks = await storage.getFollowUpTasksByContact(session.contactId);
+            const hasPendingFollowUp = existingTasks.some(task => 
+              task.status === 'pending' && 
+              task.taskType === 'follow_up' &&
+              new Date(task.scheduledTime) > new Date()
+            );
+            
+            if (!hasPendingFollowUp) {
+              // Get tenant config for follow-up delay (default: 90 minutes)
+              const tenantConfig = await storage.getTenantConfig(session.tenantId);
+              const delayMinutes = tenantConfig?.followUpRetryMinutes || 90;
+              const followUpTime = new Date(Date.now() + delayMinutes * 60 * 1000);
+              
+              await storage.createFollowUpTask({
+                tenantId: session.tenantId,
+                contactId: session.contactId,
+                scheduledTime: followUpTime,
+                taskType: 'follow_up',
+                autoExecution: true,
+                attempts: 0,
+                maxAttempts: 1 // Only ONE follow-up call
+              });
+              
+              console.log(`📞 Scheduled follow-up call for ${contact?.name} at ${followUpTime.toISOString()} (${delayMinutes} minutes after ${callOutcome})`);
+            } else {
+              console.log(`ℹ️ Follow-up already scheduled for ${contact?.name}, skipping duplicate`);
+            }
+          } catch (error) {
+            console.error('❌ Error scheduling follow-up call:', error);
+            // Don't fail the webhook if follow-up scheduling fails
+          }
+        }
       }
       
       res.status(200).json({ received: true });
@@ -5068,6 +5109,42 @@ Log Level: INFO
             customerInterest: payload.call_analysis?.customer_interest,
           }),
         });
+
+        // CRITICAL: Schedule follow-up call if initial call was not successful
+        const needsFollowUp = ['no_answer', 'voicemail', 'busy', 'failed'].includes(callOutcome);
+        const currentContact = await storage.getContact(session.contactId!);
+        const appointmentNotConfirmed = currentContact?.appointmentStatus !== 'confirmed';
+        
+        if (needsFollowUp && appointmentNotConfirmed && session.contactId) {
+          try {
+            const existingTasks = await storage.getFollowUpTasksByContact(session.contactId);
+            const hasPendingFollowUp = existingTasks.some(task => 
+              task.status === 'pending' && 
+              task.taskType === 'follow_up' &&
+              new Date(task.scheduledTime) > new Date()
+            );
+            
+            if (!hasPendingFollowUp) {
+              const tenantConfig = await storage.getTenantConfig(session.tenantId);
+              const delayMinutes = tenantConfig?.followUpRetryMinutes || 90;
+              const followUpTime = new Date(Date.now() + delayMinutes * 60 * 1000);
+              
+              await storage.createFollowUpTask({
+                tenantId: session.tenantId,
+                contactId: session.contactId,
+                scheduledTime: followUpTime,
+                taskType: 'follow_up',
+                autoExecution: true,
+                attempts: 0,
+                maxAttempts: 1
+              });
+              
+              console.log(`📞 Scheduled follow-up call for ${currentContact?.name} at ${followUpTime.toISOString()} (${delayMinutes} minutes after ${callOutcome})`);
+            }
+          } catch (error) {
+            console.error('❌ Error scheduling follow-up call:', error);
+          }
+        }
 
         console.log(`🛍️ Retail call ${payload.call_id} processed: ${callOutcome} for tenant ${tenantId}`);
       }
