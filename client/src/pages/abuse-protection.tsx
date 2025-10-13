@@ -88,6 +88,21 @@ export default function AbuseProtection() {
     queryKey: ['/api/admin/tenants']
   });
 
+  // Fetch abuse protection settings
+  const { data: settingsData } = useQuery({
+    queryKey: ['/api/admin/abuse-protection/settings']
+  });
+
+  // Update state when settings are loaded
+  useEffect(() => {
+    if (settingsData) {
+      setMaxAttemptsEmail(settingsData.maxAttemptsEmail || 5);
+      setMaxAttemptsIP(settingsData.maxAttemptsIP || 10);
+      setTimeWindowMinutes(settingsData.timeWindowMinutes || 15);
+      setLockoutDurationMinutes(settingsData.lockoutDurationMinutes || 30);
+    }
+  }, [settingsData]);
+
   // Reset visible events count when filters change
   useEffect(() => {
     setVisibleEventsCount(15);
@@ -201,15 +216,39 @@ export default function AbuseProtection() {
     refetchSuspensions();
   };
 
+  // Mutation to update abuse protection settings
+  const updateSettingsMutation = useMutation({
+    mutationFn: async (settings: { maxAttemptsEmail: number; maxAttemptsIP: number; timeWindowMinutes: number; lockoutDurationMinutes: number }) => {
+      return await apiRequest('/api/admin/abuse-protection/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/abuse-protection/settings'] });
+      toast({
+        title: "Settings Updated",
+        description: `Rate limits: ${maxAttemptsEmail} attempts per email, ${maxAttemptsIP} per IP in ${timeWindowMinutes} minutes. Lockout: ${lockoutDurationMinutes} minutes.`,
+      });
+      setSettingsOpen(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to update settings",
+        description: error.message || "Please try again",
+        variant: "destructive"
+      });
+    }
+  });
+
   const handleSaveSettings = () => {
-    toast({
-      title: "Settings Updated",
-      description: `Rate limits: ${maxAttemptsEmail} emails/${timeWindowMinutes}min, ${maxAttemptsIP} IPs/${timeWindowMinutes}min. Lockout: ${lockoutDurationMinutes}min`,
+    updateSettingsMutation.mutate({
+      maxAttemptsEmail,
+      maxAttemptsIP,
+      timeWindowMinutes,
+      lockoutDurationMinutes
     });
-    setSettingsOpen(false);
-    
-    // Note: These settings are currently for display only
-    // Backend integration would require API endpoint and database storage
   };
 
   const getSeverityColor = (severity: string) => {
@@ -340,19 +379,19 @@ export default function AbuseProtection() {
                         </p>
                       </div>
                       
-                      <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                        <p className="text-xs text-yellow-800 dark:text-yellow-400">
-                          ⚠️ Note: These settings are currently for reference only. Backend integration is required to make them active.
+                      <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                        <p className="text-xs text-green-800 dark:text-green-400">
+                          ✓ These settings will apply immediately to all login attempts and rate limiting.
                         </p>
                       </div>
                     </div>
                     
                     <DialogFooter>
-                      <Button variant="outline" onClick={() => setSettingsOpen(false)}>
+                      <Button variant="outline" onClick={() => setSettingsOpen(false)} disabled={updateSettingsMutation.isPending}>
                         Cancel
                       </Button>
-                      <Button onClick={handleSaveSettings}>
-                        Save Settings
+                      <Button onClick={handleSaveSettings} disabled={updateSettingsMutation.isPending}>
+                        {updateSettingsMutation.isPending ? 'Saving...' : 'Save Settings'}
                       </Button>
                     </DialogFooter>
                   </DialogContent>

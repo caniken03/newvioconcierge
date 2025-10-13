@@ -74,6 +74,9 @@ import {
   passwordResetTokens,
   type UserInvitation,
   type InsertUserInvitation,
+  abuseProtectionSettings,
+  type AbuseProtectionSettings,
+  type InsertAbuseProtectionSettings,
 } from "@shared/schema";
 import { BusinessHoursEvaluator } from "./utils/business-hours-evaluator";
 import { db } from "./db";
@@ -290,6 +293,10 @@ export interface IStorage {
   getSystemSetting(key: string): Promise<SystemSetting | undefined>;
   createSystemSetting(setting: InsertSystemSetting): Promise<SystemSetting>;
   updateSystemSetting(key: string, value: string): Promise<SystemSetting>;
+
+  // Abuse protection settings operations
+  getAbuseProtectionSettings(): Promise<AbuseProtectionSettings | undefined>;
+  updateAbuseProtectionSettings(settings: Partial<InsertAbuseProtectionSettings>, updatedBy: string): Promise<AbuseProtectionSettings>;
 
   // Authentication
   authenticateUser(email: string, password: string): Promise<User | null>;
@@ -2587,6 +2594,36 @@ export class DatabaseStorage implements IStorage {
       .where(eq(systemSettings.key, key))
       .returning();
     return updatedSetting;
+  }
+
+  // Abuse protection settings operations
+  async getAbuseProtectionSettings(): Promise<AbuseProtectionSettings | undefined> {
+    const [settings] = await db
+      .select()
+      .from(abuseProtectionSettings)
+      .orderBy(desc(abuseProtectionSettings.updatedAt))
+      .limit(1);
+    return settings;
+  }
+
+  async updateAbuseProtectionSettings(settings: Partial<InsertAbuseProtectionSettings>, updatedBy: string): Promise<AbuseProtectionSettings> {
+    // Get existing settings or create new one
+    const existing = await this.getAbuseProtectionSettings();
+    
+    if (existing) {
+      const [updated] = await db
+        .update(abuseProtectionSettings)
+        .set({ ...settings, updatedBy, updatedAt: new Date() })
+        .where(eq(abuseProtectionSettings.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [newSettings] = await db
+        .insert(abuseProtectionSettings)
+        .values({ ...settings, updatedBy } as InsertAbuseProtectionSettings)
+        .returning();
+      return newSettings;
+    }
   }
 
   // Contact groups operations

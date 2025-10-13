@@ -339,6 +339,21 @@ export const systemSettings = pgTable("system_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Abuse protection settings for configurable rate limiting
+export const abuseProtectionSettings = pgTable("abuse_protection_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  maxAttemptsEmail: integer("max_attempts_email").notNull().default(5),
+  maxAttemptsIP: integer("max_attempts_ip").notNull().default(10),
+  timeWindowMinutes: integer("time_window_minutes").notNull().default(15),
+  lockoutDurationMinutes: integer("lockout_duration_minutes").notNull().default(30),
+  updatedBy: uuid("updated_by"), // Super admin who last updated
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  // Database-level foreign key constraint
+  updatedByFk: foreignKey({ columns: [table.updatedBy], foreignColumns: [users.id], name: "abuse_protection_settings_updated_by_fk" }).onDelete("set null"),
+}));
+
 // Rate limiting tracking for abuse protection
 export const rateLimitTracking = pgTable("rate_limit_tracking", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -1138,6 +1153,12 @@ export const insertSystemSettingSchema = createInsertSchema(systemSettings).omit
   updatedAt: true,
 });
 
+export const insertAbuseProtectionSettingsSchema = createInsertSchema(abuseProtectionSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertContactGroupSchema = createInsertSchema(contactGroups).omit({
   id: true,
   createdAt: true,
@@ -1275,6 +1296,9 @@ export type InsertCallLog = z.infer<typeof insertCallLogSchema>;
 
 export type SystemSetting = typeof systemSettings.$inferSelect;
 export type InsertSystemSetting = z.infer<typeof insertSystemSettingSchema>;
+
+export type AbuseProtectionSettings = typeof abuseProtectionSettings.$inferSelect;
+export type InsertAbuseProtectionSettings = z.infer<typeof insertAbuseProtectionSettingsSchema>;
 
 export type ContactGroup = typeof contactGroups.$inferSelect;
 export type InsertContactGroup = z.infer<typeof insertContactGroupSchema>;

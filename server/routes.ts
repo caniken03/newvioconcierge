@@ -591,6 +591,9 @@ const requireContactAccess = async (req: any, res: any, next: any) => {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
+  // Initialize rate limiter with storage for dynamic settings
+  redisRateLimiter.setStorage(storage);
+  
   // Authentication routes
   // Enhanced login endpoint with comprehensive security measures
   app.post('/api/auth/login', async (req, res) => {
@@ -1839,6 +1842,57 @@ Log Level: INFO
     } catch (error) {
       console.error('Failed to fetch active suspensions:', error);
       res.status(500).json({ message: 'Failed to fetch active suspensions' });
+    }
+  });
+
+  // Abuse protection settings routes
+  app.get('/api/admin/abuse-protection/settings', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
+    try {
+      const settings = await storage.getAbuseProtectionSettings();
+      
+      // Return defaults if no settings exist
+      if (!settings) {
+        return res.json({
+          maxAttemptsEmail: 5,
+          maxAttemptsIP: 10,
+          timeWindowMinutes: 15,
+          lockoutDurationMinutes: 30
+        });
+      }
+      
+      res.json(settings);
+    } catch (error) {
+      console.error('Failed to fetch abuse protection settings:', error);
+      res.status(500).json({ message: 'Failed to fetch abuse protection settings' });
+    }
+  });
+
+  app.put('/api/admin/abuse-protection/settings', authenticateJWT, requireRole(['super_admin']), async (req: any, res) => {
+    try {
+      const settingsSchema = z.object({
+        maxAttemptsEmail: z.number().min(1).max(20),
+        maxAttemptsIP: z.number().min(1).max(50),
+        timeWindowMinutes: z.number().min(5).max(60),
+        lockoutDurationMinutes: z.number().min(5).max(1440)
+      });
+
+      const settingsData = settingsSchema.parse(req.body);
+      const updatedSettings = await storage.updateAbuseProtectionSettings(settingsData, req.user.id);
+      
+      // Invalidate rate limiter cache to pick up new settings
+      redisRateLimiter.invalidateCache();
+      
+      res.json(updatedSettings);
+    } catch (error) {
+      // Distinguish validation errors from storage errors
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: 'Invalid settings data', 
+          errors: error.errors 
+        });
+      }
+      console.error('Failed to update abuse protection settings:', error);
+      res.status(500).json({ message: 'Failed to update abuse protection settings' });
     }
   });
 

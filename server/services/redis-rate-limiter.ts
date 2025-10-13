@@ -1,4 +1,5 @@
 import { createClient } from 'redis';
+import type { IStorage } from '../storage';
 
 export interface LoginAttempt {
   timestamp: number;
@@ -19,18 +20,33 @@ export interface RateLimitResult {
   lockoutUntil?: number;
 }
 
+interface RateLimitConfig {
+  MAX_ATTEMPTS_PER_EMAIL: number;
+  MAX_ATTEMPTS_PER_IP: number;
+  TIME_WINDOW_MS: number;
+  LOCKOUT_DURATION_MS: number;
+  MAX_LOCKOUT_DURATION_MS: number;
+}
+
 class RedisRateLimiter {
   private client;
   private isConnected = false;
-
-  // Security configuration
-  private readonly config = {
-    MAX_ATTEMPTS_PER_EMAIL: 5, // Max attempts per email in time window
-    MAX_ATTEMPTS_PER_IP: 10, // Max attempts per IP in time window
-    TIME_WINDOW_MS: 15 * 60 * 1000, // 15 minutes
-    LOCKOUT_DURATION_MS: 30 * 60 * 1000, // 30 minutes lockout
-    MAX_LOCKOUT_DURATION_MS: 24 * 60 * 60 * 1000, // 24 hours max lockout
+  private storage: IStorage | null = null;
+  
+  // Default security configuration (used as fallback)
+  private config: RateLimitConfig = {
+    MAX_ATTEMPTS_PER_EMAIL: 5,
+    MAX_ATTEMPTS_PER_IP: 10,
+    TIME_WINDOW_MS: 15 * 60 * 1000,
+    LOCKOUT_DURATION_MS: 30 * 60 * 1000,
+    MAX_LOCKOUT_DURATION_MS: 24 * 60 * 60 * 1000,
   };
+
+  // Cache for settings with TTL
+  private settingsCache: RateLimitConfig | null = null;
+  private cacheTimestamp: number = 0;
+  private readonly CACHE_TTL_MS = 60 * 1000; // 1 minute cache
+  private lastKnownGoodConfig: RateLimitConfig | null = null;
 
   constructor() {
     this.client = createClient({
@@ -77,6 +93,60 @@ class RedisRateLimiter {
     }
   }
 
+  setStorage(storage: IStorage): void {
+    this.storage = storage;
+  }
+
+  invalidateCache(): void {
+    this.settingsCache = null;
+    this.cacheTimestamp = 0;
+  }
+
+  private async loadSettings(): Promise<void> {
+    // Check if cache is still valid
+    const now = Date.now();
+    if (this.settingsCache && (now - this.cacheTimestamp) < this.CACHE_TTL_MS) {
+      this.config = this.settingsCache;
+      return;
+    }
+
+    if (!this.storage) {
+      return; // Use default config
+    }
+
+    try {
+      const settings = await this.storage.getAbuseProtectionSettings();
+      if (settings) {
+        const newConfig: RateLimitConfig = {
+          MAX_ATTEMPTS_PER_EMAIL: settings.maxAttemptsEmail,
+          MAX_ATTEMPTS_PER_IP: settings.maxAttemptsIP,
+          TIME_WINDOW_MS: settings.timeWindowMinutes * 60 * 1000,
+          LOCKOUT_DURATION_MS: settings.lockoutDurationMinutes * 60 * 1000,
+          MAX_LOCKOUT_DURATION_MS: 24 * 60 * 60 * 1000, // Keep max at 24 hours
+        };
+        
+        // Update config and cache
+        this.config = newConfig;
+        this.settingsCache = newConfig;
+        this.cacheTimestamp = now;
+        this.lastKnownGoodConfig = newConfig;
+      }
+    } catch (error) {
+      console.error('Failed to load abuse protection settings:', error);
+      
+      // Use last known good config as fallback
+      if (this.lastKnownGoodConfig) {
+        console.log('Using last known good configuration');
+        this.config = this.lastKnownGoodConfig;
+        this.settingsCache = this.lastKnownGoodConfig;
+        this.cacheTimestamp = now;
+      } else {
+        console.log('Using default configuration');
+        // Keep default config
+      }
+    }
+  }
+
   private getKeys(identifier: string, type: 'email' | 'ip') {
     return {
       attempts: `rate_limit:${type}:${identifier}:attempts`,
@@ -94,6 +164,9 @@ class RedisRateLimiter {
       console.warn('Redis not connected, allowing request (fail-open)');
       return { allowed: true };
     }
+
+    // Load latest settings from database
+    await this.loadSettings();
 
     try {
       const now = Date.now();
