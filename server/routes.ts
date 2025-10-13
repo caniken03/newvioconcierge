@@ -533,7 +533,14 @@ const authenticateJWT = async (req: any, res: any, next: any) => {
       }
     }
 
-    req.user = user;
+    // CRITICAL FIX: Include impersonation flags from JWT token
+    req.user = {
+      ...user,
+      // Preserve impersonation context from JWT token
+      isImpersonating: decoded.isImpersonating,
+      originalUserId: decoded.originalUserId,
+      originalRole: decoded.originalRole,
+    };
     next();
   } catch (error) {
     return res.status(403).json({ message: 'Invalid token' });
