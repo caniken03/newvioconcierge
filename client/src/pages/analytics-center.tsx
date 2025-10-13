@@ -529,8 +529,8 @@ export default function AnalyticsCenter() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Revenue by Industry</CardTitle>
-                <CardDescription>Revenue distribution across verticals</CardDescription>
+                <CardTitle>Tenant Distribution by Industry</CardTitle>
+                <CardDescription>Number of tenants per industry vertical</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -539,7 +539,7 @@ export default function AnalyticsCenter() {
                     <XAxis dataKey="industry" />
                     <YAxis />
                     <Tooltip />
-                    <Bar dataKey="totalRevenue" fill="#10b981" />
+                    <Bar dataKey="tenantCount" fill="#10b981" />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -556,8 +556,8 @@ export default function AnalyticsCenter() {
               <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                 <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">Growth Opportunity</h4>
                 <p className="text-sm text-blue-700 dark:text-blue-300">
-                  Healthcare vertical shows highest success rates (94.1%) and strong revenue potential. 
-                  Consider targeted marketing to medical practices.
+                  Healthcare vertical shows highest success rates (94.1%). 
+                  Consider targeted marketing to medical practices and expanding this segment.
                 </p>
               </div>
               <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
