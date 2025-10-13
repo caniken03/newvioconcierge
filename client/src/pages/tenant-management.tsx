@@ -733,6 +733,10 @@ export default function TenantManagement() {
       const tenant = response?.tenant;
       
       console.log('Extracted token:', token ? 'Present' : 'Missing');
+      
+      // CRITICAL: Invalidate the user query cache to force refetch with new token
+      // This ensures the impersonation flags (isImpersonating, originalRole) are loaded
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
       console.log('Extracted tenant:', tenant);
       
       if (!token || !tenant) {
