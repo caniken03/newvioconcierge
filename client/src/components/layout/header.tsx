@@ -194,65 +194,6 @@ export default function Header() {
     }
   };
 
-  const getQuickActions = () => {
-    if (user.role === 'super_admin') {
-      return (
-        <div className="flex items-center space-x-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="default" data-testid="button-quick-actions">
-                <i className="fas fa-plus text-sm mr-2"></i>
-                Quick Actions
-                <i className="fas fa-chevron-down text-xs ml-2"></i>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem asChild>
-                <Link href="/tenants" className="w-full">
-                  <i className="fas fa-building mr-2"></i>
-                  Create New Tenant
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/users" className="w-full">
-                  <i className="fas fa-user-plus mr-2"></i>
-                  Add User Account
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/system" className="w-full">
-                  <i className="fas fa-cog mr-2"></i>
-                  System Configuration
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/compliance" className="w-full">
-                  <i className="fas fa-shield-alt mr-2"></i>
-                  Security Review
-                </Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      );
-    }
-
-    if (user.role === 'client_admin' || user.role === 'client_user') {
-      return (
-        <div className="flex items-center space-x-2">
-          <Button variant="default" asChild data-testid="button-add-contact">
-            <Link href="/contacts?new=true">
-              <i className="fas fa-user-plus text-sm mr-2"></i>
-              Add Contact
-            </Link>
-          </Button>
-        </div>
-      );
-    }
-
-    return null;
-  };
-
   const getContextualHelp = () => {
     const helpContent: Record<string, string> = {
       '/': user.role === 'super_admin' 
@@ -442,11 +383,6 @@ export default function Header() {
           
           {/* Theme Toggle */}
           <ThemeToggle />
-          
-          {/* Quick Actions Toolbar */}
-          <div className="flex items-center space-x-2">
-            {getQuickActions()}
-          </div>
         </div>
       </div>
     </header>
