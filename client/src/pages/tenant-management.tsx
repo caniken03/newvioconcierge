@@ -45,6 +45,16 @@ import {
 } from "@/components/ui/alert-dialog";
 import type { Tenant } from "@/types";
 
+// Business template options
+const BUSINESS_TEMPLATES = [
+  { id: 'medical', label: '🏥 Medical Practice' },
+  { id: 'salon', label: '💅 Salon & Beauty' },
+  { id: 'restaurant', label: '🍽️ Restaurant & Dining' },
+  { id: 'consultant', label: '💼 Professional Services' },
+  { id: 'general', label: '🏢 General Business' },
+  { id: 'custom', label: '⚙️ Custom Template' },
+];
+
 // Tenant Settings Editor Component
 interface TenantSettingsEditorProps {
   tenantToEdit: Tenant | null;
@@ -101,7 +111,16 @@ function TenantSettingsEditor({ tenantToEdit, isOpen, onClose }: TenantSettingsE
   });
 
   const handleInputChange = (field: string, value: any) => {
-    setFormData((prev: any) => ({ ...prev, [field]: value }));
+    setFormData((prev: any) => {
+      const updates: any = { ...prev, [field]: value };
+      
+      // Auto-sync businessType with businessTemplate to keep them in sync
+      if (field === 'businessTemplate') {
+        updates.businessType = value;
+      }
+      
+      return updates;
+    });
   };
 
   const handleSave = () => {
@@ -305,6 +324,27 @@ function TenantSettingsEditor({ tenantToEdit, isOpen, onClose }: TenantSettingsE
                       max="168"
                       data-testid="input-follow-up-hours"
                     />
+                  </div>
+                  <div>
+                    <Label htmlFor="businessTemplate">Business Template</Label>
+                    <Select
+                      value={formData.businessTemplate || 'general'}
+                      onValueChange={(value) => handleInputChange('businessTemplate', value)}
+                    >
+                      <SelectTrigger data-testid="select-business-template">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BUSINESS_TEMPLATES.map((template) => (
+                          <SelectItem key={template.id} value={template.id}>
+                            {template.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Template determines default settings and voice scripts for this business type
+                    </p>
                   </div>
                   <div>
                     <Label htmlFor="businessType">Business Type</Label>

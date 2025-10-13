@@ -1120,6 +1120,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         customBranding: tenant.customBranding || false,
         apiAccess: tenant.apiAccess || false,
         featuresEnabled: featuresEnabled,
+        // Business template (from tenant table)
+        businessTemplate: tenant.businessTemplate || 'general',
       });
     } catch (error) {
       console.error('Error fetching tenant config:', error);
@@ -1163,6 +1165,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         timezone: z.string().optional(),
         followUpHours: z.number().min(1).max(168).optional(),
         businessType: z.string().optional(),
+        businessTemplate: z.enum(['medical', 'salon', 'restaurant', 'consultant', 'general', 'custom']).optional(),
         reminderHoursBefore: z.array(z.number()).optional(),
         followUpRetryMinutes: z.number().min(15).max(1440).optional(),
         isPaused: z.boolean().optional(),
@@ -1195,9 +1198,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (updates.apiAccess !== undefined) tenantUpdates.apiAccess = updates.apiAccess;
       if (updates.featuresEnabled !== undefined) tenantUpdates.featuresEnabled = JSON.stringify(updates.featuresEnabled);
       
-      // Everything else goes to config table
+      // Business template goes to both tables
+      if (updates.businessTemplate !== undefined) {
+        tenantUpdates.businessTemplate = updates.businessTemplate;
+        configUpdates.businessType = updates.businessTemplate; // Keep in sync
+      }
+      
+      // Everything else goes to config table (exclude businessType if businessTemplate is being updated)
       Object.keys(updates).forEach(key => {
-        if (!['premiumAccess', 'hipaaCompliant', 'customBranding', 'apiAccess', 'featuresEnabled'].includes(key)) {
+        const fieldsToExclude = ['premiumAccess', 'hipaaCompliant', 'customBranding', 'apiAccess', 'featuresEnabled', 'businessTemplate'];
+        
+        // Also exclude businessType if businessTemplate is being updated (to prevent overwriting the sync)
+        if (updates.businessTemplate !== undefined) {
+          fieldsToExclude.push('businessType');
+        }
+        
+        if (!fieldsToExclude.includes(key)) {
           configUpdates[key] = (updates as any)[key];
         }
       });
