@@ -187,10 +187,8 @@ export default function Login() {
             >
               Forgot your password?
             </button>
-            <Link href="/privacy-policy">
-              <a className="text-sm text-muted-foreground hover:text-primary transition-colors block w-full" data-testid="link-privacy-policy">
-                Privacy Policy
-              </a>
+            <Link href="/privacy-policy" className="text-sm text-muted-foreground hover:text-primary transition-colors block w-full" data-testid="link-privacy-policy">
+              Privacy Policy
             </Link>
           </div>
         </CardContent>

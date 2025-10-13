@@ -51,29 +51,28 @@ export default function Sidebar() {
     badge?: { count: number; variant?: 'default' | 'destructive' | 'outline' | 'secondary' };
   }) => {
     const linkContent = (
-      <Link href={href}>
-        <a 
-          className={cn(
-            "flex items-center justify-between px-3 py-2 rounded-lg transition-colors group",
-            isActive(href) 
-              ? "bg-accent text-accent-foreground" 
-              : "hover:bg-accent hover:text-accent-foreground"
-          )}
-          data-testid={testId}
-        >
-          <div className={cn("flex items-center", collapsed ? "justify-center" : "space-x-3")}>
-            <i className={`${icon} w-5 text-center`}></i>
-            {!collapsed && <span>{children}</span>}
-          </div>
-          {!collapsed && badge && badge.count > 0 && (
-            <Badge variant={badge.variant || 'default'} className="h-5 px-1.5 text-xs">
-              {badge.count > 99 ? '99+' : badge.count}
-            </Badge>
-          )}
-          {collapsed && badge && badge.count > 0 && (
-            <div className="absolute right-1 top-1 w-2 h-2 bg-destructive rounded-full"></div>
-          )}
-        </a>
+      <Link 
+        href={href}
+        className={cn(
+          "flex items-center justify-between px-3 py-2 rounded-lg transition-colors group",
+          isActive(href) 
+            ? "bg-accent text-accent-foreground" 
+            : "hover:bg-accent hover:text-accent-foreground"
+        )}
+        data-testid={testId}
+      >
+        <div className={cn("flex items-center", collapsed ? "justify-center" : "space-x-3")}>
+          <i className={`${icon} w-5 text-center`}></i>
+          {!collapsed && <span>{children}</span>}
+        </div>
+        {!collapsed && badge && badge.count > 0 && (
+          <Badge variant={badge.variant || 'default'} className="h-5 px-1.5 text-xs">
+            {badge.count > 99 ? '99+' : badge.count}
+          </Badge>
+        )}
+        {collapsed && badge && badge.count > 0 && (
+          <div className="absolute right-1 top-1 w-2 h-2 bg-destructive rounded-full"></div>
+        )}
       </Link>
     );
 
@@ -220,6 +219,13 @@ export default function Sidebar() {
               testId="nav-compliance"
             >
               Compliance
+            </NavLink>
+            <NavLink 
+              href="/audit-trail" 
+              icon="fas fa-history" 
+              testId="nav-audit-trail"
+            >
+              Audit Trail
             </NavLink>
             <NavLink 
               href="/abuse-protection" 
