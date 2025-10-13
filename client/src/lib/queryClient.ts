@@ -91,8 +91,12 @@ export const getQueryFn: <T>(options: {
     });
 
     if (unauthorizedBehavior === "returnNull" && (res.status === 401 || res.status === 403)) {
-      // Clear invalid/expired token
-      localStorage.removeItem('auth_token');
+      // Only clear token if the auth endpoint itself returns 401 (invalid token)
+      // Don't clear for other endpoints that may fail due to permissions
+      const url = queryKey.join("/") as string;
+      if (url.includes('/api/auth/me')) {
+        localStorage.removeItem('auth_token');
+      }
       return null;
     }
 
