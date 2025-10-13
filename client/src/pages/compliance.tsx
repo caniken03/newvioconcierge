@@ -16,7 +16,6 @@ import {
   CheckCircle, 
   Clock,
   Download,
-  Settings,
   Loader2,
   Database,
   FileDown,
@@ -24,12 +23,10 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { useLocation } from "wouter";
 
 export default function Compliance() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [, setLocation] = useLocation();
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isDownloadingLogs, setIsDownloadingLogs] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
@@ -223,11 +220,6 @@ export default function Compliance() {
     }
   };
 
-  const handleConfigure = () => {
-    // Navigate to System Settings
-    setLocation('/system');
-  };
-
   if (!user || user.role !== 'super_admin') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -256,29 +248,19 @@ export default function Compliance() {
                   Monitor compliance status, security controls, and regulatory requirements
                 </p>
               </div>
-              <div className="flex items-center space-x-2">
-                <Button 
-                  variant="outline" 
-                  onClick={handleExportReport}
-                  disabled={isExporting}
-                  data-testid="button-export-compliance-report"
-                >
-                  {isExporting ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Download className="w-4 h-4 mr-2" />
-                  )}
-                  {isExporting ? 'Exporting...' : 'Export Report'}
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={handleConfigure}
-                  data-testid="button-compliance-settings"
-                >
-                  <Settings className="w-4 h-4 mr-2" />
-                  Configure
-                </Button>
-              </div>
+              <Button 
+                variant="outline" 
+                onClick={handleExportReport}
+                disabled={isExporting}
+                data-testid="button-export-compliance-report"
+              >
+                {isExporting ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4 mr-2" />
+                )}
+                {isExporting ? 'Exporting...' : 'Export Report'}
+              </Button>
             </div>
 
             {/* Compliance Overview */}
