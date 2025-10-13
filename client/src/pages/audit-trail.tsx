@@ -500,11 +500,18 @@ export default function AuditTrail() {
                         </div>
 
                         {entry.details && Object.keys(entry.details).length > 0 && (
-                          <div className="mt-3 p-3 bg-muted/50 rounded text-xs font-mono">
+                          <div className="mt-3 p-3 bg-muted/50 rounded text-xs">
                             <div className="font-semibold mb-1">Details:</div>
-                            <pre className="whitespace-pre-wrap" data-testid={`details-${entry.id}`}>
-                              {JSON.stringify(entry.details, null, 2)}
-                            </pre>
+                            {entry.details.title && entry.details.description ? (
+                              <div className="space-y-1" data-testid={`details-${entry.id}`}>
+                                <div className="text-sm font-medium text-foreground">{entry.details.title}</div>
+                                <div className="text-muted-foreground">{entry.details.description}</div>
+                              </div>
+                            ) : (
+                              <pre className="whitespace-pre-wrap font-mono" data-testid={`details-${entry.id}`}>
+                                {JSON.stringify(entry.details, null, 2)}
+                              </pre>
+                            )}
                           </div>
                         )}
                       </div>
