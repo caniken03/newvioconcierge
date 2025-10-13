@@ -895,14 +895,14 @@ export default function Profile() {
       title: "Calendar & Integration Settings",
       description: "Manage Cal.com, Calendly, and other integrations",
       icon: Settings,
-      accessLevel: "super_admin_only"
+      accessLevel: "client_admin_only"
     },
     {
       id: "team",
       title: "Team & User Management",
       description: "Manage staff access and permissions",
       icon: Users,
-      accessLevel: "super_admin_only"
+      accessLevel: "client_admin_only"
     },
     {
       id: "privacy",
@@ -922,7 +922,7 @@ export default function Profile() {
 
   const accessibleSections = profileSections.filter(section => {
     if (section.accessLevel === "all_users") return true;
-    if (section.accessLevel === "client_admin_only") return user.role === "client_admin" || user.role === "super_admin";
+    if (section.accessLevel === "client_admin_only") return user.role === "client_admin";
     if (section.accessLevel === "super_admin_only") return user.role === "super_admin";
     return false;
   });
