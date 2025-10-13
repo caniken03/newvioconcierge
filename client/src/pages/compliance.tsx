@@ -40,24 +40,36 @@ export default function Compliance() {
 
   const handleCreateBackup = async () => {
     try {
+      console.log('Creating backup...');
       setIsBackingUp(true);
+      const token = localStorage.getItem('auth_token');
+      console.log('Token present:', !!token);
+      
       const response = await fetch('/api/admin/compliance/backup', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
 
-      if (!response.ok) throw new Error('Failed to create backup');
+      console.log('Backup response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Backup error:', errorText);
+        throw new Error(errorText || 'Failed to create backup');
+      }
       
       const data = await response.json();
+      console.log('Backup data:', data);
       
       toast({
         title: "Backup Created",
         description: `System backup completed successfully. ${data.recordsBackedUp} records backed up.`,
       });
     } catch (error: any) {
+      console.error('Backup failed:', error);
       toast({
         title: "Backup Failed",
         description: error.message || "Failed to create system backup",
@@ -70,14 +82,24 @@ export default function Compliance() {
 
   const handleDownloadLogs = async () => {
     try {
+      console.log('Downloading logs...');
       setIsDownloadingLogs(true);
+      const token = localStorage.getItem('auth_token');
+      console.log('Token present:', !!token);
+      
       const response = await fetch('/api/admin/compliance/logs', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Authorization': `Bearer ${token}`,
         },
       });
 
-      if (!response.ok) throw new Error('Failed to download logs');
+      console.log('Download response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Download error:', errorText);
+        throw new Error(errorText || 'Failed to download logs');
+      }
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -94,6 +116,7 @@ export default function Compliance() {
         description: "System logs have been downloaded successfully",
       });
     } catch (error: any) {
+      console.error('Download failed:', error);
       toast({
         title: "Download Failed",
         description: error.message || "Failed to download system logs",
@@ -106,24 +129,36 @@ export default function Compliance() {
 
   const handleCleanTemporaryData = async () => {
     try {
+      console.log('Cleaning temporary data...');
       setIsCleaning(true);
+      const token = localStorage.getItem('auth_token');
+      console.log('Token present:', !!token);
+      
       const response = await fetch('/api/admin/compliance/clean', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
 
-      if (!response.ok) throw new Error('Failed to clean temporary data');
+      console.log('Clean response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Clean error:', errorText);
+        throw new Error(errorText || 'Failed to clean temporary data');
+      }
       
       const data = await response.json();
+      console.log('Clean data:', data);
       
       toast({
         title: "Cleanup Complete",
         description: `Successfully cleaned ${data.recordsDeleted} temporary records`,
       });
     } catch (error: any) {
+      console.error('Clean failed:', error);
       toast({
         title: "Cleanup Failed",
         description: error.message || "Failed to clean temporary data",
