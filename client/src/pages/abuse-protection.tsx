@@ -92,7 +92,8 @@ export default function AbuseProtection() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-        }
+        },
+        credentials: 'include'
       });
       if (!response.ok) throw new Error('Failed to resolve event');
       return response.json();
@@ -115,6 +116,7 @@ export default function AbuseProtection() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           tenantId: data.tenantId,
           suspensionType: 'manual',
@@ -142,7 +144,8 @@ export default function AbuseProtection() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-        }
+        },
+        credentials: 'include'
       });
       if (!response.ok) throw new Error('Failed to reactivate tenant');
       return response.json();
