@@ -177,19 +177,15 @@ export default function TenantManagement() {
         console.error('Auth test failed:', error);
       }
       
-      // Invalidate auth queries to refresh context
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/tenants'] });
-      
       toast({
         title: "Visiting Tenant",
         description: `Now acting as admin for ${tenant.name}. You can make changes on their behalf.`,
       });
       
-      // Redirect to client admin dashboard after successful impersonation
-      setTimeout(() => {
-        window.location.href = '/client-admin';
-      }, 1000); // Allow time for token to be processed
+      // Redirect immediately to client admin dashboard
+      // Note: We don't invalidate queries here because the new token has client_admin role
+      // which can't access super admin endpoints. The redirect will load fresh data.
+      window.location.href = '/client-admin';
     },
     onError: (error: Error) => {
       toast({
