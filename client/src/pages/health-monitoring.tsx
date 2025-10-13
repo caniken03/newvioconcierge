@@ -31,7 +31,7 @@ interface SystemHealth {
 export default function HealthMonitoring() {
   const { user } = useAuth();
   
-  const { data: health, isLoading, refetch } = useQuery<SystemHealth>({
+  const { data: health, isLoading, refetch, isFetching } = useQuery<SystemHealth>({
     queryKey: ['/api/admin/health'],
     refetchInterval: 30000, // Refresh every 30 seconds
     enabled: !!user && user.role === 'super_admin',
@@ -105,10 +105,11 @@ export default function HealthMonitoring() {
             <Button 
               onClick={() => refetch()}
               variant="outline"
+              disabled={isFetching}
               data-testid="button-refresh-health"
             >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Refresh
+              <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+              {isFetching ? 'Refreshing...' : 'Refresh'}
             </Button>
           </div>
 
