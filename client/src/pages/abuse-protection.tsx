@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,7 +35,8 @@ import {
   BarChart3,
   RefreshCw,
   PlayCircle,
-  PauseCircle
+  PauseCircle,
+  Settings
 } from "lucide-react";
 
 export default function AbuseProtection() {
@@ -43,6 +45,13 @@ export default function AbuseProtection() {
   const [selectedTenant, setSelectedTenant] = useState<string>("");
   const [selectedSeverity, setSelectedSeverity] = useState<string>("");
   const [visibleEventsCount, setVisibleEventsCount] = useState<number>(15);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  
+  // Abuse protection settings state
+  const [maxAttemptsEmail, setMaxAttemptsEmail] = useState(5);
+  const [maxAttemptsIP, setMaxAttemptsIP] = useState(10);
+  const [timeWindowMinutes, setTimeWindowMinutes] = useState(15);
+  const [lockoutDurationMinutes, setLockoutDurationMinutes] = useState(30);
 
   if (!user || user.role !== 'super_admin') {
     return (
@@ -192,6 +201,17 @@ export default function AbuseProtection() {
     refetchSuspensions();
   };
 
+  const handleSaveSettings = () => {
+    toast({
+      title: "Settings Updated",
+      description: `Rate limits: ${maxAttemptsEmail} emails/${timeWindowMinutes}min, ${maxAttemptsIP} IPs/${timeWindowMinutes}min. Lockout: ${lockoutDurationMinutes}min`,
+    });
+    setSettingsOpen(false);
+    
+    // Note: These settings are currently for display only
+    // Backend integration would require API endpoint and database storage
+  };
+
   const getSeverityColor = (severity: string) => {
     switch (severity) {
       case 'critical': return 'bg-red-500';
@@ -227,15 +247,117 @@ export default function AbuseProtection() {
                   Real-time monitoring and protection against platform abuse
                 </p>
               </div>
-              <Button 
-                variant="outline" 
-                onClick={handleRefresh}
-                disabled={dashboardFetching}
-                data-testid="button-refresh-dashboard"
-              >
-                <RefreshCw className={`w-4 h-4 mr-2 ${dashboardFetching ? 'animate-spin' : ''}`} />
-                {dashboardFetching ? 'Refreshing...' : 'Refresh'}
-              </Button>
+              <div className="flex items-center space-x-2">
+                <Button 
+                  variant="outline" 
+                  onClick={handleRefresh}
+                  disabled={dashboardFetching}
+                  data-testid="button-refresh-dashboard"
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${dashboardFetching ? 'animate-spin' : ''}`} />
+                  {dashboardFetching ? 'Refreshing...' : 'Refresh'}
+                </Button>
+                
+                <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" data-testid="button-protection-settings">
+                      <Settings className="w-4 h-4 mr-2" />
+                      Settings
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[500px]">
+                    <DialogHeader>
+                      <DialogTitle>Abuse Protection Settings</DialogTitle>
+                      <DialogDescription>
+                        Configure rate limiting and protection thresholds
+                      </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="grid gap-4 py-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="max-attempts-email">Max Login Attempts per Email</Label>
+                        <Input
+                          id="max-attempts-email"
+                          type="number"
+                          value={maxAttemptsEmail}
+                          onChange={(e) => setMaxAttemptsEmail(parseInt(e.target.value))}
+                          min="1"
+                          max="20"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Number of failed login attempts allowed per email address
+                        </p>
+                      </div>
+                      
+                      <div className="grid gap-2">
+                        <Label htmlFor="max-attempts-ip">Max Login Attempts per IP</Label>
+                        <Input
+                          id="max-attempts-ip"
+                          type="number"
+                          value={maxAttemptsIP}
+                          onChange={(e) => setMaxAttemptsIP(parseInt(e.target.value))}
+                          min="1"
+                          max="50"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Number of failed login attempts allowed per IP address
+                        </p>
+                      </div>
+                      
+                      <div className="grid gap-2">
+                        <Label htmlFor="time-window">Time Window (minutes)</Label>
+                        <Input
+                          id="time-window"
+                          type="number"
+                          value={timeWindowMinutes}
+                          onChange={(e) => setTimeWindowMinutes(parseInt(e.target.value))}
+                          min="5"
+                          max="60"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Time period to count login attempts
+                        </p>
+                      </div>
+                      
+                      <div className="grid gap-2">
+                        <Label htmlFor="lockout-duration">Lockout Duration (minutes)</Label>
+                        <Input
+                          id="lockout-duration"
+                          type="number"
+                          value={lockoutDurationMinutes}
+                          onChange={(e) => setLockoutDurationMinutes(parseInt(e.target.value))}
+                          min="5"
+                          max="1440"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          How long to lock out after exceeding limits
+                        </p>
+                      </div>
+                      
+                      <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                        <p className="text-sm text-blue-800 dark:text-blue-400">
+                          <strong>Current Settings:</strong> {maxAttemptsEmail} email attempts and {maxAttemptsIP} IP attempts within {timeWindowMinutes} minutes will trigger a {lockoutDurationMinutes}-minute lockout.
+                        </p>
+                      </div>
+                      
+                      <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                        <p className="text-xs text-yellow-800 dark:text-yellow-400">
+                          ⚠️ Note: These settings are currently for reference only. Backend integration is required to make them active.
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setSettingsOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleSaveSettings}>
+                        Save Settings
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
             </div>
 
             {/* Protection Status Overview */}
