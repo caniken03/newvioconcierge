@@ -25,7 +25,6 @@ interface PlatformAnalytics {
     activeTenants: number;
     totalCalls: number;
     successRate: number;
-    totalRevenue: number;
     monthlyGrowth: number;
   };
   tenantPerformance: Array<{
@@ -33,7 +32,6 @@ interface PlatformAnalytics {
     tenantName: string;
     callVolume: number;
     successRate: number;
-    revenue: number;
     growth: number;
     status: 'active' | 'suspended' | 'trial';
   }>;
@@ -42,13 +40,11 @@ interface PlatformAnalytics {
     totalCalls: number;
     successRate: number;
     activeUsers: number;
-    revenue: number;
   }>;
   industryBreakdown: Array<{
     industry: string;
     tenantCount: number;
     avgSuccessRate: number;
-    totalRevenue: number;
   }>;
 }
 
@@ -97,38 +93,21 @@ export default function AnalyticsCenter() {
     queryKey: ['/api/analytics/appointments', timePeriod],
   });
 
-  // Mock data for demonstration (will be replaced with real API data)
-  const mockPlatformData: PlatformAnalytics = {
+  // Fallback data structure (only used if API fails)
+  const fallbackData: PlatformAnalytics = {
     overview: {
-      totalTenants: 24,
-      activeTenants: 21,
-      totalCalls: 15420,
-      successRate: 92.3,
-      totalRevenue: 127500,
-      monthlyGrowth: 18.5
+      totalTenants: 0,
+      activeTenants: 0,
+      totalCalls: 0,
+      successRate: 0,
+      monthlyGrowth: 0
     },
-    tenantPerformance: [
-      { tenantId: '1', tenantName: 'ABC Medical Center', callVolume: 2450, successRate: 95.2, revenue: 18900, growth: 22.1, status: 'active' },
-      { tenantId: '2', tenantName: 'Dental Practice Plus', callVolume: 1890, successRate: 88.7, revenue: 14200, growth: 15.3, status: 'active' },
-      { tenantId: '3', tenantName: 'Beauty Salon Network', callVolume: 1200, successRate: 91.4, revenue: 9800, growth: -5.2, status: 'active' },
-      { tenantId: '4', tenantName: 'Professional Services LLC', callVolume: 980, successRate: 87.2, revenue: 7500, growth: 8.9, status: 'trial' },
-    ],
-    platformTrends: [
-      { date: '2024-09-01', totalCalls: 12200, successRate: 89.2, activeUsers: 1840, revenue: 98000 },
-      { date: '2024-09-08', totalCalls: 13100, successRate: 90.1, activeUsers: 1920, revenue: 105000 },
-      { date: '2024-09-15', totalCalls: 14300, successRate: 91.8, activeUsers: 2010, revenue: 115000 },
-      { date: '2024-09-22', totalCalls: 15420, successRate: 92.3, activeUsers: 2140, revenue: 127500 },
-    ],
-    industryBreakdown: [
-      { industry: 'Healthcare', tenantCount: 8, avgSuccessRate: 94.1, totalRevenue: 52000 },
-      { industry: 'Beauty & Wellness', tenantCount: 6, avgSuccessRate: 89.7, totalRevenue: 38000 },
-      { industry: 'Professional Services', tenantCount: 5, avgSuccessRate: 86.2, totalRevenue: 28000 },
-      { industry: 'Food & Hospitality', tenantCount: 3, avgSuccessRate: 91.8, totalRevenue: 18000 },
-      { industry: 'Other', tenantCount: 2, avgSuccessRate: 88.5, totalRevenue: 12000 },
-    ]
+    tenantPerformance: [],
+    platformTrends: [],
+    industryBreakdown: []
   };
 
-  const data = platformData || mockPlatformData;
+  const data = platformData || fallbackData;
 
   const handleExportReport = () => {
     try {
@@ -143,26 +122,23 @@ export default function AnalyticsCenter() {
         ['Active Tenants', data.overview.activeTenants, 'N/A'],
         ['Platform Success Rate', `${data.overview.successRate}%`, '+2.1%'],
         ['Total Calls', data.overview.totalCalls, '+18.7%'],
-        ['Revenue', `$${data.overview.totalRevenue}`, `+${data.overview.monthlyGrowth}%`],
         [''],
         ['Tenant Performance'],
-        ['Tenant Name', 'Call Volume', 'Success Rate', 'Revenue', 'Growth', 'Status'],
+        ['Tenant Name', 'Call Volume', 'Success Rate', 'Growth', 'Status'],
         ...data.tenantPerformance.map(tenant => [
           tenant.tenantName,
           tenant.callVolume,
           `${tenant.successRate}%`,
-          `$${tenant.revenue}`,
           `${tenant.growth}%`,
           tenant.status
         ]),
         [''],
         ['Industry Breakdown'],
-        ['Industry', 'Tenant Count', 'Avg Success Rate', 'Total Revenue'],
+        ['Industry', 'Tenant Count', 'Avg Success Rate'],
         ...data.industryBreakdown.map(industry => [
           industry.industry,
           industry.tenantCount,
-          `${industry.avgSuccessRate}%`,
-          `$${industry.totalRevenue}`
+          `${industry.avgSuccessRate}%`
         ])
       ];
 
@@ -323,7 +299,7 @@ export default function AnalyticsCenter() {
           </div>
 
       {/* Executive Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <MetricCard
           title="Total Tenants"
           value={data.overview.totalTenants}
@@ -342,13 +318,6 @@ export default function AnalyticsCenter() {
           value={data.overview.totalCalls}
           change={18.7}
           icon={Phone}
-        />
-        <MetricCard
-          title="Revenue (30d)"
-          value={data.overview.totalRevenue}
-          change={data.overview.monthlyGrowth}
-          icon={DollarSign}
-          format="currency"
         />
       </div>
 
@@ -485,10 +454,6 @@ export default function AnalyticsCenter() {
                         <p className="font-medium">{tenant.successRate}%</p>
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Revenue</p>
-                        <p className="font-medium">${tenant.revenue.toLocaleString()}</p>
-                      </div>
-                      <div>
                         <p className="text-sm text-muted-foreground">Growth</p>
                         <p className={`font-medium ${tenant.growth > 0 ? 'text-green-500' : 'text-red-500'}`}>
                           {tenant.growth > 0 ? '+' : ''}{tenant.growth}%
@@ -506,8 +471,8 @@ export default function AnalyticsCenter() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle>Revenue Growth Trend</CardTitle>
-                <CardDescription>Platform revenue over time</CardDescription>
+                <CardTitle>Call Volume Trend</CardTitle>
+                <CardDescription>Platform call volume over time</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -516,7 +481,7 @@ export default function AnalyticsCenter() {
                     <XAxis dataKey="date" />
                     <YAxis />
                     <Tooltip />
-                    <Area type="monotone" dataKey="revenue" stroke="#10b981" fill="#10b981" fillOpacity={0.3} />
+                    <Area type="monotone" dataKey="totalCalls" stroke="#10b981" fill="#10b981" fillOpacity={0.3} />
                   </AreaChart>
                 </ResponsiveContainer>
               </CardContent>

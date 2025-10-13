@@ -4383,7 +4383,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           activeTenants: activeTenants.length,
           totalCalls: 15420,
           successRate: 92.3,
-          totalRevenue: 127500,
           monthlyGrowth: 18.5
         },
         tenantPerformance: tenants.map(tenant => ({
@@ -4391,22 +4390,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           tenantName: tenant.name || 'Unknown Business',
           callVolume: Math.floor(Math.random() * 3000) + 500,
           successRate: Math.round((Math.random() * 20 + 80) * 10) / 10,
-          revenue: Math.floor(Math.random() * 20000) + 5000,
           growth: Math.round((Math.random() * 50 - 10) * 10) / 10,
           status: tenant.status || 'active'
         })),
         platformTrends: [
-          { date: '2024-09-01', totalCalls: 12200, successRate: 89.2, activeUsers: 1840, revenue: 98000 },
-          { date: '2024-09-08', totalCalls: 13100, successRate: 90.1, activeUsers: 1920, revenue: 105000 },
-          { date: '2024-09-15', totalCalls: 14300, successRate: 91.8, activeUsers: 2010, revenue: 115000 },
-          { date: '2024-09-22', totalCalls: 15420, successRate: 92.3, activeUsers: 2140, revenue: 127500 }
+          { date: '2024-09-01', totalCalls: 12200, successRate: 89.2, activeUsers: 1840 },
+          { date: '2024-09-08', totalCalls: 13100, successRate: 90.1, activeUsers: 1920 },
+          { date: '2024-09-15', totalCalls: 14300, successRate: 91.8, activeUsers: 2010 },
+          { date: '2024-09-22', totalCalls: 15420, successRate: 92.3, activeUsers: 2140 }
         ],
         industryBreakdown: [
-          { industry: 'Healthcare', tenantCount: Math.ceil(tenants.length * 0.33), avgSuccessRate: 94.1, totalRevenue: 52000 },
-          { industry: 'Beauty & Wellness', tenantCount: Math.ceil(tenants.length * 0.25), avgSuccessRate: 89.7, totalRevenue: 38000 },
-          { industry: 'Professional Services', tenantCount: Math.ceil(tenants.length * 0.21), avgSuccessRate: 86.2, totalRevenue: 28000 },
-          { industry: 'Food & Hospitality', tenantCount: Math.floor(tenants.length * 0.13), avgSuccessRate: 91.8, totalRevenue: 18000 },
-          { industry: 'Other', tenantCount: Math.floor(tenants.length * 0.08), avgSuccessRate: 88.5, totalRevenue: 12000 }
+          { industry: 'Healthcare', tenantCount: Math.ceil(tenants.length * 0.33), avgSuccessRate: 94.1 },
+          { industry: 'Beauty & Wellness', tenantCount: Math.ceil(tenants.length * 0.25), avgSuccessRate: 89.7 },
+          { industry: 'Professional Services', tenantCount: Math.ceil(tenants.length * 0.21), avgSuccessRate: 86.2 },
+          { industry: 'Food & Hospitality', tenantCount: Math.floor(tenants.length * 0.13), avgSuccessRate: 91.8 },
+          { industry: 'Other', tenantCount: Math.floor(tenants.length * 0.08), avgSuccessRate: 88.5 }
         ]
       };
 
