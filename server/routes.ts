@@ -741,6 +741,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/auth/me', authenticateJWT, async (req: any, res) => {
     const user = req.user;
     
+    // DEBUG: Log impersonation flags
+    console.log('🔍 /api/auth/me - User data:', {
+      userId: user.id,
+      role: user.role,
+      isImpersonating: user.isImpersonating,
+      originalRole: user.originalRole,
+      originalUserId: user.originalUserId,
+    });
+    
     // Get tenant information for business name display (with status)
     let tenantInfo = null;
     if (user.tenantId) {
@@ -755,7 +764,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
     
-    res.json({
+    const response = {
       id: user.id,
       email: user.email,
       fullName: user.fullName,
@@ -766,7 +775,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       isImpersonating: user.isImpersonating || false,
       originalUserId: user.originalUserId,
       originalRole: user.originalRole,
-    });
+    };
+    
+    // DEBUG: Log response
+    console.log('📤 /api/auth/me - Response:', JSON.stringify(response, null, 2));
+    
+    res.json(response);
   });
 
   // Password reset endpoints
