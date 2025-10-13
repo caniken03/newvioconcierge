@@ -23,7 +23,6 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import TenantSetupWizard from "@/components/tenant-wizard/TenantSetupWizard";
 import { 
   Dialog,
@@ -124,12 +123,10 @@ function TenantSettingsEditor({ tenantToEdit, isOpen, onClose }: TenantSettingsE
           </div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="retell">Retell AI</TabsTrigger>
-              <TabsTrigger value="retail">Retail AI</TabsTrigger>
               <TabsTrigger value="calendar">Calendar</TabsTrigger>
               <TabsTrigger value="business">Business</TabsTrigger>
-              <TabsTrigger value="directions">Directions</TabsTrigger>
             </TabsList>
 
             <div className="flex-1 overflow-y-auto mt-4">
@@ -176,54 +173,6 @@ function TenantSettingsEditor({ tenantToEdit, isOpen, onClose }: TenantSettingsE
                       onChange={(e) => handleInputChange('retellWebhookSecret', e.target.value)}
                       placeholder="whsec_xxxxxxxxxx"
                       data-testid="input-retell-webhook-secret"
-                    />
-                  </div>
-                </div>
-              </TabsContent>
-
-              {/* Retail AI Configuration */}
-              <TabsContent value="retail" className="space-y-4 mt-0">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="retailAgentId">Retail Agent ID</Label>
-                    <Input
-                      id="retailAgentId"
-                      value={formData.retailAgentId || ''}
-                      onChange={(e) => handleInputChange('retailAgentId', e.target.value)}
-                      placeholder="agent_xxxxxxxxxx"
-                      data-testid="input-retail-agent-id"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="retailAgentNumber">Retail Agent Number</Label>
-                    <Input
-                      id="retailAgentNumber"
-                      value={formData.retailAgentNumber || ''}
-                      onChange={(e) => handleInputChange('retailAgentNumber', e.target.value)}
-                      placeholder="+1234567890"
-                      data-testid="input-retail-agent-number"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="retailApiKey">Retail API Key</Label>
-                    <Input
-                      id="retailApiKey"
-                      type="password"
-                      value={formData.retailApiKey || ''}
-                      onChange={(e) => handleInputChange('retailApiKey', e.target.value)}
-                      placeholder="key_xxxxxxxxxx"
-                      data-testid="input-retail-api-key"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="retailWebhookSecret">Retail Webhook Secret</Label>
-                    <Input
-                      id="retailWebhookSecret"
-                      type="password"
-                      value={formData.retailWebhookSecret || ''}
-                      onChange={(e) => handleInputChange('retailWebhookSecret', e.target.value)}
-                      placeholder="whsec_xxxxxxxxxx"
-                      data-testid="input-retail-webhook-secret"
                     />
                   </div>
                 </div>
@@ -428,43 +377,6 @@ function TenantSettingsEditor({ tenantToEdit, isOpen, onClose }: TenantSettingsE
                       data-testid="input-quiet-end"
                     />
                   </div>
-                </div>
-              </TabsContent>
-
-              {/* Travel & Parking Directions */}
-              <TabsContent value="directions" className="space-y-4 mt-0">
-                <div>
-                  <Label htmlFor="publicTransportInstructions">Public Transport Instructions</Label>
-                  <Textarea
-                    id="publicTransportInstructions"
-                    value={formData.publicTransportInstructions || ''}
-                    onChange={(e) => handleInputChange('publicTransportInstructions', e.target.value)}
-                    placeholder="How to reach us by public transport..."
-                    rows={4}
-                    data-testid="input-public-transport-instructions"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="parkingInstructions">Parking Instructions</Label>
-                  <Textarea
-                    id="parkingInstructions"
-                    value={formData.parkingInstructions || ''}
-                    onChange={(e) => handleInputChange('parkingInstructions', e.target.value)}
-                    placeholder="Parking information and directions..."
-                    rows={4}
-                    data-testid="input-parking-instructions"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="arrivalNotes">Arrival Notes</Label>
-                  <Textarea
-                    id="arrivalNotes"
-                    value={formData.arrivalNotes || ''}
-                    onChange={(e) => handleInputChange('arrivalNotes', e.target.value)}
-                    placeholder="Additional arrival instructions..."
-                    rows={4}
-                    data-testid="input-arrival-notes"
-                  />
                 </div>
               </TabsContent>
             </div>
