@@ -367,23 +367,40 @@ export default function AnalyticsCenter() {
                 <CardDescription>Tenant breakdown by industry vertical</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={350}>
                   <PieChart>
                     <Pie
                       data={data.industryBreakdown}
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={({ industry, tenantCount }) => `${industry} (${tenantCount})`}
-                      outerRadius={80}
+                      outerRadius={100}
                       fill="#8884d8"
                       dataKey="tenantCount"
                     >
-                      {data.industryBreakdown.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={`hsl(${index * 45}, 70%, 50%)`} />
-                      ))}
+                      {data.industryBreakdown.map((entry, index) => {
+                        const colors = [
+                          'hsl(12, 76%, 61%)',  // Coral/Orange - Healthcare
+                          'hsl(43, 74%, 66%)',  // Yellow/Gold - Beauty & Wellness
+                          'hsl(120, 60%, 50%)', // Green - Professional Services
+                          'hsl(90, 55%, 55%)',  // Lime Green - Food & Hospitality
+                          'hsl(173, 58%, 39%)', // Teal - Other
+                        ];
+                        return (
+                          <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+                        );
+                      })}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip 
+                      formatter={(value, name, props) => [`${value} tenants`, props.payload.industry]}
+                    />
+                    <Legend 
+                      layout="horizontal" 
+                      verticalAlign="bottom" 
+                      align="center"
+                      formatter={(value, entry: any) => `${entry.payload.industry} (${entry.payload.tenantCount})`}
+                      wrapperStyle={{ paddingTop: '20px' }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>
