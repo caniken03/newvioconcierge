@@ -32,6 +32,8 @@ export default function Compliance() {
   const [isDownloadingLogs, setIsDownloadingLogs] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
   
+  console.log('Compliance page loaded - user:', user?.email, 'role:', user?.role);
+  
   // Fetch compliance overview data
   const { data: complianceData, isLoading } = useQuery<any>({
     queryKey: ['/api/admin/compliance/overview'],
