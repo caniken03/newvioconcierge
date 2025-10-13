@@ -24,13 +24,16 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 
 export default function Compliance() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isDownloadingLogs, setIsDownloadingLogs] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   
   console.log('Compliance page loaded - user:', user?.email, 'role:', user?.role);
   
@@ -171,6 +174,60 @@ export default function Compliance() {
     }
   };
 
+  const handleExportReport = async () => {
+    try {
+      setIsExporting(true);
+      
+      toast({
+        title: "Export Started",
+        description: "Generating compliance report...",
+      });
+      
+      // Create a comprehensive compliance report
+      const report = {
+        generatedAt: new Date().toISOString(),
+        complianceScore: complianceData?.complianceScore,
+        securityGrade: complianceData?.securityGrade,
+        activeAudits: complianceData?.activeAudits,
+        violations: complianceData?.violations,
+        regulatoryCompliance: complianceData?.regulatoryCompliance,
+        securityControls: complianceData?.securityControls,
+        abuseProtection: complianceData?.abuseProtection,
+        auditTrail: complianceData?.auditTrail,
+        tenantData: complianceData?.tenantData,
+      };
+      
+      // Download as JSON
+      const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `compliance-report-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({
+        title: "Report Exported",
+        description: "Compliance report has been downloaded successfully",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Export Failed",
+        description: error.message || "Failed to export compliance report",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleConfigure = () => {
+    // Navigate to System Settings
+    setLocation('/admin/system-settings');
+  };
+
   if (!user || user.role !== 'super_admin') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -200,11 +257,24 @@ export default function Compliance() {
                 </p>
               </div>
               <div className="flex items-center space-x-2">
-                <Button variant="outline" data-testid="button-export-compliance-report">
-                  <Download className="w-4 h-4 mr-2" />
-                  Export Report
+                <Button 
+                  variant="outline" 
+                  onClick={handleExportReport}
+                  disabled={isExporting}
+                  data-testid="button-export-compliance-report"
+                >
+                  {isExporting ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4 mr-2" />
+                  )}
+                  {isExporting ? 'Exporting...' : 'Export Report'}
                 </Button>
-                <Button variant="outline" data-testid="button-compliance-settings">
+                <Button 
+                  variant="outline" 
+                  onClick={handleConfigure}
+                  data-testid="button-compliance-settings"
+                >
                   <Settings className="w-4 h-4 mr-2" />
                   Configure
                 </Button>
