@@ -5,6 +5,7 @@ import { Link, useLocation } from "wouter";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import SystemHealthStatus from "@/components/health/SystemHealthStatus";
 import AlertsBanner from "@/components/health/AlertsBanner";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -12,7 +13,9 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatDistanceToNow } from "date-fns";
+import { Eye, ArrowLeft } from "lucide-react";
 import type { Notification } from "@shared/schema";
+import { useToast } from "@/hooks/use-toast";
 
 interface PageConfig {
   title: string;
@@ -96,10 +99,38 @@ export default function Header() {
   const { user } = useAuth();
   const [location] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
+  const { toast } = useToast();
 
   if (!user) return null;
 
   const pageConfig = getPageConfig(location, user.role);
+
+  // Exit impersonation mutation (for super admins viewing tenants)
+  const exitImpersonationMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/admin/exit-impersonation');
+      return response.json();
+    },
+    onSuccess: (data) => {
+      // Store the original super admin token
+      localStorage.setItem('auth_token', data.token);
+      
+      toast({
+        title: "Exited tenant view",
+        description: "Returning to super admin dashboard...",
+      });
+      
+      // Redirect to root (/) where Dashboard will detect super_admin role and show layout
+      window.location.href = '/';
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to exit",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   // Fetch notifications
   const { 
@@ -255,6 +286,34 @@ export default function Header() {
 
   return (
     <>
+      {/* Impersonation Banner (Super Admin viewing tenant) */}
+      {user?.isImpersonating && user?.originalRole === 'super_admin' && (
+        <Alert className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800 rounded-none border-x-0 border-t-0" data-testid="impersonation-banner">
+          <Eye className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+          <AlertDescription className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-blue-900 dark:text-blue-100 font-medium">
+                Viewing as: {user.tenant?.companyName || user.tenant?.name || 'Tenant'}
+              </span>
+              <Badge variant="outline" className="border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300">
+                Super Admin View
+              </Badge>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => exitImpersonationMutation.mutate()}
+              disabled={exitImpersonationMutation.isPending}
+              className="ml-4"
+              data-testid="button-exit-impersonation"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              {exitImpersonationMutation.isPending ? "Exiting..." : "Exit Tenant View"}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+      
       {/* Critical Alerts Banner (Super Admin Only) */}
       {user.role === 'super_admin' && <AlertsBanner />}
       
