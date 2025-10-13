@@ -1050,6 +1050,140 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get tenant configuration for editing (Super Admin only)
+  app.get('/api/admin/tenants/:id/config', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
+    try {
+      const tenantId = req.params.id;
+      
+      // Verify tenant exists
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: 'Tenant not found' });
+      }
+
+      // Get tenant configuration
+      const config = await storage.getTenantConfig(tenantId);
+      
+      if (!config) {
+        return res.status(404).json({ message: 'Tenant configuration not found' });
+      }
+
+      // Return configuration data (sensitive fields included for super admin editing)
+      res.json({
+        id: config.id,
+        tenantId: config.tenantId,
+        // Retell AI configuration
+        retellAgentId: config.retellAgentId || '',
+        retellAgentNumber: config.retellAgentNumber || '',
+        retellApiKey: config.retellApiKey || '',
+        retellWebhookSecret: config.retellWebhookSecret || '',
+        // Retail AI configuration  
+        retailAgentId: config.retailAgentId || '',
+        retailAgentNumber: config.retailAgentNumber || '',
+        retailApiKey: config.retailApiKey || '',
+        retailWebhookSecret: config.retailWebhookSecret || '',
+        // Calendar integration
+        calApiKey: config.calApiKey || '',
+        calEventTypeId: config.calEventTypeId || null,
+        calWebhookSecret: config.calWebhookSecret || '',
+        calendlyApiKey: config.calendlyApiKey || '',
+        calendlyAccessToken: config.calendlyAccessToken || '',
+        calendlyOrganization: config.calendlyOrganization || '',
+        calendlyUser: config.calendlyUser || '',
+        calendlyWebhookSecret: config.calendlyWebhookSecret || '',
+        // Business settings
+        timezone: config.timezone || 'Europe/London',
+        followUpHours: config.followUpHours || 24,
+        businessType: config.businessType || 'professional',
+        reminderHoursBefore: config.reminderHoursBefore || [24, 1],
+        followUpRetryMinutes: config.followUpRetryMinutes || 90,
+        isPaused: config.isPaused || false,
+        maxCallsPerDay: config.maxCallsPerDay || 200,
+        maxCallsPer15Min: config.maxCallsPer15Min || 25,
+        quietStart: config.quietStart || '20:00',
+        quietEnd: config.quietEnd || '08:00',
+        // Travel & parking directions (for voice agent)
+        publicTransportInstructions: config.publicTransportInstructions || '',
+        parkingInstructions: config.parkingInstructions || '',
+        arrivalNotes: config.arrivalNotes || '',
+      });
+    } catch (error) {
+      console.error('Error fetching tenant config:', error);
+      res.status(500).json({ message: 'Failed to fetch tenant configuration' });
+    }
+  });
+
+  // Update tenant configuration (Super Admin only)
+  app.patch('/api/admin/tenants/:id/config', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
+    try {
+      const tenantId = req.params.id;
+      
+      // Verify tenant exists
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: 'Tenant not found' });
+      }
+
+      // Validate update data
+      const updateSchema = z.object({
+        // Retell AI configuration
+        retellAgentId: z.string().optional(),
+        retellAgentNumber: z.string().optional(),
+        retellApiKey: z.string().optional(),
+        retellWebhookSecret: z.string().optional(),
+        // Retail AI configuration
+        retailAgentId: z.string().optional(),
+        retailAgentNumber: z.string().optional(),
+        retailApiKey: z.string().optional(),
+        retailWebhookSecret: z.string().optional(),
+        // Calendar integration
+        calApiKey: z.string().optional(),
+        calEventTypeId: z.number().nullable().optional(),
+        calWebhookSecret: z.string().optional(),
+        calendlyApiKey: z.string().optional(),
+        calendlyAccessToken: z.string().optional(),
+        calendlyOrganization: z.string().optional(),
+        calendlyUser: z.string().optional(),
+        calendlyWebhookSecret: z.string().optional(),
+        // Business settings
+        timezone: z.string().optional(),
+        followUpHours: z.number().min(1).max(168).optional(),
+        businessType: z.string().optional(),
+        reminderHoursBefore: z.array(z.number()).optional(),
+        followUpRetryMinutes: z.number().min(15).max(1440).optional(),
+        isPaused: z.boolean().optional(),
+        maxCallsPerDay: z.number().min(50).max(1000).optional(),
+        maxCallsPer15Min: z.number().min(5).max(100).optional(),
+        quietStart: z.string().optional(),
+        quietEnd: z.string().optional(),
+        // Travel & parking directions
+        publicTransportInstructions: z.string().optional(),
+        parkingInstructions: z.string().optional(),
+        arrivalNotes: z.string().optional(),
+      });
+
+      const updates = updateSchema.parse(req.body);
+
+      // Update tenant configuration
+      const updatedConfig = await storage.updateTenantConfig(tenantId, updates);
+
+      res.json({
+        success: true,
+        message: 'Tenant configuration updated successfully',
+        config: updatedConfig,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: 'Invalid configuration data',
+          errors: error.errors 
+        });
+      }
+      console.error('Error updating tenant config:', error);
+      res.status(500).json({ message: 'Failed to update tenant configuration' });
+    }
+  });
+
   // Enhanced tenant creation via wizard
   app.post('/api/admin/tenants/wizard', authenticateJWT, requireRole(['super_admin']), async (req, res) => {
     try {
