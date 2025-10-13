@@ -182,9 +182,9 @@ export default function TenantManagement() {
         description: `Now acting as admin for ${tenant.name}. You can make changes on their behalf.`,
       });
       
-      // Redirect to /dashboard which provides the layout wrapper (Sidebar + Header)
+      // Redirect to root (/) which provides the layout wrapper (Sidebar + Header)
       // The Dashboard component will detect client_admin role and render ClientAdminDashboard
-      window.location.href = '/dashboard';
+      window.location.href = '/';
     },
     onError: (error: Error) => {
       toast({

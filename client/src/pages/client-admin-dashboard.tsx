@@ -57,8 +57,8 @@ export default function ClientAdminDashboard() {
         description: "Returning to super admin dashboard...",
       });
       
-      // Redirect back to super admin dashboard
-      window.location.href = '/super-admin';
+      // Redirect to root (/) where Dashboard will detect super_admin role and show layout
+      window.location.href = '/';
     },
     onError: (error: Error) => {
       toast({
