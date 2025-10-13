@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
@@ -16,6 +16,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import TenantSetupWizard from "@/components/tenant-wizard/TenantSetupWizard";
 import { 
   Dialog,
@@ -37,6 +45,449 @@ import {
 } from "@/components/ui/alert-dialog";
 import type { Tenant } from "@/types";
 
+// Tenant Settings Editor Component
+interface TenantSettingsEditorProps {
+  tenantToEdit: Tenant | null;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+function TenantSettingsEditor({ tenantToEdit, isOpen, onClose }: TenantSettingsEditorProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState("retell");
+  const [formData, setFormData] = useState<any>({});
+
+  // Fetch tenant configuration
+  const { data: config, isLoading: isLoadingConfig } = useQuery({
+    queryKey: ['/api/admin/tenants', tenantToEdit?.id, 'config'],
+    queryFn: async () => {
+      if (!tenantToEdit?.id) return null;
+      const response = await apiRequest('GET', `/api/admin/tenants/${tenantToEdit.id}/config`);
+      return response.json();
+    },
+    enabled: !!tenantToEdit?.id && isOpen,
+  });
+
+  // Update form data when config loads
+  useEffect(() => {
+    if (config) {
+      setFormData(config);
+    }
+  }, [config]);
+
+  // Update tenant config mutation
+  const updateConfigMutation = useMutation({
+    mutationFn: async (updates: any) => {
+      if (!tenantToEdit?.id) throw new Error('No tenant selected');
+      await apiRequest('PATCH', `/api/admin/tenants/${tenantToEdit.id}/config`, updates);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/tenants', tenantToEdit?.id, 'config'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/tenants'] });
+      toast({
+        title: "Settings updated",
+        description: "Tenant configuration has been updated successfully.",
+      });
+      onClose();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to update settings",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleInputChange = (field: string, value: any) => {
+    setFormData((prev: any) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSave = () => {
+    updateConfigMutation.mutate(formData);
+  };
+
+  if (!tenantToEdit) return null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Edit Tenant Settings: {tenantToEdit.name}</DialogTitle>
+        </DialogHeader>
+
+        {isLoadingConfig ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <span className="ml-2 text-muted-foreground">Loading settings...</span>
+          </div>
+        ) : (
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="retell">Retell AI</TabsTrigger>
+              <TabsTrigger value="retail">Retail AI</TabsTrigger>
+              <TabsTrigger value="calendar">Calendar</TabsTrigger>
+              <TabsTrigger value="business">Business</TabsTrigger>
+              <TabsTrigger value="directions">Directions</TabsTrigger>
+            </TabsList>
+
+            <div className="flex-1 overflow-y-auto mt-4">
+              {/* Retell AI Configuration */}
+              <TabsContent value="retell" className="space-y-4 mt-0">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="retellAgentId">Retell Agent ID</Label>
+                    <Input
+                      id="retellAgentId"
+                      value={formData.retellAgentId || ''}
+                      onChange={(e) => handleInputChange('retellAgentId', e.target.value)}
+                      placeholder="agent_xxxxxxxxxx"
+                      data-testid="input-retell-agent-id"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="retellAgentNumber">Retell Agent Number</Label>
+                    <Input
+                      id="retellAgentNumber"
+                      value={formData.retellAgentNumber || ''}
+                      onChange={(e) => handleInputChange('retellAgentNumber', e.target.value)}
+                      placeholder="+1234567890"
+                      data-testid="input-retell-agent-number"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="retellApiKey">Retell API Key</Label>
+                    <Input
+                      id="retellApiKey"
+                      type="password"
+                      value={formData.retellApiKey || ''}
+                      onChange={(e) => handleInputChange('retellApiKey', e.target.value)}
+                      placeholder="key_xxxxxxxxxx"
+                      data-testid="input-retell-api-key"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="retellWebhookSecret">Retell Webhook Secret</Label>
+                    <Input
+                      id="retellWebhookSecret"
+                      type="password"
+                      value={formData.retellWebhookSecret || ''}
+                      onChange={(e) => handleInputChange('retellWebhookSecret', e.target.value)}
+                      placeholder="whsec_xxxxxxxxxx"
+                      data-testid="input-retell-webhook-secret"
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* Retail AI Configuration */}
+              <TabsContent value="retail" className="space-y-4 mt-0">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="retailAgentId">Retail Agent ID</Label>
+                    <Input
+                      id="retailAgentId"
+                      value={formData.retailAgentId || ''}
+                      onChange={(e) => handleInputChange('retailAgentId', e.target.value)}
+                      placeholder="agent_xxxxxxxxxx"
+                      data-testid="input-retail-agent-id"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="retailAgentNumber">Retail Agent Number</Label>
+                    <Input
+                      id="retailAgentNumber"
+                      value={formData.retailAgentNumber || ''}
+                      onChange={(e) => handleInputChange('retailAgentNumber', e.target.value)}
+                      placeholder="+1234567890"
+                      data-testid="input-retail-agent-number"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="retailApiKey">Retail API Key</Label>
+                    <Input
+                      id="retailApiKey"
+                      type="password"
+                      value={formData.retailApiKey || ''}
+                      onChange={(e) => handleInputChange('retailApiKey', e.target.value)}
+                      placeholder="key_xxxxxxxxxx"
+                      data-testid="input-retail-api-key"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="retailWebhookSecret">Retail Webhook Secret</Label>
+                    <Input
+                      id="retailWebhookSecret"
+                      type="password"
+                      value={formData.retailWebhookSecret || ''}
+                      onChange={(e) => handleInputChange('retailWebhookSecret', e.target.value)}
+                      placeholder="whsec_xxxxxxxxxx"
+                      data-testid="input-retail-webhook-secret"
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* Calendar Integration */}
+              <TabsContent value="calendar" className="space-y-6 mt-0">
+                <div>
+                  <h4 className="font-semibold mb-3">Cal.com Integration</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="calApiKey">Cal.com API Key</Label>
+                      <Input
+                        id="calApiKey"
+                        type="password"
+                        value={formData.calApiKey || ''}
+                        onChange={(e) => handleInputChange('calApiKey', e.target.value)}
+                        placeholder="cal_live_xxxxxxxxxx"
+                        data-testid="input-cal-api-key"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="calEventTypeId">Cal.com Event Type ID</Label>
+                      <Input
+                        id="calEventTypeId"
+                        type="number"
+                        value={formData.calEventTypeId || ''}
+                        onChange={(e) => handleInputChange('calEventTypeId', e.target.value ? parseInt(e.target.value) : null)}
+                        placeholder="123456"
+                        data-testid="input-cal-event-type-id"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="calWebhookSecret">Cal.com Webhook Secret</Label>
+                      <Input
+                        id="calWebhookSecret"
+                        type="password"
+                        value={formData.calWebhookSecret || ''}
+                        onChange={(e) => handleInputChange('calWebhookSecret', e.target.value)}
+                        placeholder="whsec_xxxxxxxxxx"
+                        data-testid="input-cal-webhook-secret"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold mb-3">Calendly Integration</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="calendlyApiKey">Calendly API Key</Label>
+                      <Input
+                        id="calendlyApiKey"
+                        type="password"
+                        value={formData.calendlyApiKey || ''}
+                        onChange={(e) => handleInputChange('calendlyApiKey', e.target.value)}
+                        placeholder="xxxxxxxxxx"
+                        data-testid="input-calendly-api-key"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="calendlyAccessToken">Calendly Access Token</Label>
+                      <Input
+                        id="calendlyAccessToken"
+                        type="password"
+                        value={formData.calendlyAccessToken || ''}
+                        onChange={(e) => handleInputChange('calendlyAccessToken', e.target.value)}
+                        placeholder="xxxxxxxxxx"
+                        data-testid="input-calendly-access-token"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="calendlyOrganization">Calendly Organization</Label>
+                      <Input
+                        id="calendlyOrganization"
+                        value={formData.calendlyOrganization || ''}
+                        onChange={(e) => handleInputChange('calendlyOrganization', e.target.value)}
+                        placeholder="https://api.calendly.com/organizations/xxx"
+                        data-testid="input-calendly-organization"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="calendlyUser">Calendly User</Label>
+                      <Input
+                        id="calendlyUser"
+                        value={formData.calendlyUser || ''}
+                        onChange={(e) => handleInputChange('calendlyUser', e.target.value)}
+                        placeholder="https://api.calendly.com/users/xxx"
+                        data-testid="input-calendly-user"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="calendlyWebhookSecret">Calendly Webhook Secret</Label>
+                      <Input
+                        id="calendlyWebhookSecret"
+                        type="password"
+                        value={formData.calendlyWebhookSecret || ''}
+                        onChange={(e) => handleInputChange('calendlyWebhookSecret', e.target.value)}
+                        placeholder="whsec_xxxxxxxxxx"
+                        data-testid="input-calendly-webhook-secret"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* Business Settings */}
+              <TabsContent value="business" className="space-y-4 mt-0">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="timezone">Timezone</Label>
+                    <Input
+                      id="timezone"
+                      value={formData.timezone || 'Europe/London'}
+                      onChange={(e) => handleInputChange('timezone', e.target.value)}
+                      placeholder="Europe/London"
+                      data-testid="input-timezone"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="followUpHours">Follow-up Hours</Label>
+                    <Input
+                      id="followUpHours"
+                      type="number"
+                      value={formData.followUpHours || 24}
+                      onChange={(e) => handleInputChange('followUpHours', parseInt(e.target.value))}
+                      min="1"
+                      max="168"
+                      data-testid="input-follow-up-hours"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="businessType">Business Type</Label>
+                    <Select
+                      value={formData.businessType || 'professional'}
+                      onValueChange={(value) => handleInputChange('businessType', value)}
+                    >
+                      <SelectTrigger data-testid="select-business-type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="healthcare">Healthcare</SelectItem>
+                        <SelectItem value="beauty">Beauty & Wellness</SelectItem>
+                        <SelectItem value="professional">Professional Services</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="followUpRetryMinutes">Follow-up Retry (Minutes)</Label>
+                    <Input
+                      id="followUpRetryMinutes"
+                      type="number"
+                      value={formData.followUpRetryMinutes || 90}
+                      onChange={(e) => handleInputChange('followUpRetryMinutes', parseInt(e.target.value))}
+                      min="15"
+                      max="1440"
+                      data-testid="input-follow-up-retry-minutes"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="maxCallsPerDay">Max Calls Per Day</Label>
+                    <Input
+                      id="maxCallsPerDay"
+                      type="number"
+                      value={formData.maxCallsPerDay || 200}
+                      onChange={(e) => handleInputChange('maxCallsPerDay', parseInt(e.target.value))}
+                      min="50"
+                      max="1000"
+                      data-testid="input-max-calls-per-day"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="maxCallsPer15Min">Max Calls Per 15 Min</Label>
+                    <Input
+                      id="maxCallsPer15Min"
+                      type="number"
+                      value={formData.maxCallsPer15Min || 25}
+                      onChange={(e) => handleInputChange('maxCallsPer15Min', parseInt(e.target.value))}
+                      min="5"
+                      max="100"
+                      data-testid="input-max-calls-per-15-min"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="quietStart">Quiet Hours Start</Label>
+                    <Input
+                      id="quietStart"
+                      type="time"
+                      value={formData.quietStart || '20:00'}
+                      onChange={(e) => handleInputChange('quietStart', e.target.value)}
+                      data-testid="input-quiet-start"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="quietEnd">Quiet Hours End</Label>
+                    <Input
+                      id="quietEnd"
+                      type="time"
+                      value={formData.quietEnd || '08:00'}
+                      onChange={(e) => handleInputChange('quietEnd', e.target.value)}
+                      data-testid="input-quiet-end"
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* Travel & Parking Directions */}
+              <TabsContent value="directions" className="space-y-4 mt-0">
+                <div>
+                  <Label htmlFor="publicTransportInstructions">Public Transport Instructions</Label>
+                  <Textarea
+                    id="publicTransportInstructions"
+                    value={formData.publicTransportInstructions || ''}
+                    onChange={(e) => handleInputChange('publicTransportInstructions', e.target.value)}
+                    placeholder="How to reach us by public transport..."
+                    rows={4}
+                    data-testid="input-public-transport-instructions"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="parkingInstructions">Parking Instructions</Label>
+                  <Textarea
+                    id="parkingInstructions"
+                    value={formData.parkingInstructions || ''}
+                    onChange={(e) => handleInputChange('parkingInstructions', e.target.value)}
+                    placeholder="Parking information and directions..."
+                    rows={4}
+                    data-testid="input-parking-instructions"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="arrivalNotes">Arrival Notes</Label>
+                  <Textarea
+                    id="arrivalNotes"
+                    value={formData.arrivalNotes || ''}
+                    onChange={(e) => handleInputChange('arrivalNotes', e.target.value)}
+                    placeholder="Additional arrival instructions..."
+                    rows={4}
+                    data-testid="input-arrival-notes"
+                  />
+                </div>
+              </TabsContent>
+            </div>
+          </Tabs>
+        )}
+
+        <DialogFooter className="mt-4">
+          <Button variant="outline" onClick={onClose} data-testid="button-cancel-settings">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSave} 
+            disabled={updateConfigMutation.isPending || isLoadingConfig}
+            data-testid="button-save-settings"
+          >
+            {updateConfigMutation.isPending ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // Wizard state management (no form schema needed since wizard handles its own validation)
 
 export default function TenantManagement() {
@@ -49,6 +500,8 @@ export default function TenantManagement() {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [tenantToDelete, setTenantToDelete] = useState<string | null>(null);
   const [displayCount, setDisplayCount] = useState(10); // Show 10 tenants initially
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [tenantToEdit, setTenantToEdit] = useState<Tenant | null>(null);
 
   // Fetch tenants
   const { data: tenants = [], isLoading } = useQuery<Tenant[]>({
@@ -204,6 +657,11 @@ export default function TenantManagement() {
 
   const handleDeleteTenant = (tenantId: string) => {
     setTenantToDelete(tenantId);
+  };
+
+  const handleEditSettings = (tenant: Tenant) => {
+    setTenantToEdit(tenant);
+    setIsSettingsModalOpen(true);
   };
 
   const confirmDeleteTenant = () => {
@@ -475,6 +933,14 @@ export default function TenantManagement() {
                                 title="View details"
                               >
                                 <i className="fas fa-eye text-sm"></i>
+                              </button>
+                              <button
+                                onClick={() => handleEditSettings(tenant)}
+                                className="text-muted-foreground hover:text-primary transition-colors"
+                                data-testid={`button-edit-settings-${tenant.id}`}
+                                title="Edit tenant settings"
+                              >
+                                <i className="fas fa-cog text-sm"></i>
                               </button>
                               <button
                                 onClick={() => handleEditTenant(tenant.id)}
@@ -761,6 +1227,16 @@ export default function TenantManagement() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+
+          {/* Tenant Settings Editor */}
+          <TenantSettingsEditor
+            tenantToEdit={tenantToEdit}
+            isOpen={isSettingsModalOpen}
+            onClose={() => {
+              setIsSettingsModalOpen(false);
+              setTenantToEdit(null);
+            }}
+          />
         </main>
       </div>
     </div>
