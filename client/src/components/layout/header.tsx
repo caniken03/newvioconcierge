@@ -138,7 +138,7 @@ export default function Header() {
     isLoading: notificationsLoading,
     isError: notificationsError 
   } = useQuery<Notification[]>({
-    queryKey: ['/api/notifications?limit=5&unreadOnly=true'],
+    queryKey: ['/api/notifications?limit=50&unreadOnly=true'],
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 
@@ -160,7 +160,7 @@ export default function Header() {
       await apiRequest('PATCH', `/api/notifications/${notificationId}/read`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/notifications?limit=5&unreadOnly=true'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications?limit=50&unreadOnly=true'] });
       queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
     },
   });
@@ -171,7 +171,7 @@ export default function Header() {
       await apiRequest('POST', '/api/notifications/mark-all-read');
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/notifications?limit=5&unreadOnly=true'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications?limit=50&unreadOnly=true'] });
       queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
     },
   });
