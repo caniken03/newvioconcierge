@@ -200,7 +200,7 @@ export default function Sidebar() {
               Tenant Management
             </NavLink>
             <NavLink 
-              href="/analytics" 
+              href="/analytics-center" 
               icon="fas fa-chart-bar" 
               testId="nav-analytics-center"
             >
