@@ -64,6 +64,22 @@ export default function AuditTrail() {
     userId: ""
   });
 
+  // Fetch recent platform activity (for super admins)
+  const { data: recentActivity = [], isLoading: activityLoading } = useQuery({
+    queryKey: ['/api/admin/recent-activity'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/recent-activity?limit=50', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Failed to fetch recent activity');
+      return response.json();
+    },
+    enabled: !!user && user.role === 'super_admin'
+  });
+
   // Fetch audit trail data
   const { data: auditData, isLoading: auditLoading, refetch } = useQuery({
     queryKey: ['/api/compliance/audit-trail', page, filters],
@@ -182,8 +198,27 @@ export default function AuditTrail() {
     );
   }
 
-  const auditTrail: AuditTrailEntry[] = auditData?.auditTrail || [];
-  const total = auditData?.total || 0;
+  // For super admins, merge recent activity with audit trail
+  const transformedRecentActivity: AuditTrailEntry[] = (user?.role === 'super_admin' && recentActivity?.length > 0) 
+    ? recentActivity.map((activity: any) => ({
+        id: activity.id,
+        correlationId: activity.id,
+        tenantId: '-',
+        userId: null,
+        action: activity.type === 'tenant_created' ? 'TENANT_CREATION' : activity.type === 'abuse_event' ? 'SECURITY_EVENT' : activity.type.toUpperCase(),
+        resource: activity.type === 'tenant_created' ? 'tenant' : 'system',
+        resourceId: null,
+        outcome: 'SUCCESS',
+        details: { title: activity.title, description: activity.description },
+        ipAddress: null,
+        userAgent: null,
+        sensitivity: activity.type === 'abuse_event' ? 'HIGH' : 'MEDIUM',
+        timestamp: activity.timestamp || new Date().toISOString()
+      }))
+    : [];
+
+  const auditTrail: AuditTrailEntry[] = [...transformedRecentActivity, ...(auditData?.auditTrail || [])];
+  const total = (transformedRecentActivity.length || 0) + (auditData?.total || 0);
   const totalPages = Math.ceil(total / 50);
 
   return (
