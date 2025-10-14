@@ -694,8 +694,8 @@ export class BusinessTemplateService {
     
     // Generate full Clara-compatible variable set
     const variables = {
-      // Core contact information - Clara prompt uses {{name}} for personalization
-      name: String(contact.name || ''),
+      // Core contact information - Clara prompt uses {{name}} for personalization (first name only)
+      name: String(nameParts[0] || ''),  // Use first name only for friendlier greeting
       first_name: String(nameParts[0] || ''),
       last_name: String(nameParts.slice(1).join(' ') || ''),
       

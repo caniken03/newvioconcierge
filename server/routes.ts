@@ -129,11 +129,23 @@ function verifyRetellWebhookSignature(payload: string, signature: string, apiKey
     hmac.update(payload, 'utf8');
     const expectedSignature = hmac.digest('hex');
     
-    // Remove any prefix if present (some providers use "sha256=" prefix)
-    const cleanSignature = signature.replace(/^sha256=/, '');
+    // Retell uses format: v=timestamp,d=hash
+    // Extract just the hash part after "d="
+    let cleanSignature = signature;
+    if (signature.includes('d=')) {
+      const parts = signature.split(',');
+      const digestPart = parts.find(p => p.startsWith('d='));
+      if (digestPart) {
+        cleanSignature = digestPart.substring(2); // Remove "d=" prefix
+      }
+    } else {
+      // Fallback: remove "sha256=" prefix if present
+      cleanSignature = signature.replace(/^sha256=/, '');
+    }
     
     // Defensive check for equal lengths to prevent timingSafeEqual errors
     if (cleanSignature.length !== expectedSignature.length) {
+      console.error(`Signature length mismatch: received ${cleanSignature.length}, expected ${expectedSignature.length}`);
       return false;
     }
     
