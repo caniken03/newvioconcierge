@@ -19,6 +19,7 @@ export default function IntegrationConfigStep({ data, onUpdate, onNext, onPrevio
   const [retellConfig, setRetellConfig] = useState({
     enabled: false,
     apiKey: data.retellConfig?.apiKey || "",
+    webhookSecret: data.retellConfig?.webhookSecret || "",
     agentId: data.retellConfig?.agentId || "",
     phoneNumber: data.retellConfig?.phoneNumber || "",
     tested: false,
@@ -93,6 +94,7 @@ export default function IntegrationConfigStep({ data, onUpdate, onNext, onPrevio
     onUpdate({
       retellConfig: retellConfig.enabled ? {
         apiKey: retellConfig.apiKey,
+        webhookSecret: retellConfig.webhookSecret,
         agentId: retellConfig.agentId,
         phoneNumber: retellConfig.phoneNumber,
       } : undefined,
@@ -134,7 +136,7 @@ export default function IntegrationConfigStep({ data, onUpdate, onNext, onPrevio
         </CardHeader>
         {retellConfig.enabled && (
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="retell-api-key">Retell API Key *</Label>
                 <Input
@@ -144,6 +146,17 @@ export default function IntegrationConfigStep({ data, onUpdate, onNext, onPrevio
                   onChange={(e) => setRetellConfig(prev => ({ ...prev, apiKey: e.target.value, tested: false }))}
                   placeholder="key_xxxxxxxxxxxxxxxx"
                   data-testid="input-retell-api-key"
+                />
+              </div>
+              <div>
+                <Label htmlFor="retell-webhook-secret">Webhook Secret *</Label>
+                <Input
+                  id="retell-webhook-secret"
+                  type="password"
+                  value={retellConfig.webhookSecret}
+                  onChange={(e) => setRetellConfig(prev => ({ ...prev, webhookSecret: e.target.value, tested: false }))}
+                  placeholder="whsec_xxxxxxxxxxxxxxxx"
+                  data-testid="input-retell-webhook-secret"
                 />
               </div>
             </div>

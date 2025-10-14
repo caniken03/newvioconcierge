@@ -1317,6 +1317,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Step 5: Integration Config
         retellConfig: z.object({
           apiKey: z.string().optional(),
+          webhookSecret: z.string().optional(),
           agentId: z.string().optional(),
           phoneNumber: z.string().optional(),
         }).optional(),
@@ -1395,6 +1396,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.createTenantConfig({
         tenantId: tenant.id,
         retellApiKey: retellConfig?.apiKey,
+        retellWebhookSecret: retellConfig?.webhookSecret,
         retellAgentId: retellConfig?.agentId,
         retellAgentNumber: retellConfig?.phoneNumber,
         calApiKey: calendarConfig?.type === 'calcom' ? calendarConfig.apiKey : undefined,
@@ -3850,6 +3852,7 @@ Log Level: INFO
         retellAgentId: z.string().optional(),
         retellAgentNumber: z.string().optional(),
         retellApiKey: z.string().optional(),
+        retellWebhookSecret: z.string().optional(),
         calApiKey: z.string().optional(),
         calEventTypeId: z.number().optional(),
         calendlyApiKey: z.string().optional(),

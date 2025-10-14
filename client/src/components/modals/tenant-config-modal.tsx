@@ -33,6 +33,7 @@ const configSchema = z.object({
   retellAgentId: z.string().optional(),
   retellAgentNumber: z.string().optional(),
   retellApiKey: z.string().optional(),
+  retellWebhookSecret: z.string().optional(),
   
   // Calendar Integration
   calendarType: z.enum(['manual', 'cal', 'calendly']).default('manual'),
@@ -96,8 +97,25 @@ export default function TenantConfigModal({ isOpen, onClose }: TenantConfigModal
   React.useEffect(() => {
     if (config) {
       form.reset({
-        ...config,
+        retellAgentId: config.retellAgentId || '',
+        retellAgentNumber: config.retellAgentNumber || '',
+        retellApiKey: config.retellApiKey || '',
+        retellWebhookSecret: config.retellWebhookSecret || '',
         calendarType: config.calApiKey ? 'cal' : config.calendlyApiKey ? 'calendly' : 'manual',
+        calApiKey: config.calApiKey || '',
+        calEventTypeId: config.calEventTypeId || undefined,
+        calendlyApiKey: config.calendlyApiKey || '',
+        calendlyOrganizerEmail: config.calendlyOrganization || '',
+        businessType: config.businessType || 'professional',
+        timezone: config.timezone || 'Europe/London',
+        followUpHours: config.followUpHours || 24,
+        maxCallsPerDay: config.maxCallsPerDay || 300,
+        maxCallsPer15Min: config.maxCallsPer15Min || 25,
+        quietStart: config.quietStart || '20:00',
+        quietEnd: config.quietEnd || '08:00',
+        publicTransportInstructions: config.publicTransportInstructions || '',
+        parkingInstructions: config.parkingInstructions || '',
+        arrivalNotes: config.arrivalNotes || '',
       });
     }
   }, [config, form]);
@@ -214,6 +232,25 @@ export default function TenantConfigModal({ isOpen, onClose }: TenantConfigModal
                               type="password"
                               placeholder="Your Retell AI API key"
                               data-testid="input-retell-api-key"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="retellWebhookSecret"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Webhook Secret</FormLabel>
+                          <FormControl>
+                            <Input 
+                              {...field}
+                              type="password"
+                              placeholder="whsec_xxxxxxxxxxxxxxxx"
+                              data-testid="input-retell-webhook-secret"
                             />
                           </FormControl>
                           <FormMessage />
