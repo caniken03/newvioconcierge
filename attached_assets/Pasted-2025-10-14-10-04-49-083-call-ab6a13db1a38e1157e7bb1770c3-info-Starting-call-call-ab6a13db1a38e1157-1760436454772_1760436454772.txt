@@ -1,0 +1,32 @@
+2025-10-14 10:04:49.083 call_ab6a13db1a38e1157e7bb1770c3 info: Starting call: call_ab6a13db1a38e1157e7bb1770c3
+2025-10-14 10:04:53.742 call_ab6a13db1a38e1157e7bb1770c3 info: Webhook triggered for call_started
+2025-10-14 10:04:53.962 call_ab6a13db1a38e1157e7bb1770c3 info: Webhook retry 1 for call_started
+2025-10-14 10:04:54.247 call_ab6a13db1a38e1157e7bb1770c3 info: Webhook retry 2 for call_started
+2025-10-14 10:04:54.764 call_ab6a13db1a38e1157e7bb1770c3 error: Error triggering webhook for call_started Axios Error: error code: ERR_BAD_REQUEST, error message: Request failed with status code 401
+response status: 401
+response data: [{"message":"1"},"Invalid webhook signature"]
+2025-10-14 10:05:12.728 call_ab6a13db1a38e1157e7bb1770c3 info: E2E latency for this turn: 1242
+2025-10-14 10:05:31.471 call_ab6a13db1a38e1157e7bb1770c3 info: E2E latency for this turn: 1034.998046875
+2025-10-14 10:05:42.678 call_ab6a13db1a38e1157e7bb1770c3 info: Calling tool: VioConcierge_Post-Call_Analysis 
+Arguments: {"metadata":{"tenantId":"b24230fc-0e73-41fc-9c07-3460e1f35b36","appointmentType":"VioConcierge Demo ","appointmentTime":"Thursday, October 23 at 1:00 PM","contactId":"b24230fc-0e73-41fc-9c07-3460e1f35b36","contactName":"Vienna"},"call_status":"confirmed","event":"call_completed","call_id":"b24230fc-0e73-41fc-9c07-3460e1f35b36"}
+2025-10-14 10:05:43.835 call_ab6a13db1a38e1157e7bb1770c3 error: Error in executing custom function call:  VioConcierge_Post-Call_Analysis Axios Error: error code: ERR_BAD_REQUEST, error message: Request failed with status code 401
+response status: 401
+response data: [{"message":"1"},"Invalid webhook signature"]
+2025-10-14 10:05:43.836 call_ab6a13db1a38e1157e7bb1770c3 info: Received result for tool: call_uDTe3KZ6TNZeVhrK VioConcierge_Post-Call_Analysis 
+Result: Axios Error: error code: ERR_BAD_REQUEST, error message: Request failed with status code 401
+response status: 401
+response data: [{"message":"1"},"Invalid webhook signature"]
+2025-10-14 10:05:44.675 call_ab6a13db1a38e1157e7bb1770c3 info: E2E latency for this turn: 4258.998046875
+2025-10-14 10:05:54.016 call_ab6a13db1a38e1157e7bb1770c3 info: Ending call: call_ab6a13db1a38e1157e7bb1770c3
+2025-10-14 10:05:54.837 call_ab6a13db1a38e1157e7bb1770c3 info: Webhook triggered for call_ended
+2025-10-14 10:05:55.101 call_ab6a13db1a38e1157e7bb1770c3 info: Webhook retry 1 for call_ended
+2025-10-14 10:05:55.428 call_ab6a13db1a38e1157e7bb1770c3 info: Webhook retry 2 for call_ended
+2025-10-14 10:05:56.029 call_ab6a13db1a38e1157e7bb1770c3 error: Error triggering webhook for call_ended Axios Error: error code: ERR_BAD_REQUEST, error message: Request failed with status code 401
+response status: 401
+response data: [{"message":"1"},"Invalid webhook signature"]
+2025-10-14 10:05:56.124 call_ab6a13db1a38e1157e7bb1770c3 info: Webhook triggered for call_analyzed
+2025-10-14 10:05:56.205 call_ab6a13db1a38e1157e7bb1770c3 info: Webhook retry 1 for call_analyzed
+2025-10-14 10:05:56.492 call_ab6a13db1a38e1157e7bb1770c3 info: Webhook retry 2 for call_analyzed
+2025-10-14 10:05:57.087 call_ab6a13db1a38e1157e7bb1770c3 error: Error triggering webhook for call_analyzed Axios Error: error code: ERR_BAD_REQUEST, error message: Request failed with status code 401
+response status: 401
+response data: [{"message":"1"},"Invalid webhook signature"]
