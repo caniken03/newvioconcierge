@@ -3451,11 +3451,12 @@ export class DatabaseStorage implements IStorage {
       };
     }
 
-    // Check 24-hour call limit (max 2 calls per phone number per day)
-    if ((history.callCount24h || 0) >= 2) {
+    // Check 24-hour call limit (max 3 calls per phone number per day)
+    // Allows: 1 initial call + 1 follow-up + 1 manual call if needed
+    if ((history.callCount24h || 0) >= 3) {
       return {
         allowed: false,
-        reason: 'Daily call limit exceeded for this phone number (max 2 calls/day)'
+        reason: 'Daily call limit exceeded for this phone number (max 3 calls/day)'
       };
     }
 
@@ -3855,11 +3856,12 @@ export class DatabaseStorage implements IStorage {
       };
     }
 
-    // Check 24-hour call limit (max 2 calls per phone number per day)
-    if (callCount24h > 2) {
+    // Check 24-hour call limit (max 3 calls per phone number per day)
+    // Allows: 1 initial call + 1 follow-up + 1 manual call if needed
+    if (callCount24h > 3) {
       return {
         allowed: false,
-        reason: 'Daily call limit exceeded for this phone number (max 2 calls/day)'
+        reason: 'Daily call limit exceeded for this phone number (max 3 calls/day)'
       };
     }
 
