@@ -1,0 +1,101 @@
+Great — you’ve created `server.js`. Now let’s finish the setup so the webhook actually works.
+
+Here are the **exact next steps**, in order:
+
+---
+
+# ✅ STEP 1: Install dependencies
+
+In your Replit Shell/Console, run:
+
+```bash
+npm install express retell-sdk
+```
+
+This ensures your server can run.
+
+---
+
+# ✅ STEP 2: Add your Retell API key as a secret
+
+In Replit:
+
+1. Click the **lock icon (Secrets / Environment Variables)**
+2. Add:
+
+   * **Key:** `RETELL_API_KEY`
+   * **Value:** `key_69b8ad2617f84c75bc1cf1e9bd67`  ✅ (your API key)
+
+✅ DO NOT hardcode it in your code.
+✅ The code already uses `process.env.RETELL_API_KEY`
+
+---
+
+# ✅ STEP 3: Make sure your webhook route matches the URL you gave Retell
+
+You’ve got:
+`https://...replit.dev/api/webhooks/retell`
+
+✅ Make sure your code has:
+
+```js
+app.post("/api/webhooks/retell", (req, res) => { ... })
+```
+
+(Good news: in the code I gave you, it already matches)
+
+---
+
+# ✅ STEP 4: Run the server
+
+In Replit, click **“Run”** (the green ▶️ button).
+
+You should see something like:
+
+```
+Listening on http://localhost:3000
+POST webhook at /api/webhooks/retell
+```
+
+✅ This means your server is live and ready.
+
+---
+
+# ✅ STEP 5: Test the webhook connection
+
+Trigger a Retell event (e.g. complete a call on your agent).
+
+Then:
+
+✅ Check the **Replit Console** — do you see:
+
+* “✅ Verified Retell event: call.started / call.completed”
+* Or any logs?
+
+If signature is valid → You’ll see event logs.
+If signature is invalid → You’ll see “Invalid signature” (we can fix if needed).
+
+---
+
+# ✅ STEP 6: Optional – Add real logic (Recommended next)
+
+Once it’s working, we can plug in:
+
+✅ Save call details to database
+✅ Forward to n8n or Supabase
+✅ Send emails / SMS
+✅ Track call duration & cost
+✅ Record summaries & sentiment
+✅ Trigger follow-ups
+
+If you tell me **what you want to do with each event**, I can write that logic for you.
+
+---
+
+## ✅ Quick Check: Do you want me to verify the webhook is firing?
+
+I can give you one tiny console.log line to confirm it’s working before adding more logic.
+
+Just say:
+**“Add a basic console.log so I can see the payload.”**
+and I’ll give you the exact snippet to paste in.
