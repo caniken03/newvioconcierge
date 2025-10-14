@@ -50,7 +50,21 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// Body parsing for all routes (webhooks will handle raw bodies separately if needed)
+// Capture raw body for webhook signature verification
+app.use('/api/webhooks', express.raw({ type: 'application/json', limit: '10mb' }), (req, res, next) => {
+  if (req.body) {
+    try {
+      (req as any).rawBody = req.body.toString('utf8');
+      req.body = JSON.parse((req as any).rawBody);
+    } catch (error) {
+      console.error('Webhook JSON parse error:', error);
+      return res.status(400).json({ message: 'Invalid JSON payload' });
+    }
+  }
+  next();
+});
+
+// Body parsing for all other routes
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: false }));
 

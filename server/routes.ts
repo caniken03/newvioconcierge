@@ -4924,12 +4924,15 @@ Log Level: INFO
 
       // SECURITY: Retell uses the API key itself for webhook signature verification
       // Reference: https://docs.retellai.com/webhooks
-      const rawPayload = JSON.stringify(parsedBody);
+      // Use raw body captured by middleware for accurate signature verification
+      const rawPayload = (req as any).rawBody || JSON.stringify(parsedBody);
       
       try {
         // Retell.verify(body, apiKey, signature) pattern
         if (!verifyRetellWebhookSignature(rawPayload, signature as string, tenantConfig.retellApiKey)) {
           console.warn(`Invalid Retell webhook signature for tenant ${tenantId}`);
+          console.warn(`Signature received: ${signature}`);
+          console.warn(`Raw payload length: ${rawPayload.length} bytes`);
           return res.status(401).json({ message: 'Invalid webhook signature' });
         }
         console.log(`✅ Webhook signature verified for tenant ${tenantId}`);

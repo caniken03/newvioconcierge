@@ -694,7 +694,8 @@ export class BusinessTemplateService {
     
     // Generate full Clara-compatible variable set
     const variables = {
-      // Core contact information
+      // Core contact information - Clara prompt uses {{name}} for personalization
+      name: String(contact.name || ''),
       first_name: String(nameParts[0] || ''),
       last_name: String(nameParts.slice(1).join(' ') || ''),
       
@@ -715,17 +716,15 @@ export class BusinessTemplateService {
       call_direction: String('outbound'),
       internal_reference: String(contact.id || ''),
       
-      // Location/travel information (if available)
-      nearest_train_station: String(contact.nearestTrainStation || ''),
-      nearest_bus_stop: String(contact.nearestBusStop || ''),
-      bus_routes: String(contact.busRoutes || ''),
-      parking_info: String(contact.parkingInfo || ''),
-      accessibility_notes: String(contact.accessibilityNotes || ''),
-      special_area_notes: String(contact.specialAreaNotes || '')
+      // Travel & Parking Directions - from tenantConfig (configured by client admin)
+      public_transport_instructions: String(tenantConfig.publicTransportInstructions || ''),
+      parking_instructions: String(tenantConfig.parkingInstructions || ''),
+      arrival_notes: String(tenantConfig.arrivalNotes || '')
     };
 
     console.log(`🎭 Generated Clara-compatible variables for ${businessType} appointment`);
     console.log(`📋 Key personalization: ${contact.name}, ${contact.appointmentType || 'appointment'}, "${contact.specialInstructions || 'no special instructions'}"`);
+    console.log(`📍 Travel directions: PT="${tenantConfig.publicTransportInstructions || 'none'}", Parking="${tenantConfig.parkingInstructions || 'none'}", Arrival="${tenantConfig.arrivalNotes || 'none'}"`);
     
     return variables;
   }
