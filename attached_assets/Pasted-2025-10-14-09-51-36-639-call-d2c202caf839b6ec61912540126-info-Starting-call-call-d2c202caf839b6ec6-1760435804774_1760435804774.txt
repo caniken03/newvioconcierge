@@ -1,0 +1,25 @@
+2025-10-14 09:51:36.639 call_d2c202caf839b6ec61912540126 info: Starting call: call_d2c202caf839b6ec61912540126
+2025-10-14 09:51:42.177 call_d2c202caf839b6ec61912540126 info: Webhook triggered for call_started
+2025-10-14 09:51:42.389 call_d2c202caf839b6ec61912540126 info: Webhook retry 1 for call_started
+2025-10-14 09:51:42.680 call_d2c202caf839b6ec61912540126 info: Webhook retry 2 for call_started
+2025-10-14 09:51:43.185 call_d2c202caf839b6ec61912540126 error: Error triggering webhook for call_started Axios Error: error code: ERR_BAD_REQUEST, error message: Request failed with status code 401
+response status: 401
+response data: [{"message":"1"},"Invalid webhook signature"]
+2025-10-14 09:52:00.847 call_d2c202caf839b6ec61912540126 info: E2E latency for this turn: 746
+2025-10-14 09:52:20.287 call_d2c202caf839b6ec61912540126 info: E2E latency for this turn: 745.998046875
+2025-10-14 09:52:21.474 call_d2c202caf839b6ec61912540126 info: E2E latency for this turn: 732.9970703125
+2025-10-14 09:52:27.967 call_d2c202caf839b6ec61912540126 info: Calling tool: end_call 
+Arguments: {"execution_message":"Thanks, Vienna Barnes. Goodbye."}
+2025-10-14 09:52:27.967 call_d2c202caf839b6ec61912540126 info: Ending call: call_d2c202caf839b6ec61912540126
+2025-10-14 09:52:28.619 call_d2c202caf839b6ec61912540126 info: Webhook triggered for call_ended
+2025-10-14 09:52:28.857 call_d2c202caf839b6ec61912540126 info: Webhook retry 1 for call_ended
+2025-10-14 09:52:29.192 call_d2c202caf839b6ec61912540126 info: Webhook retry 2 for call_ended
+2025-10-14 09:52:29.701 call_d2c202caf839b6ec61912540126 error: Error triggering webhook for call_ended Axios Error: error code: ERR_BAD_REQUEST, error message: Request failed with status code 401
+response status: 401
+response data: [{"message":"1"},"Invalid webhook signature"]
+2025-10-14 09:52:30.184 call_d2c202caf839b6ec61912540126 info: Webhook triggered for call_analyzed
+2025-10-14 09:52:30.299 call_d2c202caf839b6ec61912540126 info: Webhook retry 1 for call_analyzed
+2025-10-14 09:52:30.647 call_d2c202caf839b6ec61912540126 info: Webhook retry 2 for call_analyzed
+2025-10-14 09:52:31.210 call_d2c202caf839b6ec61912540126 error: Error triggering webhook for call_analyzed Axios Error: error code: ERR_BAD_REQUEST, error message: Request failed with status code 401
+response status: 401
+response data: [{"message":"1"},"Invalid webhook signature"]
