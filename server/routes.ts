@@ -148,7 +148,7 @@ function verifyRetellWebhookSignature(payload: string, signature: string, apiKey
     console.log(`  Raw signature: ${signature}`);
     console.log(`  Extracted digest: ${cleanSignature.substring(0, 20)}...`);
     console.log(`  Expected digest: ${expectedSignature.substring(0, 20)}...`);
-    console.log(`  Webhook secret (first 10 chars): ${apiKey.substring(0, 10)}...`);
+    console.log(`  API key (first 10 chars): ${apiKey.substring(0, 10)}...`);
     console.log(`  Payload length: ${payload.length} bytes`);
     console.log(`  Signature match: ${cleanSignature === expectedSignature}`);
     
@@ -4936,27 +4936,27 @@ Log Level: INFO
         return res.status(400).json({ message: 'Missing tenant context' });
       }
 
-      // Get tenant configuration for Retell webhook secret (used for webhook verification)
+      // Get tenant configuration for Retell API key (used for webhook verification)
       const tenantConfig = await storage.getTenantConfig(tenantId);
       
-      if (!tenantConfig?.retellWebhookSecret) {
-        console.error(`❌ Retell webhook secret not configured for tenant ${tenantId}`);
-        console.error(`📋 Webhook payload cannot be verified without webhook secret`);
-        console.error(`🔧 To fix: Configure retellWebhookSecret in tenant_config for tenant ${tenantId}`);
+      if (!tenantConfig?.retellApiKey) {
+        console.error(`❌ Retell API key not configured for tenant ${tenantId}`);
+        console.error(`📋 Webhook payload cannot be verified without API key`);
+        console.error(`🔧 To fix: Configure retellApiKey in tenant_config for tenant ${tenantId}`);
         return res.status(400).json({ 
-          message: 'Retell webhook secret not configured',
-          detail: 'Configure retellWebhookSecret in tenant settings to enable webhook processing'
+          message: 'Retell API key not configured',
+          detail: 'Configure retellApiKey in tenant settings to enable webhook processing'
         });
       }
 
-      // SECURITY: Retell uses a webhook-specific signing secret for HMAC verification
-      // Reference: https://docs.retellai.com/webhooks
+      // SECURITY: Retell uses the API key for webhook signature verification
+      // Reference: https://docs.retellai.com/features/register-webhook
       // Use raw body captured by middleware for accurate signature verification
       const rawPayload = (req as any).rawBody || JSON.stringify(parsedBody);
       
       try {
-        // Retell.verify(body, webhookSecret, signature) pattern
-        if (!verifyRetellWebhookSignature(rawPayload, signature as string, tenantConfig.retellWebhookSecret)) {
+        // Retell.verify(body, apiKey, signature) pattern
+        if (!verifyRetellWebhookSignature(rawPayload, signature as string, tenantConfig.retellApiKey)) {
           console.warn(`Invalid Retell webhook signature for tenant ${tenantId}`);
           console.warn(`Signature received: ${signature}`);
           console.warn(`Raw payload length: ${rawPayload.length} bytes`);
