@@ -1,0 +1,24 @@
+2025-10-14 10:09:44.500 call_13c2746912fc101bc17a5a7fb9b info: Starting call: call_13c2746912fc101bc17a5a7fb9b
+2025-10-14 10:09:49.513 call_13c2746912fc101bc17a5a7fb9b info: Webhook triggered for call_started
+2025-10-14 10:09:49.757 call_13c2746912fc101bc17a5a7fb9b info: Webhook retry 1 for call_started
+2025-10-14 10:09:50.062 call_13c2746912fc101bc17a5a7fb9b info: Webhook retry 2 for call_started
+2025-10-14 10:09:50.560 call_13c2746912fc101bc17a5a7fb9b error: Error triggering webhook for call_started Axios Error: error code: ERR_BAD_REQUEST, error message: Request failed with status code 401
+response status: 401
+response data: [{"message":"1"},"Invalid webhook signature"]
+2025-10-14 10:10:07.907 call_13c2746912fc101bc17a5a7fb9b info: E2E latency for this turn: 727
+2025-10-14 10:10:27.096 call_13c2746912fc101bc17a5a7fb9b info: E2E latency for this turn: 536.0029296875
+2025-10-14 10:10:34.821 call_13c2746912fc101bc17a5a7fb9b info: Calling tool: end_call 
+Arguments: {"execution_message":"Thanks, Vienna. Goodbye."}
+2025-10-14 10:10:34.821 call_13c2746912fc101bc17a5a7fb9b info: Ending call: call_13c2746912fc101bc17a5a7fb9b
+2025-10-14 10:10:35.448 call_13c2746912fc101bc17a5a7fb9b info: Webhook triggered for call_ended
+2025-10-14 10:10:35.757 call_13c2746912fc101bc17a5a7fb9b info: Webhook retry 1 for call_ended
+2025-10-14 10:10:36.088 call_13c2746912fc101bc17a5a7fb9b info: Webhook retry 2 for call_ended
+2025-10-14 10:10:36.708 call_13c2746912fc101bc17a5a7fb9b error: Error triggering webhook for call_ended Axios Error: error code: ERR_BAD_REQUEST, error message: Request failed with status code 401
+response status: 401
+response data: [{"message":"1"},"Invalid webhook signature"]
+2025-10-14 10:10:48.807 call_13c2746912fc101bc17a5a7fb9b info: Webhook triggered for call_analyzed
+2025-10-14 10:10:49.072 call_13c2746912fc101bc17a5a7fb9b info: Webhook retry 1 for call_analyzed
+2025-10-14 10:10:49.443 call_13c2746912fc101bc17a5a7fb9b info: Webhook retry 2 for call_analyzed
+2025-10-14 10:10:49.968 call_13c2746912fc101bc17a5a7fb9b error: Error triggering webhook for call_analyzed Axios Error: error code: ERR_BAD_REQUEST, error message: Request failed with status code 401
+response status: 401
+response data: [{"message":"1"},"Invalid webhook signature"]
