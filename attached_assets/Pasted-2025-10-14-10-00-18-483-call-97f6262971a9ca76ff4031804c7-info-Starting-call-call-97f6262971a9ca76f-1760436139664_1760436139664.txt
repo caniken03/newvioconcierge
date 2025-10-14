@@ -1,0 +1,22 @@
+2025-10-14 10:00:18.483 call_97f6262971a9ca76ff4031804c7 info: Starting call: call_97f6262971a9ca76ff4031804c7
+2025-10-14 10:00:23.330 call_97f6262971a9ca76ff4031804c7 info: Webhook triggered for call_started
+2025-10-14 10:00:23.529 call_97f6262971a9ca76ff4031804c7 info: Webhook retry 1 for call_started
+2025-10-14 10:00:23.808 call_97f6262971a9ca76ff4031804c7 info: Webhook retry 2 for call_started
+2025-10-14 10:00:24.277 call_97f6262971a9ca76ff4031804c7 error: Error triggering webhook for call_started Axios Error: error code: ERR_BAD_REQUEST, error message: Request failed with status code 401
+response status: 401
+response data: [{"message":"1"},"Invalid webhook signature"]
+2025-10-14 10:00:41.557 call_97f6262971a9ca76ff4031804c7 info: E2E latency for this turn: 79
+2025-10-14 10:01:00.974 call_97f6262971a9ca76ff4031804c7 info: E2E latency for this turn: 1546
+2025-10-14 10:01:15.331 call_97f6262971a9ca76ff4031804c7 info: Ending call: call_97f6262971a9ca76ff4031804c7
+2025-10-14 10:01:15.935 call_97f6262971a9ca76ff4031804c7 info: Webhook triggered for call_ended
+2025-10-14 10:01:16.191 call_97f6262971a9ca76ff4031804c7 info: Webhook retry 1 for call_ended
+2025-10-14 10:01:16.516 call_97f6262971a9ca76ff4031804c7 info: Webhook retry 2 for call_ended
+2025-10-14 10:01:17.061 call_97f6262971a9ca76ff4031804c7 error: Error triggering webhook for call_ended Axios Error: error code: ERR_BAD_REQUEST, error message: Request failed with status code 401
+response status: 401
+response data: [{"message":"1"},"Invalid webhook signature"]
+2025-10-14 10:01:17.992 call_97f6262971a9ca76ff4031804c7 info: Webhook triggered for call_analyzed
+2025-10-14 10:01:18.112 call_97f6262971a9ca76ff4031804c7 info: Webhook retry 1 for call_analyzed
+2025-10-14 10:01:18.435 call_97f6262971a9ca76ff4031804c7 info: Webhook retry 2 for call_analyzed
+2025-10-14 10:01:19.023 call_97f6262971a9ca76ff4031804c7 error: Error triggering webhook for call_analyzed Axios Error: error code: ERR_BAD_REQUEST, error message: Request failed with status code 401
+response status: 401
+response data: [{"message":"1"},"Invalid webhook signature"]

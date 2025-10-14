@@ -143,17 +143,29 @@ function verifyRetellWebhookSignature(payload: string, signature: string, apiKey
       cleanSignature = signature.replace(/^sha256=/, '');
     }
     
+    // DEBUG: Log signature details
+    console.log('🔐 Webhook signature debug:');
+    console.log(`  Raw signature: ${signature}`);
+    console.log(`  Extracted digest: ${cleanSignature.substring(0, 20)}...`);
+    console.log(`  Expected digest: ${expectedSignature.substring(0, 20)}...`);
+    console.log(`  API key (first 10 chars): ${apiKey.substring(0, 10)}...`);
+    console.log(`  Payload length: ${payload.length} bytes`);
+    console.log(`  Signature match: ${cleanSignature === expectedSignature}`);
+    
     // Defensive check for equal lengths to prevent timingSafeEqual errors
     if (cleanSignature.length !== expectedSignature.length) {
-      console.error(`Signature length mismatch: received ${cleanSignature.length}, expected ${expectedSignature.length}`);
+      console.error(`❌ Signature length mismatch: received ${cleanSignature.length}, expected ${expectedSignature.length}`);
       return false;
     }
     
     // Timing-safe comparison to prevent timing attacks
-    return crypto.timingSafeEqual(
+    const isValid = crypto.timingSafeEqual(
       Buffer.from(cleanSignature, 'hex'),
       Buffer.from(expectedSignature, 'hex')
     );
+    
+    console.log(`  Verification result: ${isValid ? '✅ VALID' : '❌ INVALID'}`);
+    return isValid;
   } catch (error) {
     // Log error for debugging but don't expose details
     console.error('Retell HMAC verification error:', error);
