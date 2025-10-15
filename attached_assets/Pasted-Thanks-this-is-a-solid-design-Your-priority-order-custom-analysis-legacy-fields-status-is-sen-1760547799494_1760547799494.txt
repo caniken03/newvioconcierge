@@ -1,0 +1,192 @@
+Thanks—this is a solid design. Your priority order (custom_analysis → legacy fields → status) is sensible. The signature bug explains why “confirmed” wasn’t getting saved. That said, there are a few brittle spots that will bite you in production. Here’s how I’d tighten it.
+
+# Quick verdict
+
+* **Good:** Trusting `call_analysis.custom_analysis_data` first; separating *outcome* from *appointment action*; saving sentiment/analysis.
+* **Risky:** Assuming `call_status: "completed" → confirmed`; relying on free-text parsing; depending on event order; updating appointment immediately on any single webhook.
+
+# Make it rock-solid (10 targeted improvements)
+
+1. **Event order independence**
+
+* `call_analyzed` can arrive **after** `call_ended`. Treat each webhook as a **partial upsert** into a `call_sessions` row keyed by `call_id`.
+* Recompute the **derived outcome** on **every** event (started/ended/analyzed). Don’t assume order.
+
+2. **Idempotency**
+
+* Use `UNIQUE(call_id, event_type, delivery_id)` and upsert; or at minimum `UNIQUE(call_id, event_type)` and store a monotonic `received_at`.
+* If you don’t have a delivery id, use a digest of raw body as a dedupe token.
+
+3. **Two-phase update**
+
+* Phase A: store raw payload + parsed fields; compute **provisional outcome** (may be “unknown”).
+* Phase B: only **mutate the appointment** when outcome transitions into a **terminal action**: `confirmed | cancelled | rescheduled | voicemail | no_answer | busy | failed`.
+
+4. **Outcome precedence**
+
+* If multiple flags are present, use a strict precedence:
+  `rescheduled > cancelled > confirmed > voicemail > no_answer > busy > answered > failed > unknown`.
+* This avoids a later, weaker signal overwriting a stronger one.
+
+5. **Stop equating “completed” with “confirmed”**
+
+* `call_status: "completed"` just means the call finished. It could be a voicemail or a refusal.
+* Remove this default:
+
+  ```ts
+  // ❌ was:
+  case 'completed': return 'confirmed'
+  // ✅ now:
+  case 'completed': return 'answered' // or 'unknown' until analysis arrives
+  ```
+
+6. **Prefer booleans, not strings**
+
+* Keep string heuristics (e.g., `call_outcome.includes('confirm')`) only as **last resort**. Log whenever you fall back to them so you can see data gaps.
+
+7. **Late/missing analysis fallback**
+
+* If `call_analyzed` hasn’t arrived **within N minutes** after `call_ended`, finalize from what you have (e.g., `answered` or `no_answer`). If analysis arrives later with a stronger signal, allow an **upgrade** (e.g., `answered → confirmed`), but never a downgrade (e.g., `confirmed → answered`).
+
+8. **Strong validation & null safety**
+
+* Validate payloads with Zod/Valibot; normalise booleans; guard for absent objects:
+
+  ```ts
+  const ca = payload.call_analysis ?? {};
+  const cd = ca.custom_analysis_data ?? {};
+  const topics = ca.conversation_analytics?.topics_discussed ?? [];
+  ```
+
+9. **Transition guard on appointments**
+
+* Update the appointment only on **state transition** (e.g., `pending → confirmed`). Store `last_transition_source` (`call_id`, `event_type`) for audit.
+
+10. **Observability**
+
+* Metrics: #webhooks by type, % using custom analysis, % string fallback, #state upgrades.
+* Structured logs on every decision: `{call_id, event_type, reason: 'custom_analysis.appointment_confirmed=true'}`.
+
+---
+
+# Drop-in pseudocode (consolidated)
+
+```ts
+// --- Types
+type Outcome =
+  | 'confirmed' | 'cancelled' | 'rescheduled'
+  | 'voicemail' | 'no_answer' | 'busy'
+  | 'answered'  | 'failed'    | 'unknown';
+
+type AppointmentAction = 'confirmed' | 'cancelled' | 'rescheduled' | 'none';
+
+// --- Precedence (higher first)
+const OUTCOME_ORDER: Outcome[] = [
+  'rescheduled', 'cancelled', 'confirmed',
+  'voicemail', 'no_answer', 'busy',
+  'answered', 'failed', 'unknown'
+];
+
+function stronger(a: Outcome, b: Outcome) {
+  return OUTCOME_ORDER.indexOf(a) < OUTCOME_ORDER.indexOf(b) ? a : b;
+}
+
+// --- Derivation
+function deriveOutcome(p: any): Outcome {
+  const ca = p.call_analysis ?? {};
+  const cd = ca.custom_analysis_data ?? {};
+  const topics: string[] = ca.conversation_analytics?.topics_discussed ?? [];
+  const status = (p.call_status || '').toLowerCase();
+  const outcomeStr = (ca.call_outcome || '').toLowerCase();
+
+  // Priority 1: custom analysis booleans
+  if (cd.appointment_rescheduled) return 'rescheduled';
+  if (cd.appointment_cancelled)   return 'cancelled';
+  if (cd.appointment_confirmed)   return 'confirmed';
+  if (cd.reached_voicemail)       return 'voicemail';
+  if (cd.customer_engaged === false) return 'no_answer';
+  if (cd.call_completed_successfully && cd.customer_engaged) return 'answered';
+
+  // Priority 2: topics (semantic)
+  const t = topics.join(' ').toLowerCase();
+  if (t.includes('resched')) return 'rescheduled';
+  if (t.includes('cancel'))  return 'cancelled';
+  if (t.includes('confirm')) return 'confirmed';
+  if (t.includes('voicemail')) return 'voicemail';
+
+  // Priority 3: legacy free text
+  if (outcomeStr.includes('resched')) return 'rescheduled';
+  if (outcomeStr.includes('cancel'))  return 'cancelled';
+  if (outcomeStr.includes('confirm')) return 'confirmed';
+  if (outcomeStr.includes('voicemail')) return 'voicemail';
+  if (outcomeStr.includes('no answer')) return 'no_answer';
+  if (outcomeStr.includes('busy')) return 'busy';
+
+  // Priority 4: status fallback (never equate completed with confirmed)
+  if (status === 'no-answer') return 'no_answer';
+  if (status === 'busy')      return 'busy';
+  if (status === 'failed')    return 'failed';
+  if (status === 'completed') return 'answered';
+
+  return 'unknown';
+}
+
+function deriveAppointmentAction(outcome: Outcome): AppointmentAction {
+  if (outcome === 'confirmed')   return 'confirmed';
+  if (outcome === 'cancelled')   return 'cancelled';
+  if (outcome === 'rescheduled') return 'rescheduled';
+  return 'none';
+}
+
+// --- Webhook handler (order-independent, idempotent)
+async function handleRetellWebhook(rawBody: string, headers: any) {
+  // 1) Verify signature (using RETELL_WEBHOOK_SECRET)
+  verifyRetellSignatureOrThrow(rawBody, headers);
+
+  // 2) Parse + normalise
+  const incoming = JSON.parse(rawBody);
+  const call = incoming.call ?? incoming;
+  const callId = call.call_id ?? call.id;
+  const eventType = incoming.event; // 'call_started' | 'call_ended' | 'call_analyzed'
+
+  // 3) Upsert raw event (idempotent)
+  await db.upsert('retell_events', { call_id: callId, event_type: eventType, raw: incoming });
+
+  // 4) Merge into call_session snapshot
+  const current = await db.get('call_sessions', { call_id: callId }) ?? {};
+  const merged = deepMerge(current, extractUsefulFields(call)); // keep latest timestamps/analysis
+  const newOutcome = deriveOutcome(merged);
+  const finalOutcome = current.outcome ? stronger(newOutcome, current.outcome) : newOutcome;
+
+  await db.upsert('call_sessions', { call_id: callId, ...merged, outcome: finalOutcome });
+
+  // 5) If outcome transitioned into terminal action, update appointment once
+  const prevAction = deriveAppointmentAction(current.outcome ?? 'unknown');
+  const newAction  = deriveAppointmentAction(finalOutcome);
+
+  if (newAction !== 'none' && newAction !== prevAction) {
+    await appointments.applyTransition(merged.appointment_id, newAction, {
+      source_call_id: callId, source_event: eventType
+    });
+  }
+
+  return ok();
+}
+```
+
+---
+
+# Schema & config tips
+
+* `call_sessions` (by `call_id`): `appointment_id`, `contact_id`, `outcome`, timestamps, `latest_event`, `analysis_json`, `raw_last_payload_digest`.
+* `retell_events`: `call_id`, `event_type`, `received_at`, `raw_json`, `digest`, `unique(call_id,event_type,digest)`.
+* **Mapping:** store Retell `metadata` with your `appointment_id` at **call start** to guarantee linkage.
+* **Timeout job:** cron every 5 min: any session with `ended_at` and no `analyzed_at` after N minutes → finalize outcome.
+
+---
+
+## Bottom line
+
+Fix the signature (you did), then implement **order-independent upserts**, **strict precedence**, and **transition-guarded appointment updates**. That will make “recognising” confirmations reliable even with late/duplicated/messy webhooks.
+
+If you want, I can tailor the above to your exact stack (Supabase SQL + n8n/Node repo) with real table DDL and a ready-to-paste service module.

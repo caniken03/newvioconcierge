@@ -4971,15 +4971,16 @@ Log Level: INFO
       }
 
       // SECURITY: Retell uses the SAME API key for both API calls and webhook signature verification
-      // Use raw body captured by middleware for accurate signature verification
-      const rawPayload = (req as any).rawBody || JSON.stringify(parsedBody);
+      // CRITICAL: Retell signs the COMPACT JSON format (no spaces after separators)
+      // From Retell docs: JSON.stringify with separators=(",", ":") 
+      const compactPayload = JSON.stringify(parsedBody, null, 0);
       
       try {
-        // Retell.verify(body, apiKey, signature) pattern
-        if (!verifyRetellWebhookSignature(rawPayload, signature as string, tenantConfig.retellApiKey)) {
+        // Retell.verify(body, apiKey, signature) pattern - uses compact JSON
+        if (!verifyRetellWebhookSignature(compactPayload, signature as string, tenantConfig.retellApiKey)) {
           console.warn(`Invalid Retell webhook signature for tenant ${tenantId}`);
           console.warn(`Signature received: ${signature}`);
-          console.warn(`Raw payload length: ${rawPayload.length} bytes`);
+          console.warn(`Compact payload length: ${compactPayload.length} bytes`);
           return res.status(401).json({ message: 'Invalid webhook signature' });
         }
         console.log(`✅ Webhook signature verified for tenant ${tenantId}`);

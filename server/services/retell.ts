@@ -325,10 +325,12 @@ export class RetellService {
       }
     }
 
-    // Fallback based on call status
+    // Fallback based on call status (NEVER assume completed = confirmed)
     switch (payload.call_status) {
       case 'completed':
-        return 'confirmed'; // Assume successful completion means confirmation
+        // Call finished, but we don't know the outcome without analysis
+        // Return 'answered' to indicate person picked up, not necessarily confirmed
+        return 'answered';
       case 'busy':
         return 'busy';
       case 'no-answer':
