@@ -4970,15 +4970,16 @@ Log Level: INFO
         });
       }
 
-      // SECURITY: Retell uses the SAME API key for both API calls and webhook signature verification
-      // CRITICAL: Retell signs the COMPACT JSON format (no spaces after separators)
-      // From Retell docs: JSON.stringify with separators=(",", ":") 
-      const compactPayload = JSON.stringify(parsedBody, null, 0);
+      // SECURITY: Retell uses the SAME API key (key_xxx format) for both API calls and webhook signing
+      // CRITICAL: Retell signs the COMPACT JSON format
+      const compactPayload = JSON.stringify(parsedBody);
+      
+      console.log(`🔐 Signature verification using API key: ${tenantConfig.retellApiKey.substring(0, 10)}...`);
       
       try {
-        // Retell.verify(body, apiKey, signature) pattern - uses compact JSON
+        // Retell.verify(body, apiKey, signature) pattern
         if (!verifyRetellWebhookSignature(compactPayload, signature as string, tenantConfig.retellApiKey)) {
-          console.warn(`Invalid Retell webhook signature for tenant ${tenantId}`);
+          console.warn(`❌ Invalid Retell webhook signature for tenant ${tenantId}`);
           console.warn(`Signature received: ${signature}`);
           console.warn(`Compact payload length: ${compactPayload.length} bytes`);
           return res.status(401).json({ message: 'Invalid webhook signature' });
