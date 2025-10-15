@@ -4936,33 +4936,37 @@ Log Level: INFO
         return res.status(400).json({ message: 'Missing tenant context' });
       }
 
-      // Get tenant configuration for Retell API key (used for webhook verification)
+      // Get tenant configuration for Retell webhook secret (used for webhook verification)
       const tenantConfig = await storage.getTenantConfig(tenantId);
       
-      if (!tenantConfig?.retellApiKey) {
-        console.error(`❌ Retell API key not configured for tenant ${tenantId}`);
-        console.error(`📋 Webhook payload cannot be verified without API key`);
-        console.error(`🔧 To fix: Configure retellApiKey in tenant_config for tenant ${tenantId}`);
+      // CRITICAL: Use retellWebhookSecret if available, fallback to retellApiKey for backwards compatibility
+      const webhookSecret = tenantConfig?.retellWebhookSecret || tenantConfig?.retellApiKey;
+      
+      if (!webhookSecret) {
+        console.error(`❌ Retell webhook secret not configured for tenant ${tenantId}`);
+        console.error(`📋 Webhook payload cannot be verified without secret`);
+        console.error(`🔧 To fix: Configure retellWebhookSecret or retellApiKey in tenant_config for tenant ${tenantId}`);
         return res.status(400).json({ 
-          message: 'Retell API key not configured',
-          detail: 'Configure retellApiKey in tenant settings to enable webhook processing'
+          message: 'Retell webhook secret not configured',
+          detail: 'Configure retellWebhookSecret in tenant settings to enable webhook processing'
         });
       }
 
-      // SECURITY: Retell uses the API key for webhook signature verification
+      // SECURITY: Retell uses a dedicated webhook secret for signature verification
       // Reference: https://docs.retellai.com/features/register-webhook
       // Use raw body captured by middleware for accurate signature verification
       const rawPayload = (req as any).rawBody || JSON.stringify(parsedBody);
       
       try {
-        // Retell.verify(body, apiKey, signature) pattern
-        if (!verifyRetellWebhookSignature(rawPayload, signature as string, tenantConfig.retellApiKey)) {
+        // Retell.verify(body, webhookSecret, signature) pattern
+        if (!verifyRetellWebhookSignature(rawPayload, signature as string, webhookSecret)) {
           console.warn(`Invalid Retell webhook signature for tenant ${tenantId}`);
           console.warn(`Signature received: ${signature}`);
+          console.warn(`Using secret type: ${tenantConfig?.retellWebhookSecret ? 'retellWebhookSecret' : 'retellApiKey (fallback)'}`);
           console.warn(`Raw payload length: ${rawPayload.length} bytes`);
           return res.status(401).json({ message: 'Invalid webhook signature' });
         }
-        console.log(`✅ Webhook signature verified for tenant ${tenantId}`);
+        console.log(`✅ Webhook signature verified for tenant ${tenantId} using ${tenantConfig?.retellWebhookSecret ? 'retellWebhookSecret' : 'retellApiKey (fallback)'}`);
       } catch (error) {
         console.error(`Webhook signature verification error for tenant ${tenantId}:`, error);
         return res.status(401).json({ message: 'Signature verification failed' });
