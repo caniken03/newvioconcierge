@@ -25,6 +25,7 @@ import {
   temporaryAccess,
   userNotificationPreferences,
   userInvitations,
+  retellEvents,
   type User,
   type InsertUser,
   type Tenant,
@@ -77,6 +78,8 @@ import {
   abuseProtectionSettings,
   type AbuseProtectionSettings,
   type InsertAbuseProtectionSettings,
+  type RetellEvent,
+  type InsertRetellEvent,
 } from "@shared/schema";
 import { BusinessHoursEvaluator } from "./utils/business-hours-evaluator";
 import { db } from "./db";
@@ -255,6 +258,11 @@ export interface IStorage {
   updateCallSession(id: string, updates: Partial<InsertCallSession>): Promise<CallSession>;
   getCallSessionsByContact(contactId: string): Promise<CallSession[]>;
   getCallSessionByRetellId(retellCallId: string): Promise<CallSession | undefined>;
+
+  // Expert Recommendation: Retell webhook event operations for idempotent processing
+  upsertRetellEvent(event: InsertRetellEvent): Promise<RetellEvent>;
+  mergeCallSessionState(callId: string, newOutcome: string, newEventType: string, analysisJson?: any): Promise<CallSession>;
+  getAppointmentLastTransition(appointmentId: string): Promise<{ lastTransitionSource: string | null; currentStatus: string } | undefined>;
 
   // Follow-up task operations
   getFollowUpTask(id: string): Promise<FollowUpTask | undefined>;
@@ -2314,6 +2322,102 @@ export class DatabaseStorage implements IStorage {
       .from(callSessions)
       .where(eq(callSessions.retellCallId, retellCallId));
     return session;
+  }
+
+  // Expert Recommendation: Retell webhook event operations for idempotent processing
+  async upsertRetellEvent(event: InsertRetellEvent): Promise<RetellEvent> {
+    // Use INSERT ... ON CONFLICT for idempotency (Expert Recommendation)
+    // The UNIQUE constraint on (call_id, event_type, digest) ensures duplicate events are ignored
+    const [upsertedEvent] = await db
+      .insert(retellEvents)
+      .values(event)
+      .onConflictDoNothing({
+        target: [retellEvents.callId, retellEvents.eventType, retellEvents.digest]
+      })
+      .returning();
+    
+    // If ON CONFLICT ignored the insert, fetch the existing event
+    if (!upsertedEvent) {
+      const [existingEvent] = await db
+        .select()
+        .from(retellEvents)
+        .where(
+          and(
+            eq(retellEvents.callId, event.callId),
+            eq(retellEvents.eventType, event.eventType),
+            eq(retellEvents.digest, event.digest)
+          )
+        );
+      return existingEvent;
+    }
+    
+    return upsertedEvent;
+  }
+
+  async mergeCallSessionState(
+    callId: string, 
+    newOutcome: string, 
+    newEventType: string, 
+    analysisJson?: any
+  ): Promise<CallSession> {
+    // Fetch current session
+    const session = await this.getCallSessionByRetellId(callId);
+    if (!session) {
+      throw new Error(`Call session not found for Retell call ID: ${callId}`);
+    }
+
+    // Expert Recommendation: Use stronger() to prevent outcome downgrades
+    // Import retellService at runtime to avoid circular dependency
+    const { retellService } = await import('./services/retell.js');
+    const currentOutcome = session.outcome || 'unknown';
+    const finalOutcome = retellService.stronger(currentOutcome, newOutcome);
+    
+    // Observability logging (Expert Recommendation)
+    if (finalOutcome !== newOutcome) {
+      console.log(`🔄 Outcome precedence: kept "${finalOutcome}" instead of downgrading to "${newOutcome}"`);
+    }
+
+    // Update session with merged state
+    const updates: Partial<InsertCallSession> = {
+      outcome: finalOutcome,
+      latestEvent: newEventType,
+    };
+
+    // Only update analysisJson if provided and stronger/equal outcome
+    if (analysisJson && finalOutcome === newOutcome) {
+      updates.analysisJson = analysisJson;
+    }
+
+    return await this.updateCallSession(session.id, updates);
+  }
+
+  async getAppointmentLastTransition(contactId: string): Promise<{ lastTransitionSource: string | null; currentStatus: string } | undefined> {
+    // Get contact's appointment status
+    const [contact] = await db
+      .select({
+        currentStatus: contacts.appointmentStatus
+      })
+      .from(contacts)
+      .where(eq(contacts.id, contactId));
+    
+    if (!contact) {
+      return undefined;
+    }
+
+    // Get the most recent call session for this contact to find lastTransitionSource
+    const [latestSession] = await db
+      .select({
+        lastTransitionSource: callSessions.lastTransitionSource
+      })
+      .from(callSessions)
+      .where(eq(callSessions.contactId, contactId))
+      .orderBy(desc(callSessions.createdAt))
+      .limit(1);
+
+    return {
+      lastTransitionSource: latestSession?.lastTransitionSource || null,
+      currentStatus: contact.currentStatus || 'pending'
+    };
   }
 
   // Follow-up task operations
