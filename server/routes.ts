@@ -5015,9 +5015,36 @@ Log Level: INFO
           return res.status(403).json({ message: 'Tenant access denied' });
         }
 
+        // Expert Recommendation: Order-Independent Webhook Processing
+        // Step 1: Compute digest for idempotency
+        const crypto = await import('crypto');
+        const payloadStr = JSON.stringify(payload, Object.keys(payload).sort());
+        const digest = crypto.createHash('sha256').update(payloadStr).digest('hex');
+        
+        // Step 2: Upsert event (idempotent - duplicate events are silently ignored)
+        await storage.upsertRetellEvent({
+          tenantId: session.tenantId,
+          callId: payload.call_id,
+          eventType: payload.event,
+          digest,
+          rawPayload: JSON.stringify(payload),
+          receivedAt: new Date()
+        });
+        console.log(`✅ Event stored: ${payload.event} for call ${payload.call_id} (digest: ${digest.slice(0, 12)}...)`);
+        
+        // Step 3: Derive outcome using precedence hierarchy
         const callOutcome = retellService.determineCallOutcome(payload);
         const appointmentAction = retellService.determineAppointmentAction(payload);
         const sentimentAnalysis = retellService.extractSentimentAnalysis(payload);
+        
+        // Step 4: Merge into call_sessions using stronger() to prevent downgrades
+        const analysisJson = payload.call_analysis ? JSON.stringify(payload.call_analysis) : undefined;
+        const updatedSession = await storage.mergeCallSessionState(
+          payload.call_id,
+          callOutcome,
+          payload.event,
+          analysisJson
+        );
         
         // Calculate duration from start time if available
         let durationSeconds: number | undefined;
@@ -5025,15 +5052,14 @@ Log Level: INFO
           durationSeconds = Math.floor((Date.now() - session.startTime.getTime()) / 1000);
         }
         
-        // Determine final status based on outcome
-        // Map call outcomes to status: confirmed = completed, all others = failed
-        const finalStatus = (callOutcome === 'confirmed' && payload.event !== 'call_failed') ? 'completed' : 'failed';
+        // Determine final status based on outcome (use updatedSession.outcome which may have been preserved by stronger())
+        const finalOutcome = updatedSession.outcome || callOutcome;
+        const finalStatus = (finalOutcome === 'confirmed' && payload.event !== 'call_failed') ? 'completed' : 'failed';
         
-        // Update call session with comprehensive sentiment analysis
-        await storage.updateCallSession(session.id, {
+        // Update call session with additional fields (don't overwrite outcome - already set by mergeCallSessionState)
+        await storage.updateCallSession(updatedSession.id, {
           status: finalStatus,
           endTime: new Date(),
-          callOutcome,
           appointmentAction,
           durationSeconds,
           ...(sentimentAnalysis && {
@@ -5052,7 +5078,13 @@ Log Level: INFO
             topicsDiscussed: sentimentAnalysis.topicsDiscussed,
             conversationFlow: sentimentAnalysis.conversationFlow,
           }),
-          // Analysis data stored in other fields above
+          // Store transition source for audit trail
+          lastTransitionSource: JSON.stringify({
+            call_id: payload.call_id,
+            event_type: payload.event,
+            timestamp: new Date().toISOString(),
+            outcome: finalOutcome
+          })
         });
 
         // Get current contact data for responsiveness tracking
@@ -5061,15 +5093,50 @@ Log Level: INFO
         
         // Update contact with enhanced tracking
         const contactUpdate: any = {
-          lastCallOutcome: callOutcome,
+          lastCallOutcome: finalOutcome, // Use finalOutcome (may be preserved by stronger())
           callAttempts: currentAttempts,
         };
         
-        // Update appointment status based on action
-        if (appointmentAction === 'confirmed') {
+        // Expert Recommendation: Transition Guards for Appointment Updates
+        // Only update appointment status on terminal state transitions to prevent duplicates
+        const terminalActions = ['confirmed', 'cancelled', 'rescheduled'];
+        let shouldUpdateAppointment = false;
+        
+        if (terminalActions.includes(appointmentAction)) {
+          // Get last transition to check if this is a newer event
+          const lastTransition = await storage.getAppointmentLastTransition(session.contactId!);
+          
+          if (!lastTransition?.lastTransitionSource) {
+            // No previous transition - safe to update
+            shouldUpdateAppointment = true;
+            console.log(`📍 First appointment transition for contact ${session.contactId}: ${appointmentAction}`);
+          } else {
+            try {
+              const lastSource = JSON.parse(lastTransition.lastTransitionSource);
+              const thisTimestamp = new Date().toISOString();
+              
+              // Only update if this event is from a different call or has stronger outcome
+              if (lastSource.call_id !== payload.call_id || lastSource.outcome !== finalOutcome) {
+                shouldUpdateAppointment = true;
+                console.log(`📍 Appointment transition guard passed: ${lastSource.outcome} → ${finalOutcome} (${appointmentAction})`);
+              } else {
+                console.log(`⏭️ Skipping duplicate appointment update: ${appointmentAction} (same call, same outcome)`);
+              }
+            } catch (err) {
+              // Fallback: if we can't parse transition source, allow update
+              shouldUpdateAppointment = true;
+              console.warn('⚠️ Failed to parse last transition source, allowing update');
+            }
+          }
+        }
+        
+        // Apply appointment status updates only if transition guard passed
+        if (shouldUpdateAppointment && appointmentAction === 'confirmed') {
           contactUpdate.appointmentStatus = 'confirmed';
-        } else if (appointmentAction === 'rescheduled') {
+          console.log(`✅ Appointment confirmed for contact ${session.contactId}`);
+        } else if (shouldUpdateAppointment && appointmentAction === 'rescheduled') {
           contactUpdate.appointmentStatus = 'needs_rescheduling';
+          console.log(`📅 Appointment needs rescheduling for contact ${session.contactId}`);
           
           // ENHANCED: Trigger automated rescheduling workflow
           try {
@@ -5107,8 +5174,9 @@ Log Level: INFO
             console.error('Error triggering rescheduling workflow:', error);
             // Don't fail the webhook if rescheduling workflow fails
           }
-        } else if (appointmentAction === 'cancelled') {
+        } else if (shouldUpdateAppointment && appointmentAction === 'cancelled') {
           contactUpdate.appointmentStatus = 'cancelled';
+          console.log(`❌ Appointment cancelled for contact ${session.contactId}`);
         }
         
         // ENHANCED: Integrate responsiveness tracking using ResponsivenessTracker service
