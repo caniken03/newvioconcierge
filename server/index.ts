@@ -50,24 +50,8 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// Capture raw body for webhook signature verification
-// CRITICAL: Store the raw Buffer (exact bytes) for signature verification
-app.use('/api/webhooks', express.raw({ type: 'application/json', limit: '10mb' }), (req, res, next) => {
-  if (req.body) {
-    try {
-      // Store the raw Buffer for HMAC verification (exact bytes Retell signed)
-      (req as any).rawBody = req.body;
-      // Parse JSON for application use
-      req.body = JSON.parse(req.body.toString('utf8'));
-    } catch (error) {
-      console.error('Webhook JSON parse error:', error);
-      return res.status(400).json({ message: 'Invalid JSON payload' });
-    }
-  }
-  next();
-});
-
-// Body parsing for all other routes
+// Body parsing for all routes (including webhooks)
+// Per Retell docs: they verify JSON.stringify(req.body) after express.json() parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: false }));
 

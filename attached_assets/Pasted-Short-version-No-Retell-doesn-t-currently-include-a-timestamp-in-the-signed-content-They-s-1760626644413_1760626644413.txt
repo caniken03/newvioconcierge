@@ -1,0 +1,86 @@
+Short version: **No — Retell doesn’t (currently) include a timestamp in the signed content.** They sign the **request body** and put the result in the `x-retell-signature` header. The signing key is your **Retell API key that has a “webhook” badge** (not a separate webhook secret). ([docs.retellai.com][1])
+
+That’s why your “`timestamp.payload`” attempts don’t match.
+
+## What to change (concrete)
+
+1. **Use the API key with the webhook badge** as the HMAC key.
+2. **Hash the body exactly as Retell expects.** Their example verifies with:
+
+```ts
+Retell.verify(JSON.stringify(req.body), process.env.RETELL_API_KEY, req.headers['x-retell-signature'])
+```
+
+Note: They use `express.json()` and re-`JSON.stringify(req.body)` (i.e., no timestamp). ([docs.retellai.com][1])
+
+## Drop-in Node/Express snippet (robust)
+
+This tries the official SDK method first, then a manual HMAC of the raw bytes as a fallback—both **without** any timestamp:
+
+```ts
+import express from "express";
+import crypto from "crypto";
+import { Retell } from "retell-sdk";
+
+const app = express();
+
+// Use JSON parser for this route to match Retell’s doc example
+app.use("/api/webhooks/retell", express.json({ type: "application/json" }));
+
+function hmacSha256Hex(data: Buffer | string, key: string) {
+  return crypto.createHmac("sha256", key).update(data).digest("hex");
+}
+
+app.post("/api/webhooks/retell", (req, res) => {
+  const sigHeader = String(req.headers["x-retell-signature"] || "");
+  const apiKey = process.env.RETELL_API_KEY!; // must be the API key with webhook badge
+
+  // 1) Official way (matches docs)
+  const bodyStr = JSON.stringify(req.body);
+  const okViaSdk = Retell.verify(bodyStr, apiKey, sigHeader);
+
+  // 2) Manual fallback (in case env / middleware differs)
+  //    - compute HMAC over bodyStr (not timestamped)
+  const okViaManual = (() => {
+    const digest = hmacSha256Hex(bodyStr, apiKey);
+    try {
+      const a = Buffer.from(digest, "hex");
+      const b = Buffer.from(sigHeader, "hex");
+      return a.length === b.length && crypto.timingSafeEqual(a, b);
+    } catch {
+      return false;
+    }
+  })();
+
+  if (!okViaSdk && !okViaManual) {
+    return res.status(401).send("Invalid signature");
+  }
+
+  // ✅ Verified — process the webhook safely
+  const { event, call } = req.body;
+  // ... your logic
+  return res.status(204).send();
+});
+```
+
+### Why this works
+
+* **No timestamp** involved (matches Retell docs). ([docs.retellai.com][1])
+* **API key** as signing secret (specifically the one marked for webhooks). ([docs.retellai.com][1])
+* Uses Retell’s **SDK verify** the same way they show, then a constant-time manual check as a sanity fallback.
+
+---
+
+### If you still want to keep a “raw bytes” path
+
+Retell’s docs don’t require it, but if your infra needs one, swap `express.json()` for `express.raw({ type: 'application/json' })`, then hash the **raw buffer string** (still **no timestamp**) with the API key. But be aware that this diverges from their example, so stick to the SDK form unless you have a strong reason.
+
+---
+
+### TL;DR
+
+* **No timestamp** in Retell’s signature scheme.
+* **Sign/verify the body only**, using the **webhook-badge API key**.
+* Use their **SDK verify** (fastest path to green). ([docs.retellai.com][1])
+
+[1]: https://docs.retellai.com/features/secure-webhook "Secure the webhook - Retell AI"
