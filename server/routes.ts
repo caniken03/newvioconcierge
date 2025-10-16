@@ -125,30 +125,42 @@ function verifyWebhookSignature(payload: string, signature: string, secret: stri
  */
 function verifyRetellWebhookSignature(payload: string, signature: string, apiKey: string): boolean {
   try {
+    console.log('🔍 Debug signature verification:');
+    console.log(`  - Signature received: "${signature}" (length: ${signature.length})`);
+    console.log(`  - Signature first 20 chars: "${signature.substring(0, 20)}"`);
+    console.log(`  - API key length: ${apiKey.length}`);
+    console.log(`  - Payload length: ${payload.length}`);
+    
     // Compute HMAC-SHA256 signature using API key as secret
     const expectedSignature = crypto
       .createHmac('sha256', apiKey)
       .update(payload, 'utf8')
       .digest('hex');
     
+    console.log(`  - Expected signature: "${expectedSignature}" (length: ${expectedSignature.length})`);
+    console.log(`  - Expected first 20 chars: "${expectedSignature.substring(0, 20)}"`);
+    
     // Validate signature is hex and same length
     if (!/^[0-9a-fA-F]+$/.test(signature)) {
-      console.warn('Signature is not valid hex format');
+      console.warn('❌ Signature is not valid hex format');
       return false;
     }
     
     if (signature.length !== expectedSignature.length) {
-      console.warn(`Signature length mismatch: received ${signature.length}, expected ${expectedSignature.length}`);
+      console.warn(`❌ Signature length mismatch: received ${signature.length}, expected ${expectedSignature.length}`);
       return false;
     }
     
     // Use constant-time comparison to prevent timing attacks
-    return crypto.timingSafeEqual(
+    const result = crypto.timingSafeEqual(
       Buffer.from(signature, 'hex'),
       Buffer.from(expectedSignature, 'hex')
     );
+    
+    console.log(`  - Match result: ${result ? '✅ MATCH' : '❌ NO MATCH'}`);
+    return result;
   } catch (error) {
-    console.error('Retell HMAC verification error:', error);
+    console.error('❌ Retell HMAC verification error:', error);
     return false;
   }
 }
