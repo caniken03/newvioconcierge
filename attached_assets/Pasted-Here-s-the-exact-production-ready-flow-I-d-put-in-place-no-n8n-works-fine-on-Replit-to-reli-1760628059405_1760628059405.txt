@@ -1,0 +1,212 @@
+Here’s the **exact, production-ready flow** I’d put in place (no n8n; works fine on Replit) to *reliably* get “confirmed / rescheduled / cancelled / voicemail / no-answer / busy / failed” from Retell and persist it without duplicates or downgrades.
+
+---
+
+# 1) Create the call (add correlation metadata)
+
+When you initiate the outbound call, always include metadata so the webhook can map back to a single record deterministically.
+
+**Send with your `createPhoneCall` (or equivalent):**
+
+```json
+{
+  "to_number": "+44...",
+  "from_number": "+44...",
+  "metadata": {
+    "tenant_id": "tnt_123",
+    "appointment_id": "apt_987",
+    "call_session_id": "cs_456",
+    "contact_id": "con_321"
+  }
+}
+```
+
+**DB write (before calling Retell):**
+
+* `call_sessions`: `{ id: cs_456, tenant_id, appointment_id, to_number, status: "pending" }`
+* Store `retell_call_id` after API returns it.
+
+Why: this guarantees 1:1 linkage between webhook → appointment.
+
+---
+
+# 2) Webhook endpoint (fast ACK + raw-bytes signature verify)
+
+**Route config:**
+
+* Use `express.raw({ type: 'application/json' })` **for this path only**.
+* Verify signature against the **raw body string** using the Retell signing key.
+* **Return 204** immediately after enqueueing the event (don’t do heavy work inline).
+
+**Pseudocode:**
+
+```ts
+// BEFORE any express.json() for this path:
+app.use('/api/webhooks/retell', express.raw({ type: 'application/json' }));
+
+app.post('/api/webhooks/retell', async (req, res) => {
+  const raw = req.body as Buffer;
+  const rawStr = raw.toString('utf8');
+  const sig = String(req.headers['x-retell-signature'] || '');
+
+  const tenant = await resolveTenant(req); // header/subdomain
+  const secret = tenant.retell_webhook_key; // your stored signing key
+
+  if (!verifySignature(rawStr, sig, secret)) {
+    return res.status(401).send('Invalid signature');
+  }
+
+  // Enqueue for processing (idempotent worker)
+  await queue.enqueue('retell_webhook', { tenantId: tenant.id, raw: rawStr, sigShape: sig.includes('d=') ? 'vd' : 'hex' });
+
+  // ACK fast so Retell doesn't retry
+  return res.status(204).end();
+});
+```
+
+**Signature helper highlights:**
+
+* Extract digest from header (`hex` OR `v=<ts>,d=<hex>`).
+* HMAC-SHA256 over **raw body string**.
+* Constant-time compare (timingSafeEqual).
+* Optional timestamp skew check for replay protection.
+
+---
+
+# 3) Worker: validate, idempotency, and outcome derivation
+
+Process the payload in a background job (a simple queue in Replit is fine: a Redis list or a DB table polled by a worker loop).
+
+**Steps:**
+
+1. **Parse & validate** payload shape (zod / yup):
+
+   * `event` (e.g., `call_analyzed`, `call_ended`)
+   * `call.call_id` (string)
+   * `call.metadata.{tenant_id, appointment_id, call_session_id}` (strings)
+   * `call.call_analysis` (object with your extracted fields)
+2. **Idempotency save**:
+
+   * `retell_events` with **UNIQUE** (`call_id`, `event`, `payload_digest`)
+   * `payload_digest = sha256(stableStringify(payload))`
+3. **Find session**:
+
+   * Prefer `call.metadata.call_session_id` or `retell_call_id`.
+   * Fallback: find recent `call_sessions` by `tenant_id + to_number` within the last N minutes if absolutely necessary.
+4. **Determine outcome**:
+
+   * Implement a small rules engine based on `call.call_analysis`, e.g.:
+
+```ts
+function determineOutcome(a: CallAnalysis): Outcome {
+  if (a.appointment_confirmed === true) return 'confirmed';
+  if (a.appointment_rescheduled === true) return 'rescheduled';
+  if (a.appointment_cancelled === true)  return 'cancelled';
+  if (a.voicemail === true)              return 'voicemail';
+  if (a.no_answer === true)              return 'no_answer';
+  if (a.busy === true)                   return 'busy';
+  if (a.failed === true)                 return 'failed';
+  // fallback heuristics:
+  if (a.human_detected === false)        return 'no_answer';
+  return 'failed';
+}
+```
+
+5. **Precedence-safe upsert** (never downgrade):
+
+   * Define ranking:
+
+     ```
+     confirmed > rescheduled > cancelled > voicemail > no_answer > busy > failed > pending
+     ```
+   * Only update `call_sessions.status` if `newRank > currentRank`.
+
+6. **Appointment write**:
+
+   * If `outcome === 'confirmed'` and you have `appointment_id`, set `appointments.status = 'confirmed'`.
+   * If `rescheduled`, update datetime fields from analysis (if available).
+   * If `cancelled`, set status accordingly + reason note.
+
+7. **Emit an internal event** (optional but useful):
+
+   * Publish `call.outcome.changed` with `{ tenantId, appointmentId, callId, outcome }` to your in-app notifications / websocket.
+
+---
+
+# 4) Observability & safety nets
+
+* **Structured logs**:
+
+  * On verify success: `{ event, call_id, tenant_id, verified_with: 'raw', handler: 'retell_webhook', t: now }`
+  * On failure (no secrets): `{ reason: 'sig_mismatch' | 'schema_invalid' | 'no_session', call_id? }`
+* **Dead-letter queue** (DLQ):
+
+  * If processing fails X times, store to `retell_events_dlq` with error message for manual review.
+* **Replay protection**:
+
+  * If header includes timestamp (`v=`), reject if skew > 5–10 minutes (optional).
+* **Periodic reconciliation job** (15-min cron):
+
+  * For any `call_sessions` still in `pending` or `unknown` after, say, 30 minutes:
+
+    * Call Retell’s GET call detail API by `retell_call_id`.
+    * Derive outcome and finalise (covers missed webhooks).
+
+---
+
+# 5) Minimal schema (works today)
+
+**Tables**
+
+* `call_sessions(id, tenant_id, appointment_id, retell_call_id, to_number, status, last_event_at, analysis_json)`
+
+  * Indexes: `(tenant_id, retell_call_id)`; `(tenant_id, appointment_id)`
+* `retell_events(id, tenant_id, call_id, event, payload_digest, raw_json, created_at)`
+
+  * UNIQUE: `(call_id, event, payload_digest)`
+* `appointments(id, tenant_id, status, starts_at, notes_json)`
+
+---
+
+# 6) Test plan (quick & brutal)
+
+1. **Happy path (confirmed)**
+
+   * Make a call with metadata.
+   * Send a recorded webhook fixture with `appointment_confirmed: true`.
+   * Expect: 204 on webhook, `retell_events` inserted, `call_sessions.status → confirmed`, `appointments.status → confirmed`.
+2. **Out-of-order events**
+
+   * Deliver `call_ended` after `call_analyzed`.
+   * Expect: session remains at the higher precedence (confirmed).
+3. **Duplicate webhook**
+
+   * Deliver same `call_analyzed` twice.
+   * Expect: second insert rejected by UNIQUE; no double-updates.
+4. **Bad signature**
+
+   * Tamper body; expect 401 and no rows inserted.
+5. **Missing metadata**
+
+   * Remove `appointment_id`; expect session update only; appointment untouched; log `no_appointment_id`.
+
+---
+
+# 7) Exact places bugs usually hide (so you can avoid them)
+
+* Verifying HMAC over `JSON.stringify(req.body)` when your route uses `express.raw` (or vice-versa).
+* Using the wrong key (must be your **webhook-signing key** for Retell).
+* Not including metadata on create → can’t resolve appointment.
+* Overwriting a **confirmed** state with a weaker later event → fix with precedence ranking.
+* Returning 200+ **too slowly** → Retell retries; you process twice (fix: ACK 204 fast and process async).
+
+---
+
+## TL;DR
+
+* **Include metadata** when you make the call.
+* **Verify** webhooks on **raw bytes**, ACK **204 fast**, and **process in a worker**.
+* **Idempotent** event storage + **precedence-safe** session/appointment updates.
+* **Reconcile** any “stuck” sessions via Retell’s API.
+
+Set this up once and your “confirmed” updates will land every single time, even if events arrive late, out of order, or duplicated.
