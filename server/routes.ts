@@ -137,27 +137,51 @@ function verifyRetellWebhookSignature(rawBody: Buffer, signature: string, webhoo
     const timestamp = timestampMatch[1];
     const hashToVerify = hashMatch[1];
     
-    // Compute HMAC-SHA256 using the raw Buffer bytes
-    const expectedSignature = crypto
-      .createHmac('sha256', webhookSecret)
-      .update(rawBody)  // Use raw Buffer, not string
-      .digest('hex');
-    
     // Validate signature is hex format
     if (!/^[0-9a-fA-F]+$/.test(hashToVerify)) {
       console.warn('❌ Hash is not valid hex format');
       return false;
     }
     
-    // Use constant-time comparison to prevent timing attacks
-    const result = crypto.timingSafeEqual(
-      Buffer.from(hashToVerify, 'hex'),
-      Buffer.from(expectedSignature, 'hex')
-    );
+    // Try different signing approaches (Retell might use timestamp.payload like Stripe)
+    // Approach 1: Just raw payload
+    const sig1 = crypto.createHmac('sha256', webhookSecret).update(rawBody).digest('hex');
     
-    if (result) {
-      console.log(`✅ Webhook signature verified (timestamp: ${timestamp})`);
-    } else {
+    // Approach 2: timestamp.payload (common pattern like Stripe)
+    const timestampBuffer = Buffer.from(timestamp);
+    const dotBuffer = Buffer.from('.');
+    const signedPayload = Buffer.concat([timestampBuffer, dotBuffer, rawBody]);
+    const sig2 = crypto.createHmac('sha256', webhookSecret).update(signedPayload).digest('hex');
+    
+    console.log(`🔍 Testing signatures for timestamp ${timestamp}:`);
+    console.log(`  - Payload only: ${sig1.substring(0, 16)}...`);
+    console.log(`  - timestamp.payload: ${sig2.substring(0, 16)}...`);
+    console.log(`  - Expected: ${hashToVerify.substring(0, 16)}...`);
+    
+    // Use constant-time comparison to prevent timing attacks
+    let result = false;
+    
+    // Check payload-only approach
+    if (sig1.length === hashToVerify.length) {
+      try {
+        if (crypto.timingSafeEqual(Buffer.from(hashToVerify, 'hex'), Buffer.from(sig1, 'hex'))) {
+          console.log(`✅ Webhook signature verified (payload only)`);
+          result = true;
+        }
+      } catch (e) {}
+    }
+    
+    // Check timestamp.payload approach (Stripe-style)
+    if (!result && sig2.length === hashToVerify.length) {
+      try {
+        if (crypto.timingSafeEqual(Buffer.from(hashToVerify, 'hex'), Buffer.from(sig2, 'hex'))) {
+          console.log(`✅ Webhook signature verified (timestamp.payload)`);
+          result = true;
+        }
+      } catch (e) {}
+    }
+    
+    if (!result) {
       console.warn(`❌ Signature mismatch for timestamp ${timestamp}`);
     }
     
