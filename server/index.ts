@@ -51,11 +51,14 @@ app.use('/api', (req, res, next) => {
 });
 
 // Capture raw body for webhook signature verification
+// CRITICAL: Store the raw Buffer (exact bytes) for signature verification
 app.use('/api/webhooks', express.raw({ type: 'application/json', limit: '10mb' }), (req, res, next) => {
   if (req.body) {
     try {
-      (req as any).rawBody = req.body.toString('utf8');
-      req.body = JSON.parse((req as any).rawBody);
+      // Store the raw Buffer for HMAC verification (exact bytes Retell signed)
+      (req as any).rawBody = req.body;
+      // Parse JSON for application use
+      req.body = JSON.parse(req.body.toString('utf8'));
     } catch (error) {
       console.error('Webhook JSON parse error:', error);
       return res.status(400).json({ message: 'Invalid JSON payload' });

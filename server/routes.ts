@@ -118,66 +118,34 @@ function verifyWebhookSignature(payload: string, signature: string, secret: stri
 
 /**
  * Verify Retell AI webhook signature using HMAC-SHA256
- * Per Retell docs: signature = HMAC-SHA256(request_body, api_key)
- * @param payload Raw webhook payload as string
- * @param signature Signature from x-retell-signature header (hex-encoded)
- * @param apiKey Tenant's Retell API key used as HMAC secret
+ * CRITICAL: Works with raw Buffer bytes for exact signature verification
+ * @param rawBody Raw webhook payload as Buffer (exact bytes Retell signed)
+ * @param signature Signature from x-retell-signature header (format: v=<timestamp>,d=<hex>)
+ * @param webhookSecret Tenant's Retell webhook secret (whsec_xxx) used as HMAC secret
  */
-function verifyRetellWebhookSignature(payload: string, signature: string, apiKey: string): boolean {
+function verifyRetellWebhookSignature(rawBody: Buffer, signature: string, webhookSecret: string): boolean {
   try {
-    console.log('🔍 Debug signature verification:');
-    console.log(`  - Raw signature: "${signature}"`);
-    
     // Extract timestamp and hash from Retell signature format: v=<timestamp>,d=<hash>
-    let hashToVerify = signature;
-    let timestamp = '';
+    const timestampMatch = signature.match(/v=(\d+)/);
+    const hashMatch = signature.match(/d=([0-9a-fA-F]+)/);
     
-    if (signature.includes('v=') && signature.includes('d=')) {
-      const timestampMatch = signature.match(/v=(\d+)/);
-      const hashMatch = signature.match(/d=([0-9a-fA-F]+)/);
-      
-      if (timestampMatch && hashMatch) {
-        timestamp = timestampMatch[1];
-        hashToVerify = hashMatch[1];
-        console.log(`  - Extracted timestamp: "${timestamp}"`);
-        console.log(`  - Extracted hash: "${hashToVerify}"`);
-      }
-    }
-    
-    console.log(`  - Hash to verify: "${hashToVerify}" (length: ${hashToVerify.length})`);
-    console.log(`  - API key length: ${apiKey.length}`);
-    console.log(`  - Payload length: ${payload.length} bytes`);
-    
-    // Try different signing approaches
-    // Approach 1: Just payload (what we've been doing)
-    const sig1 = crypto.createHmac('sha256', apiKey).update(payload, 'utf8').digest('hex');
-    console.log(`  - Sig (payload only): "${sig1}"`);
-    
-    // Approach 2: timestamp.payload (common pattern like Stripe)
-    if (timestamp) {
-      const sig2 = crypto.createHmac('sha256', apiKey).update(`${timestamp}.${payload}`, 'utf8').digest('hex');
-      console.log(`  - Sig (timestamp.payload): "${sig2}"`);
-      
-      // Approach 3: v=timestamp,d=payload format
-      const sig3 = crypto.createHmac('sha256', apiKey).update(`v=${timestamp},d=${payload}`, 'utf8').digest('hex');
-      console.log(`  - Sig (v=timestamp,d=payload): "${sig3}"`);
-    }
-    
-    console.log(`  - Retell signature: "${hashToVerify}"`);
-    
-    // Check all approaches
-    const expectedSignature = timestamp 
-      ? crypto.createHmac('sha256', apiKey).update(`${timestamp}.${payload}`, 'utf8').digest('hex')
-      : crypto.createHmac('sha256', apiKey).update(payload, 'utf8').digest('hex');
-    
-    // Validate signature is hex and same length
-    if (!/^[0-9a-fA-F]+$/.test(hashToVerify)) {
-      console.warn('❌ Hash is not valid hex format');
+    if (!timestampMatch || !hashMatch) {
+      console.warn('❌ Invalid signature format - expected v=<timestamp>,d=<hex>');
       return false;
     }
     
-    if (hashToVerify.length !== expectedSignature.length) {
-      console.warn(`❌ Hash length mismatch: received ${hashToVerify.length}, expected ${expectedSignature.length}`);
+    const timestamp = timestampMatch[1];
+    const hashToVerify = hashMatch[1];
+    
+    // Compute HMAC-SHA256 using the raw Buffer bytes
+    const expectedSignature = crypto
+      .createHmac('sha256', webhookSecret)
+      .update(rawBody)  // Use raw Buffer, not string
+      .digest('hex');
+    
+    // Validate signature is hex format
+    if (!/^[0-9a-fA-F]+$/.test(hashToVerify)) {
+      console.warn('❌ Hash is not valid hex format');
       return false;
     }
     
@@ -187,7 +155,12 @@ function verifyRetellWebhookSignature(payload: string, signature: string, apiKey
       Buffer.from(expectedSignature, 'hex')
     );
     
-    console.log(`  - Match result: ${result ? '✅ MATCH' : '❌ NO MATCH'}`);
+    if (result) {
+      console.log(`✅ Webhook signature verified (timestamp: ${timestamp})`);
+    } else {
+      console.warn(`❌ Signature mismatch for timestamp ${timestamp}`);
+    }
+    
     return result;
   } catch (error) {
     console.error('❌ Retell HMAC verification error:', error);
