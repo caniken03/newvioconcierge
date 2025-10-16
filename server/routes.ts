@@ -128,32 +128,47 @@ function verifyRetellWebhookSignature(payload: string, signature: string, apiKey
     console.log('🔍 Debug signature verification:');
     console.log(`  - Raw signature: "${signature}"`);
     
-    // Extract hash from Retell signature format: v=<timestamp>,d=<hash>
+    // Extract timestamp and hash from Retell signature format: v=<timestamp>,d=<hash>
     let hashToVerify = signature;
-    if (signature.includes('d=')) {
-      const match = signature.match(/d=([0-9a-fA-F]+)/);
-      if (match && match[1]) {
-        hashToVerify = match[1];
-        console.log(`  - Extracted hash from format v=timestamp,d=hash: "${hashToVerify}"`);
+    let timestamp = '';
+    
+    if (signature.includes('v=') && signature.includes('d=')) {
+      const timestampMatch = signature.match(/v=(\d+)/);
+      const hashMatch = signature.match(/d=([0-9a-fA-F]+)/);
+      
+      if (timestampMatch && hashMatch) {
+        timestamp = timestampMatch[1];
+        hashToVerify = hashMatch[1];
+        console.log(`  - Extracted timestamp: "${timestamp}"`);
+        console.log(`  - Extracted hash: "${hashToVerify}"`);
       }
     }
     
     console.log(`  - Hash to verify: "${hashToVerify}" (length: ${hashToVerify.length})`);
     console.log(`  - API key length: ${apiKey.length}`);
     console.log(`  - Payload length: ${payload.length} bytes`);
-    console.log(`  - Payload first 100 chars: "${payload.substring(0, 100)}"`);
-    console.log(`  - Payload last 100 chars: "${payload.substring(payload.length - 100)}"`);
-    console.log(`  - Payload type: ${typeof payload}`);
     
-    // Compute HMAC-SHA256 signature using API key as secret
-    const expectedSignature = crypto
-      .createHmac('sha256', apiKey)
-      .update(payload, 'utf8')
-      .digest('hex');
+    // Try different signing approaches
+    // Approach 1: Just payload (what we've been doing)
+    const sig1 = crypto.createHmac('sha256', apiKey).update(payload, 'utf8').digest('hex');
+    console.log(`  - Sig (payload only): "${sig1}"`);
     
-    console.log(`  - Expected signature: "${expectedSignature}" (length: ${expectedSignature.length})`);
+    // Approach 2: timestamp.payload (common pattern like Stripe)
+    if (timestamp) {
+      const sig2 = crypto.createHmac('sha256', apiKey).update(`${timestamp}.${payload}`, 'utf8').digest('hex');
+      console.log(`  - Sig (timestamp.payload): "${sig2}"`);
+      
+      // Approach 3: v=timestamp,d=payload format
+      const sig3 = crypto.createHmac('sha256', apiKey).update(`v=${timestamp},d=${payload}`, 'utf8').digest('hex');
+      console.log(`  - Sig (v=timestamp,d=payload): "${sig3}"`);
+    }
+    
     console.log(`  - Retell signature: "${hashToVerify}"`);
-    console.log(`  - Match: ${hashToVerify === expectedSignature ? 'YES' : 'NO'}`);
+    
+    // Check all approaches
+    const expectedSignature = timestamp 
+      ? crypto.createHmac('sha256', apiKey).update(`${timestamp}.${payload}`, 'utf8').digest('hex')
+      : crypto.createHmac('sha256', apiKey).update(payload, 'utf8').digest('hex');
     
     // Validate signature is hex and same length
     if (!/^[0-9a-fA-F]+$/.test(hashToVerify)) {
