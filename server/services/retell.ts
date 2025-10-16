@@ -248,99 +248,134 @@ export class RetellService {
   /**
    * Determine appointment action taken during call from sentiment and conversation analysis
    */
-  determineAppointmentAction(payload: RetellWebhookPayload): string {
-    // PRIORITY: Use custom function call data if available (most accurate)
-    const customData = payload.call_analysis?.custom_analysis_data;
-    if (customData) {
-      if (customData.appointment_confirmed) {
-        return 'confirmed';
-      }
-      if (customData.appointment_rescheduled) {
-        return 'rescheduled';
-      }
-      if (customData.appointment_cancelled) {
-        return 'cancelled';
-      }
-      if (customData.reached_voicemail || customData.wrong_person) {
-        return 'no_response';
-      }
-    }
+  // Expert Recommendation: Outcome Precedence Hierarchy
+  // Higher priority outcomes (earlier in array) override lower priority ones
+  private readonly OUTCOME_PRECEDENCE = [
+    'rescheduled',
+    'cancelled', 
+    'confirmed',
+    'voicemail',
+    'no_answer',
+    'busy',
+    'answered',
+    'failed',
+    'unknown'
+  ];
+
+  // Compare two outcomes and return the stronger one (higher precedence)
+  stronger(a: string, b: string): string {
+    const indexA = this.OUTCOME_PRECEDENCE.indexOf(a);
+    const indexB = this.OUTCOME_PRECEDENCE.indexOf(b);
     
-    // FALLBACK: Parse from outcome/topics (legacy support)
-    const outcome = payload.call_analysis?.call_outcome?.toLowerCase() || '';
-    const topics = payload.call_analysis?.conversation_analytics?.topics_discussed || [];
+    // If either outcome not in precedence list, prefer the known one
+    if (indexA === -1) return b;
+    if (indexB === -1) return a;
     
-    // Check conversation topics for appointment actions
-    const topicsString = topics.join(' ').toLowerCase();
-    
-    if (outcome.includes('confirm') || topicsString.includes('confirm')) {
-      return 'confirmed';
-    }
-    if (outcome.includes('reschedule') || topicsString.includes('reschedule') || topicsString.includes('different time')) {
-      return 'rescheduled';
-    }
-    if (outcome.includes('cancel') || topicsString.includes('cancel')) {
-      return 'cancelled';
-    }
-    if (outcome.includes('voicemail') || payload.call_status === 'no_answer') {
-      return 'no_response';
-    }
-    
-    // Fallback to call outcome logic
-    return this.determineCallOutcome(payload);
+    // Return outcome with lower index (higher precedence)
+    return indexA < indexB ? a : b;
   }
 
+  // Expert Recommendation: Derive outcome from payload using strict precedence
   determineCallOutcome(payload: RetellWebhookPayload): string {
-    // PRIORITY: Use custom function call data if available (most accurate)
-    const customData = payload.call_analysis?.custom_analysis_data;
-    if (customData) {
-      if (customData.appointment_confirmed) {
-        return 'confirmed';
+    // Null-safe data extraction (Expert Recommendation)
+    const ca = payload.call_analysis ?? {};
+    const cd = ca.custom_analysis_data ?? {};
+    const topics: string[] = ca.conversation_analytics?.topics_discussed ?? [];
+    const status = (payload.call_status || '').toLowerCase();
+    const outcomeStr = (ca.call_outcome || '').toLowerCase();
+    
+    let derivedOutcome: string = 'unknown';
+    let reason = 'default';
+    
+    // Priority 1: custom_analysis_data booleans (most accurate)
+    if (cd.appointment_rescheduled) {
+      derivedOutcome = 'rescheduled';
+      reason = 'custom_analysis_data.appointment_rescheduled=true';
+    } else if (cd.appointment_cancelled) {
+      derivedOutcome = 'cancelled';
+      reason = 'custom_analysis_data.appointment_cancelled=true';
+    } else if (cd.appointment_confirmed) {
+      derivedOutcome = 'confirmed';
+      reason = 'custom_analysis_data.appointment_confirmed=true';
+    } else if (cd.reached_voicemail) {
+      derivedOutcome = 'voicemail';
+      reason = 'custom_analysis_data.reached_voicemail=true';
+    } else if (cd.customer_engaged === false) {
+      derivedOutcome = 'no_answer';
+      reason = 'custom_analysis_data.customer_engaged=false';
+    } else if (cd.call_completed_successfully && cd.customer_engaged) {
+      derivedOutcome = 'answered';
+      reason = 'custom_analysis_data.call_completed+engaged=true';
+    }
+    // Priority 2: conversation topics (semantic signals)
+    else {
+      const topicsLower = topics.join(' ').toLowerCase();
+      if (topicsLower.includes('resched')) {
+        derivedOutcome = 'rescheduled';
+        reason = 'topics.includes(resched)';
+      } else if (topicsLower.includes('cancel')) {
+        derivedOutcome = 'cancelled';
+        reason = 'topics.includes(cancel)';
+      } else if (topicsLower.includes('confirm')) {
+        derivedOutcome = 'confirmed';
+        reason = 'topics.includes(confirm)';
+      } else if (topicsLower.includes('voicemail')) {
+        derivedOutcome = 'voicemail';
+        reason = 'topics.includes(voicemail)';
       }
-      if (customData.reached_voicemail) {
-        return 'voicemail';
+      // Priority 3: legacy free text (call_outcome field)
+      else if (outcomeStr.includes('resched')) {
+        derivedOutcome = 'rescheduled';
+        reason = 'call_outcome.includes(resched)';
+      } else if (outcomeStr.includes('cancel')) {
+        derivedOutcome = 'cancelled';
+        reason = 'call_outcome.includes(cancel)';
+      } else if (outcomeStr.includes('confirm')) {
+        derivedOutcome = 'confirmed';
+        reason = 'call_outcome.includes(confirm)';
+      } else if (outcomeStr.includes('voicemail')) {
+        derivedOutcome = 'voicemail';
+        reason = 'call_outcome.includes(voicemail)';
+      } else if (outcomeStr.includes('no answer') || outcomeStr.includes('no_answer')) {
+        derivedOutcome = 'no_answer';
+        reason = 'call_outcome.includes(no_answer)';
+      } else if (outcomeStr.includes('busy')) {
+        derivedOutcome = 'busy';
+        reason = 'call_outcome.includes(busy)';
       }
-      if (customData.customer_engaged && customData.call_completed_successfully) {
-        return 'answered';
-      }
-      if (customData.wrong_person) {
-        return 'wrong_number';
+      // Priority 4: call_status fallback (NEVER equate completed with confirmed)
+      else if (status === 'no-answer' || status === 'no_answer') {
+        derivedOutcome = 'no_answer';
+        reason = 'call_status=no_answer';
+      } else if (status === 'busy') {
+        derivedOutcome = 'busy';
+        reason = 'call_status=busy';
+      } else if (status === 'failed') {
+        derivedOutcome = 'failed';
+        reason = 'call_status=failed';
+      } else if (status === 'completed') {
+        // Expert Fix: completed ≠ confirmed, just means call connected
+        derivedOutcome = 'answered';
+        reason = 'call_status=completed (person answered, outcome unknown)';
       }
     }
     
-    // FALLBACK: Map Retell call status to our internal call outcomes (legacy support)
-    if (payload.call_analysis?.call_outcome) {
-      const outcome = payload.call_analysis.call_outcome.toLowerCase();
-      if (outcome.includes('confirm') || outcome.includes('accept')) {
-        return 'confirmed';
-      }
-      if (outcome.includes('voicemail')) {
-        return 'voicemail';
-      }
-      if (outcome.includes('busy')) {
-        return 'busy';
-      }
-      if (outcome.includes('no answer') || outcome.includes('no_answer')) {
-        return 'no_answer';
-      }
-    }
+    // Observability logging (Expert Recommendation)
+    console.log(`📊 Outcome derived: ${derivedOutcome} (reason: ${reason})`);
+    
+    return derivedOutcome;
+  }
 
-    // Fallback based on call status (NEVER assume completed = confirmed)
-    switch (payload.call_status) {
-      case 'completed':
-        // Call finished, but we don't know the outcome without analysis
-        // Return 'answered' to indicate person picked up, not necessarily confirmed
-        return 'answered';
-      case 'busy':
-        return 'busy';
-      case 'no-answer':
-      case 'no_answer':
-        return 'no_answer';
-      case 'failed':
-        return 'failed';
-      default:
-        return 'failed';
-    }
+  // Derive appointment action from outcome
+  determineAppointmentAction(payload: RetellWebhookPayload): string {
+    const outcome = this.determineCallOutcome(payload);
+    
+    // Map outcome to appointment action
+    if (outcome === 'confirmed') return 'confirmed';
+    if (outcome === 'cancelled') return 'cancelled';
+    if (outcome === 'rescheduled') return 'rescheduled';
+    
+    return 'none'; // No appointment action for other outcomes
   }
 }
 
