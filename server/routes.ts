@@ -131,6 +131,17 @@ function verifyRetellWebhookSignature(payload: string, signature: string, apiKey
       .update(payload, 'utf8')
       .digest('hex');
     
+    // Validate signature is hex and same length
+    if (!/^[0-9a-fA-F]+$/.test(signature)) {
+      console.warn('Signature is not valid hex format');
+      return false;
+    }
+    
+    if (signature.length !== expectedSignature.length) {
+      console.warn(`Signature length mismatch: received ${signature.length}, expected ${expectedSignature.length}`);
+      return false;
+    }
+    
     // Use constant-time comparison to prevent timing attacks
     return crypto.timingSafeEqual(
       Buffer.from(signature, 'hex'),
