@@ -140,7 +140,10 @@ function verifyRetellWebhookSignature(payload: string, signature: string, apiKey
     
     console.log(`  - Hash to verify: "${hashToVerify}" (length: ${hashToVerify.length})`);
     console.log(`  - API key length: ${apiKey.length}`);
-    console.log(`  - Payload length: ${payload.length}`);
+    console.log(`  - Payload length: ${payload.length} bytes`);
+    console.log(`  - Payload first 100 chars: "${payload.substring(0, 100)}"`);
+    console.log(`  - Payload last 100 chars: "${payload.substring(payload.length - 100)}"`);
+    console.log(`  - Payload type: ${typeof payload}`);
     
     // Compute HMAC-SHA256 signature using API key as secret
     const expectedSignature = crypto
@@ -149,6 +152,8 @@ function verifyRetellWebhookSignature(payload: string, signature: string, apiKey
       .digest('hex');
     
     console.log(`  - Expected signature: "${expectedSignature}" (length: ${expectedSignature.length})`);
+    console.log(`  - Retell signature: "${hashToVerify}"`);
+    console.log(`  - Match: ${hashToVerify === expectedSignature ? 'YES' : 'NO'}`);
     
     // Validate signature is hex and same length
     if (!/^[0-9a-fA-F]+$/.test(hashToVerify)) {
