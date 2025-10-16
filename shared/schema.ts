@@ -215,6 +215,14 @@ export const callSessions = pgTable("call_sessions", {
   retellCallId: varchar("retell_call_id", { length: 255 }),
   retellMetadata: text("retell_metadata"), // JSON metadata from Retell AI
   errorMessage: text("error_message"),
+  
+  // Order-Independent Webhook Processing (Expert Recommendation)
+  latestEvent: varchar("latest_event", { length: 50 }), // call_started, call_ended, call_analyzed
+  analysisJson: text("analysis_json"), // Full analysis data for recomputation
+  outcome: varchar("outcome", { length: 50 }), // Derived outcome using precedence hierarchy
+  lastTransitionSource: text("last_transition_source"), // JSON: {call_id, event_type, timestamp}
+  analyzedAt: timestamp("analyzed_at"), // When call_analyzed event arrived
+  
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   // Critical performance indexes
@@ -233,6 +241,30 @@ export const callSessions = pgTable("call_sessions", {
   // Database-level foreign key constraints for data integrity
   tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "call_sessions_tenant_fk" }).onDelete("cascade"),
   contactFk: foreignKey({ columns: [table.contactId], foreignColumns: [contacts.id], name: "call_sessions_contact_fk" }).onDelete("cascade"),
+}));
+
+// Retell webhook events for idempotent processing (Expert Recommendation)
+export const retellEvents = pgTable("retell_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(),
+  callId: varchar("call_id", { length: 255 }).notNull(), // Retell's call_id
+  eventType: varchar("event_type", { length: 50 }).notNull(), // call_started, call_ended, call_analyzed, call_failed
+  rawJson: text("raw_json").notNull(), // Complete webhook payload
+  digest: varchar("digest", { length: 64 }).notNull(), // SHA-256 of raw payload for deduplication
+  receivedAt: timestamp("received_at").defaultNow().notNull(),
+  processedAt: timestamp("processed_at"),
+  processingStatus: varchar("processing_status", { length: 50 }).default("pending"), // pending, processed, failed
+  errorMessage: text("error_message"),
+}, (table) => ({
+  // Idempotency: prevent duplicate webhook processing
+  uniqueEventDigest: uniqueIndex("retell_events_unique_digest").on(table.callId, table.eventType, table.digest),
+  // Performance indexes
+  tenantIdIdx: index("retell_events_tenant_id_idx").on(table.tenantId),
+  callIdIdx: index("retell_events_call_id_idx").on(table.callId),
+  receivedAtIdx: index("retell_events_received_at_idx").on(table.receivedAt),
+  processingStatusIdx: index("retell_events_processing_status_idx").on(table.processingStatus),
+  // Database-level foreign key constraint
+  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "retell_events_tenant_fk" }).onDelete("cascade"),
 }));
 
 // Follow-up tasks for automation
@@ -973,6 +1005,13 @@ export const callSessionsRelations = relations(callSessions, ({ one, many }) => 
   logs: many(callLogs),
 }));
 
+export const retellEventsRelations = relations(retellEvents, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [retellEvents.tenantId],
+    references: [tenants.id],
+  }),
+}));
+
 export const followUpTasksRelations = relations(followUpTasks, ({ one }) => ({
   tenant: one(tenants, {
     fields: [followUpTasks.tenantId],
@@ -1130,6 +1169,11 @@ export const insertCallSessionSchema = createInsertSchema(callSessions).omit({
   createdAt: true,
 });
 
+export const insertRetellEventSchema = createInsertSchema(retellEvents).omit({
+  id: true,
+  receivedAt: true,
+});
+
 export const insertFollowUpTaskSchema = createInsertSchema(followUpTasks).omit({
   id: true,
   createdAt: true,
@@ -1284,6 +1328,9 @@ export type InsertContact = z.infer<typeof insertContactSchema>;
 
 export type CallSession = typeof callSessions.$inferSelect;
 export type InsertCallSession = z.infer<typeof insertCallSessionSchema>;
+
+export type RetellEvent = typeof retellEvents.$inferSelect;
+export type InsertRetellEvent = z.infer<typeof insertRetellEventSchema>;
 
 export type FollowUpTask = typeof followUpTasks.$inferSelect;
 export type InsertFollowUpTask = z.infer<typeof insertFollowUpTaskSchema>;
