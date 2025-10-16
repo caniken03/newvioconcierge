@@ -4968,13 +4968,15 @@ Log Level: INFO
       }
       
       try {
-        // Per Retell docs: Use API key (with webhook badge) to verify signature
-        // Sign the raw body string (exact bytes Retell sent)
-        if (!verifyRetellWebhookSignature(rawBodyString, signatureStr, tenantConfig.retellApiKey)) {
-          console.warn(`❌ Invalid Retell webhook signature for tenant ${tenantId}`);
+        // Use official Retell SDK verify method
+        const { Retell } = require('retell-sdk');
+        const isValid = Retell.verify(rawBodyString, tenantConfig.retellApiKey, signatureStr);
+        
+        if (!isValid) {
+          console.warn(`❌ Invalid Retell webhook signature for tenant ${tenantId} (SDK verification failed)`);
           return res.status(401).json({ message: 'Invalid webhook signature' });
         }
-        console.log(`✅ Webhook signature verified for tenant ${tenantId}`);
+        console.log(`✅ Webhook signature verified for tenant ${tenantId} using Retell SDK`);
       } catch (error) {
         console.error(`Webhook signature verification error for tenant ${tenantId}:`, error);
         return res.status(401).json({ message: 'Signature verification failed' });
