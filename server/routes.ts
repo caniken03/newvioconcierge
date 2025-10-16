@@ -126,8 +126,19 @@ function verifyWebhookSignature(payload: string, signature: string, secret: stri
 function verifyRetellWebhookSignature(payload: string, signature: string, apiKey: string): boolean {
   try {
     console.log('🔍 Debug signature verification:');
-    console.log(`  - Signature received: "${signature}" (length: ${signature.length})`);
-    console.log(`  - Signature first 20 chars: "${signature.substring(0, 20)}"`);
+    console.log(`  - Raw signature: "${signature}"`);
+    
+    // Extract hash from Retell signature format: v=<timestamp>,d=<hash>
+    let hashToVerify = signature;
+    if (signature.includes('d=')) {
+      const match = signature.match(/d=([0-9a-fA-F]+)/);
+      if (match && match[1]) {
+        hashToVerify = match[1];
+        console.log(`  - Extracted hash from format v=timestamp,d=hash: "${hashToVerify}"`);
+      }
+    }
+    
+    console.log(`  - Hash to verify: "${hashToVerify}" (length: ${hashToVerify.length})`);
     console.log(`  - API key length: ${apiKey.length}`);
     console.log(`  - Payload length: ${payload.length}`);
     
@@ -138,22 +149,21 @@ function verifyRetellWebhookSignature(payload: string, signature: string, apiKey
       .digest('hex');
     
     console.log(`  - Expected signature: "${expectedSignature}" (length: ${expectedSignature.length})`);
-    console.log(`  - Expected first 20 chars: "${expectedSignature.substring(0, 20)}"`);
     
     // Validate signature is hex and same length
-    if (!/^[0-9a-fA-F]+$/.test(signature)) {
-      console.warn('❌ Signature is not valid hex format');
+    if (!/^[0-9a-fA-F]+$/.test(hashToVerify)) {
+      console.warn('❌ Hash is not valid hex format');
       return false;
     }
     
-    if (signature.length !== expectedSignature.length) {
-      console.warn(`❌ Signature length mismatch: received ${signature.length}, expected ${expectedSignature.length}`);
+    if (hashToVerify.length !== expectedSignature.length) {
+      console.warn(`❌ Hash length mismatch: received ${hashToVerify.length}, expected ${expectedSignature.length}`);
       return false;
     }
     
     // Use constant-time comparison to prevent timing attacks
     const result = crypto.timingSafeEqual(
-      Buffer.from(signature, 'hex'),
+      Buffer.from(hashToVerify, 'hex'),
       Buffer.from(expectedSignature, 'hex')
     );
     
