@@ -5002,9 +5002,10 @@ Log Level: INFO
       }
       
       try {
-        // Per Retell docs: signature = HMAC-SHA256(request_body, api_key)
-        // Use the API key (NOT webhook secret) as HMAC secret
-        if (!verifyRetellWebhookSignature(rawBody, signatureStr, tenantConfig.retellApiKey)) {
+        // CRITICAL FIX: Use retellWebhookSecret for webhook signature verification
+        // The webhook secret (whsec_xxx) is specifically for verifying webhooks
+        // The API key (key_xxx) is only for making API calls to Retell
+        if (!verifyRetellWebhookSignature(rawBody, signatureStr, tenantConfig.retellWebhookSecret)) {
           console.warn(`❌ Invalid Retell webhook signature for tenant ${tenantId}`);
           console.warn(`Signature format: ${signature ? 'present' : 'missing'}`);
           console.warn(`Raw payload length: ${rawBody.length} bytes`);
