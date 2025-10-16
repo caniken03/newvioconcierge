@@ -157,39 +157,13 @@ function verifyRetellWebhookSignature(payload: string, signature: string, apiKey
       signature2 = hmac2.digest('hex');
     }
     
-    // DEBUG: Log signature details
-    console.log('🔐 Webhook signature debug:');
-    console.log(`  Raw signature: ${signature}`);
-    console.log(`  Timestamp: ${timestamp || 'none'}`);
-    console.log(`  Received hash: ${receivedHash.substring(0, 20)}...`);
-    console.log(`  Expected (payload only): ${signature1.substring(0, 20)}...`);
-    if (timestamp) {
-      console.log(`  Expected (timestamp.payload): ${signature2.substring(0, 20)}...`);
-    }
-    console.log(`  API key (first 10 chars): ${apiKey.substring(0, 10)}...`);
-    console.log(`  Payload length: ${payload.length} bytes`);
-    
-    // Check if either method matches
+    // SECURITY: No logging of secrets, API keys, or derived values
+    // Check if either method matches (payload only OR timestamp.payload)
     const match1 = receivedHash === signature1;
     const match2 = timestamp && receivedHash === signature2;
     
-    console.log(`  Method 1 (payload only) match: ${match1}`);
-    if (timestamp) {
-      console.log(`  Method 2 (timestamp.payload) match: ${match2}`);
-    }
-    
-    if (match1) {
-      console.log(`  Verification result: ✅ VALID (payload only)`);
-      return true;
-    }
-    
-    if (match2) {
-      console.log(`  Verification result: ✅ VALID (timestamp.payload)`);
-      return true;
-    }
-    
-    console.log(`  Verification result: ❌ INVALID`);
-    return false;
+    // Return true if either signature verification method succeeds
+    return match1 || match2;
   } catch (error) {
     // Log error for debugging but don't expose details
     console.error('Retell HMAC verification error:', error);
@@ -4981,16 +4955,16 @@ Log Level: INFO
         return res.status(500).json({ message: 'Webhook processing error' });
       }
       
-      console.log(`🔐 Signature verification using webhook secret: ${tenantConfig.retellWebhookSecret.substring(0, 15)}...`);
+      // SECURITY: Never log webhook secrets or any derived substrings
+      console.log(`🔐 Starting signature verification for tenant ${tenantId}`);
       console.log(`📏 Raw body length: ${rawBody.length} bytes`);
       
       try {
         // Expert Recommendation: Verify against EXACT raw body using webhook secret
         if (!verifyRetellWebhookSignature(rawBody, signature as string, tenantConfig.retellWebhookSecret)) {
           console.warn(`❌ Invalid Retell webhook signature for tenant ${tenantId}`);
-          console.warn(`Signature received: ${signature}`);
+          console.warn(`Signature format: ${signature ? 'present' : 'missing'}`);
           console.warn(`Raw payload length: ${rawBody.length} bytes`);
-          console.warn(`Secret used (first 15 chars): ${tenantConfig.retellWebhookSecret.substring(0, 15)}...`);
           return res.status(401).json({ message: 'Invalid webhook signature' });
         }
         console.log(`✅ Webhook signature verified for tenant ${tenantId}`);
@@ -5030,7 +5004,7 @@ Log Level: INFO
           rawPayload: JSON.stringify(payload),
           receivedAt: new Date()
         });
-        console.log(`✅ Event stored: ${payload.event} for call ${payload.call_id} (digest: ${digest.slice(0, 12)}...)`);
+        console.log(`✅ Event stored: ${payload.event} for call ${payload.call_id}`);
         
         // Step 3: Derive outcome using precedence hierarchy
         const callOutcome = retellService.determineCallOutcome(payload);
