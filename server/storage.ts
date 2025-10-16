@@ -3795,11 +3795,17 @@ export class DatabaseStorage implements IStorage {
     
     if (existing.length > 0) {
       const record = existing[0];
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const now = new Date();
+      const lastCallDate = record.lastCallTime ? new Date(record.lastCallTime) : null;
       
-      // Check if last call was more than 24 hours ago
-      if (record.lastCallTime && record.lastCallTime < twentyFourHoursAgo) {
-        // Reset the count
+      // Check if last call was on a DIFFERENT CALENDAR DAY (not 24-hour window)
+      const isDifferentDay = !lastCallDate || 
+        lastCallDate.getUTCFullYear() !== now.getUTCFullYear() ||
+        lastCallDate.getUTCMonth() !== now.getUTCMonth() ||
+        lastCallDate.getUTCDate() !== now.getUTCDate();
+      
+      if (isDifferentDay) {
+        // Reset the count for new day
         const updated = await tx
           .update(contactCallHistory)
           .set({
@@ -3813,7 +3819,7 @@ export class DatabaseStorage implements IStorage {
         history = updated[0];
         callCount24h = 1;
       } else {
-        // Increment existing count
+        // Increment existing count (same day)
         callCount24h = (record.callCount24h || 0) + 1;
         const updated = await tx
           .update(contactCallHistory)
