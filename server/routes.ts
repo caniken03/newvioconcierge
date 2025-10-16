@@ -117,55 +117,26 @@ function verifyWebhookSignature(payload: string, signature: string, secret: stri
 }
 
 /**
- * Verify Retell AI webhook signature using proper HMAC verification
+ * Verify Retell AI webhook signature using HMAC-SHA256
+ * Per Retell docs: signature = HMAC-SHA256(request_body, api_key)
  * @param payload Raw webhook payload as string
- * @param signature Signature from x-retell-signature header
+ * @param signature Signature from x-retell-signature header (hex-encoded)
  * @param apiKey Tenant's Retell API key used as HMAC secret
  */
 function verifyRetellWebhookSignature(payload: string, signature: string, apiKey: string): boolean {
   try {
-    // Retell uses format: v=timestamp,d=hash
-    // Extract timestamp and hash
-    let timestamp = '';
-    let receivedHash = signature;
+    // Compute HMAC-SHA256 signature using API key as secret
+    const expectedSignature = crypto
+      .createHmac('sha256', apiKey)
+      .update(payload, 'utf8')
+      .digest('hex');
     
-    if (signature.includes('v=') && signature.includes('d=')) {
-      const parts = signature.split(',');
-      const vPart = parts.find(p => p.startsWith('v='));
-      const dPart = parts.find(p => p.startsWith('d='));
-      
-      if (vPart && dPart) {
-        timestamp = vPart.substring(2); // Remove "v=" prefix
-        receivedHash = dPart.substring(2); // Remove "d=" prefix
-      }
-    } else {
-      // Fallback: just use signature as-is
-      receivedHash = signature.replace(/^sha256=/, '');
-    }
-    
-    // Try BOTH verification methods:
-    // Method 1: Sign just the payload (original approach)
-    const hmac1 = crypto.createHmac('sha256', apiKey);
-    hmac1.update(payload, 'utf8');
-    const signature1 = hmac1.digest('hex');
-    
-    // Method 2: Sign timestamp.payload (Stripe-style)
-    let signature2 = '';
-    if (timestamp) {
-      const hmac2 = crypto.createHmac('sha256', apiKey);
-      hmac2.update(`${timestamp}.${payload}`, 'utf8');
-      signature2 = hmac2.digest('hex');
-    }
-    
-    // SECURITY: No logging of secrets, API keys, or derived values
-    // Check if either method matches (payload only OR timestamp.payload)
-    const match1 = receivedHash === signature1;
-    const match2 = timestamp && receivedHash === signature2;
-    
-    // Return true if either signature verification method succeeds
-    return match1 || match2;
+    // Use constant-time comparison to prevent timing attacks
+    return crypto.timingSafeEqual(
+      Buffer.from(signature, 'hex'),
+      Buffer.from(expectedSignature, 'hex')
+    );
   } catch (error) {
-    // Log error for debugging but don't expose details
     console.error('Retell HMAC verification error:', error);
     return false;
   }
@@ -4959,9 +4930,28 @@ Log Level: INFO
       console.log(`🔐 Starting signature verification for tenant ${tenantId}`);
       console.log(`📏 Raw body length: ${rawBody.length} bytes`);
       
+      if (!signature) {
+        console.warn(`❌ Missing signature header for tenant ${tenantId}`);
+        return res.status(401).json({ message: 'Missing signature' });
+      }
+      
+      // Handle case where signature could be array (multiple headers with same name)
+      const signatureStr: string = Array.isArray(signature) ? signature[0] || '' : signature || '';
+      
+      if (!signatureStr) {
+        console.warn(`❌ Empty signature value for tenant ${tenantId}`);
+        return res.status(401).json({ message: 'Invalid signature' });
+      }
+      
+      if (!tenantConfig.retellApiKey) {
+        console.error(`❌ Missing Retell API key for tenant ${tenantId}`);
+        return res.status(500).json({ message: 'Webhook configuration error' });
+      }
+      
       try {
-        // Expert Recommendation: Verify against EXACT raw body using webhook secret
-        if (!verifyRetellWebhookSignature(rawBody, signature as string, tenantConfig.retellWebhookSecret)) {
+        // Per Retell docs: signature = HMAC-SHA256(request_body, api_key)
+        // Use the API key (NOT webhook secret) as HMAC secret
+        if (!verifyRetellWebhookSignature(rawBody, signatureStr, tenantConfig.retellApiKey)) {
           console.warn(`❌ Invalid Retell webhook signature for tenant ${tenantId}`);
           console.warn(`Signature format: ${signature ? 'present' : 'missing'}`);
           console.warn(`Raw payload length: ${rawBody.length} bytes`);
@@ -5001,8 +4991,7 @@ Log Level: INFO
           callId: payload.call_id,
           eventType: payload.event,
           digest,
-          rawPayload: JSON.stringify(payload),
-          receivedAt: new Date()
+          rawJson: JSON.stringify(payload)
         });
         console.log(`✅ Event stored: ${payload.event} for call ${payload.call_id}`);
         
