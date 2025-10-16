@@ -30,6 +30,7 @@ import { inAppNotificationService } from "./services/in-app-notification-service
 import { normalizePhoneNumber } from "./utils/phone-normalization";
 import { emailService } from "./services/email";
 import { dailySummaryService } from "./services/daily-summary-service";
+import { Retell } from "retell-sdk";
 
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET;
 
@@ -4969,7 +4970,6 @@ Log Level: INFO
       
       try {
         // Use official Retell SDK verify method
-        const { Retell } = require('retell-sdk');
         const isValid = Retell.verify(rawBodyString, tenantConfig.retellApiKey, signatureStr);
         
         if (!isValid) {
