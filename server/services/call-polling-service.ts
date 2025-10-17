@@ -67,19 +67,21 @@ class CallPollingService {
       }
 
       // Map RetellCallResponse to webhook-like payload for outcome determination
+      // Note: Retell's getCall() API returns "call_status", not "status"
+      const callStatus = (callDetails as any).call_status || callDetails.status || 'in_progress';
       const webhookLikePayload: any = {
         call_id: callDetails.call_id,
         event: 'call_polled',
-        call_status: callDetails.status || 'in_progress',
+        call_status: callStatus,
         direction: 'outbound', // Poll is always for outbound calls
         call_analysis: (callDetails as any).call_analysis || (callDetails as any).analysis // Try both field names
       };
 
       // Determine outcome from call details
       const outcome = this.retellService.determineCallOutcome(webhookLikePayload);
-      const isTerminal = this.isTerminalState(callDetails.status, outcome);
+      const isTerminal = this.isTerminalState(callStatus, outcome);
 
-      console.log(`📊 Poll result for ${retellCallId}: status=${callDetails.status}, outcome=${outcome}, terminal=${isTerminal}`);
+      console.log(`📊 Poll result for ${retellCallId}: status=${callStatus}, outcome=${outcome}, terminal=${isTerminal}`);
 
       // Update call session with polled data using precedence logic
       await this.updateSessionFromPoll(id, callDetails, outcome, pollAttempts, isTerminal);
@@ -139,9 +141,10 @@ class CallPollingService {
       updateData.nextPollAt = null;
       // Determine status based on outcome - if we have a successful outcome, mark as completed
       // Only mark as failed if outcome is explicitly "failed" or if there's an error
+      const callStatus = (callDetails as any).call_status || (callDetails as any).status;
       if (outcome && outcome !== 'failed' && outcome !== 'unknown') {
         updateData.status = 'completed';
-      } else if (callDetails.status === 'completed') {
+      } else if (callStatus === 'completed' || callStatus === 'ended') {
         updateData.status = 'completed';
       } else {
         updateData.status = 'failed';
