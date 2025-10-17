@@ -210,7 +210,9 @@ export class CallSchedulerService {
 
       // Update call session with AI service call ID and HYBRID polling setup
       const now = new Date();
-      const firstPollAt = new Date(now.getTime() + 15000); // Poll after 15 seconds
+      // CRITICAL FIX: Poll after 90 seconds - gives call time to complete (most finish within 60-90s)
+      // Polling too early (15s) causes "ongoing" calls to be marked as failed
+      const firstPollAt = new Date(now.getTime() + 90000);
       await storage.updateCallSession(callSession.id, {
         retellCallId: callResponse.call_id, // Both services use same field for compatibility
         status: 'active',
