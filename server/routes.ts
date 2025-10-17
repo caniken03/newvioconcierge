@@ -4945,13 +4945,6 @@ Log Level: INFO
         return res.status(500).json({ message: 'Webhook configuration error' });
       }
       
-      // Get the raw body string captured by middleware
-      const rawBodyString = (req as any).rawBodyString;
-      if (!rawBodyString) {
-        console.error(`❌ Raw body string not captured for tenant ${tenantId}`);
-        return res.status(500).json({ message: 'Webhook processing error' });
-      }
-      
       // SECURITY: Never log API keys or any derived substrings
       console.log(`🔐 Starting signature verification for tenant ${tenantId}`);
       
@@ -4969,21 +4962,16 @@ Log Level: INFO
       }
       
       try {
-        // Debug: log signature format and body characteristics (no secrets)
-        console.log(`📊 Signature format: ${signatureStr.substring(0, 20)}...`);
-        console.log(`📊 Raw body length: ${rawBodyString.length} bytes`);
-        console.log(`📊 Raw body first 100 chars: ${rawBodyString.substring(0, 100)}`);
-        console.log(`📊 Webhook secret present: ${!!tenantConfig.retellWebhookSecret}, length: ${tenantConfig.retellWebhookSecret?.length || 0}`);
-        
-        // Use Retell webhook secret for signature verification (not API key)
-        const isValid = Retell.verify(rawBodyString, tenantConfig.retellWebhookSecret || tenantConfig.retellApiKey, signatureStr);
+        // Per Retell documentation: verify using JSON.stringify(req.body), not raw bytes
+        // https://docs.retellai.com/features/secure-webhook
+        const bodyString = JSON.stringify(req.body);
+        const isValid = Retell.verify(bodyString, tenantConfig.retellApiKey, signatureStr);
         
         if (!isValid) {
-          console.warn(`❌ Invalid Retell webhook signature for tenant ${tenantId} (SDK verification failed)`);
-          console.log(`❌ Debug: signature pattern: ${signatureStr.includes('v=') ? 'v=timestamp,d=digest' : 'unknown'}`);
+          console.warn(`❌ Invalid Retell webhook signature for tenant ${tenantId}`);
           return res.status(401).json({ message: 'Invalid webhook signature' });
         }
-        console.log(`✅ Webhook signature verified for tenant ${tenantId} using Retell SDK`);
+        console.log(`✅ Webhook signature verified for tenant ${tenantId}`);
       } catch (error) {
         console.error(`Webhook signature verification error for tenant ${tenantId}:`, error);
         return res.status(401).json({ message: 'Signature verification failed' });
