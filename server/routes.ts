@@ -4973,10 +4973,10 @@ Log Level: INFO
         console.log(`📊 Signature format: ${signatureStr.substring(0, 20)}...`);
         console.log(`📊 Raw body length: ${rawBodyString.length} bytes`);
         console.log(`📊 Raw body first 100 chars: ${rawBodyString.substring(0, 100)}`);
-        console.log(`📊 API key present: ${!!tenantConfig.retellApiKey}, length: ${tenantConfig.retellApiKey?.length || 0}`);
+        console.log(`📊 Webhook secret present: ${!!tenantConfig.retellWebhookSecret}, length: ${tenantConfig.retellWebhookSecret?.length || 0}`);
         
-        // Use official Retell SDK verify method
-        const isValid = Retell.verify(rawBodyString, tenantConfig.retellApiKey, signatureStr);
+        // Use Retell webhook secret for signature verification (not API key)
+        const isValid = Retell.verify(rawBodyString, tenantConfig.retellWebhookSecret || tenantConfig.retellApiKey, signatureStr);
         
         if (!isValid) {
           console.warn(`❌ Invalid Retell webhook signature for tenant ${tenantId} (SDK verification failed)`);
