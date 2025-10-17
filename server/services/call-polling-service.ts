@@ -137,7 +137,15 @@ class CallPollingService {
     if (isTerminal) {
       // Terminal state - stop polling
       updateData.nextPollAt = null;
-      updateData.status = callDetails.status === 'completed' ? 'completed' : 'failed';
+      // Determine status based on outcome - if we have a successful outcome, mark as completed
+      // Only mark as failed if outcome is explicitly "failed" or if there's an error
+      if (outcome && outcome !== 'failed' && outcome !== 'unknown') {
+        updateData.status = 'completed';
+      } else if (callDetails.status === 'completed') {
+        updateData.status = 'completed';
+      } else {
+        updateData.status = 'failed';
+      }
       updateData.endTime = now;
       
       // Set source if not webhook-verified
@@ -165,6 +173,23 @@ class CallPollingService {
 
     // Update polling metadata
     await this.storage.updateCallSession(sessionId, updateData);
+
+    // Update contact appointment status if outcome affects appointment
+    if (isTerminal && outcome) {
+      const session = await this.storage.getCallSessionById(sessionId);
+      if (session?.contactId) {
+        if (outcome === 'confirmed') {
+          await this.storage.updateContact(session.contactId, { appointmentStatus: 'confirmed' });
+          console.log(`✅ Updated appointment status to 'confirmed' for contact ${session.contactId}`);
+        } else if (outcome === 'cancelled') {
+          await this.storage.updateContact(session.contactId, { appointmentStatus: 'cancelled' });
+          console.log(`❌ Updated appointment status to 'cancelled' for contact ${session.contactId}`);
+        } else if (outcome === 'rescheduled') {
+          await this.storage.updateContact(session.contactId, { appointmentStatus: 'rescheduled' });
+          console.log(`📅 Updated appointment status to 'rescheduled' for contact ${session.contactId}`);
+        }
+      }
+    }
   }
 
   /**

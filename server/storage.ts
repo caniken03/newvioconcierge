@@ -83,7 +83,7 @@ import {
 } from "@shared/schema";
 import { BusinessHoursEvaluator } from "./utils/business-hours-evaluator";
 import { db } from "./db";
-import { eq, and, or, desc, asc, count, sql, gt, lt, like, inArray } from "drizzle-orm";
+import { eq, and, or, desc, asc, count, sql, gt, lt, lte, like, inArray, isNull, isNotNull } from "drizzle-orm";
 import { getTableColumns } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { responsivenessTracker, type ResponsivenessPattern, type ContactTimingData } from "./services/responsiveness-tracker";
