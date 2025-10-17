@@ -1,0 +1,167 @@
+Short answer: polling can work, but I wouldn’t throw away webhooks yet. The most robust setup is **hybrid**—use webhooks as the primary signal and add **targeted polling** as a fallback and as a “finaliser” to de-risk signature/delivery issues. That way you keep low latency and low cost, but you’re no longer blocked if signature verification is touchy.
+
+Here’s how I’d structure it.
+
+# 1) Outcome model (clear terminal states)
+
+Define the only terminal outcomes you’ll ever persist:
+
+* `confirmed`
+* `voicemail`
+* `no_answer`
+* `busy`
+* `failed` (technical failure, not a customer outcome)
+* `cancelled` (if you support it)
+
+Transient states:
+
+* `queued` → `ringing` → `in_progress` → `completed`
+
+# 2) Database fields you need
+
+`call_sessions`
+
+* `id`
+* `retell_call_id` (unique)
+* `status` (enum above)
+* `outcome` (nullable until terminal)
+* `outcome_confidence` (float, optional)
+* `last_checked_at` (timestamp)
+* `source_of_truth` (`webhook` | `poll` | `manual`)
+* `webhook_verified` (bool)
+* `poll_attempts` (int), `next_poll_at` (timestamp)
+* `payload_webhook_last`, `payload_poll_last` (jsonb) for diffing / audit
+
+# 3) Event precedence rules (idempotency)
+
+Only allow **forward motion**:
+
+* Map all incoming status/outcome to a **rank** (e.g., `queued:1, ringing:2, in_progress:3, completed:4`, outcomes rank higher than statuses).
+* Ignore any update whose rank < current rank.
+* If ranks tie, prefer `webhook` over `poll` (since webhooks are push and often earlier), unless the webhook is unverifiable—in that case set `webhook_verified=false` and allow poll to overwrite.
+
+# 4) Hybrid flow (webhook-first, poll-safe)
+
+**A. On call creation**
+
+* Save `retell_call_id`, set `status='queued'`, `source_of_truth='poll'` (temporary), schedule first **poll** at `now()+15s`.
+
+**B. Webhook endpoint (if signature works)**
+
+* Verify HMAC over the **raw request bytes** (not `JSON.stringify(obj)`).
+* If verified: set `webhook_verified=true`, upsert status/outcome via precedence rules.
+* If event says call is **terminal** (`completed` + outcome present), set `next_poll_at=null` to stop polling.
+
+**C. Polling worker (runs every ~10s)**
+For each session where:
+
+* `outcome is null` AND `now() >= next_poll_at`:
+
+  * `GET /calls/{retell_call_id}`
+  * Upsert status/outcome via precedence rules
+  * If still not terminal:
+
+    * Exponential backoff: e.g., 15s → 30s → 60s → 120s → 5m → cap at 10m
+  * If terminal:
+
+    * Persist outcome, `source_of_truth='poll'` (unless webhook already verified), stop polling.
+
+**D. Dead-letter safety**
+
+* If **no webhook** arrives and polling shows `completed` but **no outcome** for > 30 minutes, mark as `failed` with reason `no_outcome_reported`.
+
+# 5) Practical notes on polling cadence
+
+* Polling **every 4 seconds** for all calls will scale badly and risks rate limits. Better:
+
+  * Poll **aggressively while a call is active** (e.g., 4–6s) for the **first 90 seconds**.
+  * After the call is `completed` but pre-outcome, switch to 15s → 30s → 60s backoff.
+  * Batch your polls: if the API supports bulk fetch (e.g., “list calls updated since T”), use that to reduce requests.
+
+# 6) Signature fix (keep this even in hybrid)
+
+If you keep webhooks (recommended), the verification bug you mentioned is classic:
+
+* Compute HMAC over the **exact raw body bytes** Retell signed.
+* Do **not** re-serialise with `JSON.stringify`.
+* Example (Node/TypeScript/Express):
+
+```ts
+// Express raw body capture
+app.use('/webhooks/retell', express.raw({ type: '*/*' }));
+
+app.post('/webhooks/retell', (req, res) => {
+  const signature = req.header('x-retell-signature') || '';
+  const raw = req.body as Buffer;             // exact bytes
+  const expected = crypto
+    .createHmac('sha256', process.env.RETELL_WEBHOOK_SECRET!)
+    .update(raw)
+    .digest('hex');
+
+  if (!timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+    // store payload for troubleshooting, but mark unverified
+    recordEvent({ verified:false, raw_base64: raw.toString('base64') });
+    return res.status(401).end();
+  }
+
+  const event = JSON.parse(raw.toString('utf8')); // parse *after* verifying
+  handleRetellEvent(event, { source: 'webhook', verified: true });
+  res.status(200).end();
+});
+```
+
+# 7) Polling worker sketch (Node/TS)
+
+```ts
+async function pollPendingCalls(now = new Date()) {
+  const due = await db.getCallSessionsToPoll(now); // where outcome is null && next_poll_at <= now
+
+  // Optional: limit concurrency to respect rate limits
+  await pMap(due, async (cs) => {
+    try {
+      const call = await retell.getCall(cs.retell_call_id); // includes status/outcome
+      const update = normalize(call); // map to your enums and fields
+
+      const advanced = await db.applyPrecedenceUpdate(cs.id, update); // rank compare, idempotent
+      if (!advanced.terminal) {
+        const next = backoff(cs.poll_attempts);
+        await db.updatePollSchedule(cs.id, { poll_attempts: cs.poll_attempts+1, next_poll_at: addSeconds(now, next) });
+      } else {
+        await db.stopPolling(cs.id);
+      }
+    } catch (e) {
+      // transient? bump next_poll_at modestly, track error count
+      await db.deferPolling(cs.id, addSeconds(now, 60));
+      log.warn('poll_error', { callId: cs.retell_call_id, err: String(e) });
+    }
+  }, { concurrency: 5 });
+}
+
+function backoff(n: number) {
+  // 0→15s, 1→30s, 2→60s, 3→120s, cap 600s
+  return Math.min(15 * Math.pow(2, n), 600);
+}
+```
+
+# 8) Why hybrid beats polling-only
+
+* **Latency & cost**: Webhooks deliver results immediately and for free; polling-only can be wasteful.
+* **Reliability**: Polling covers webhook delivery/signature issues, network blips, or ordering problems.
+* **Auditability**: Keeping both payloads (`payload_webhook_last`, `payload_poll_last`) gives you a defensible audit trail.
+
+# 9) Operational safeguards
+
+* **Rate limits**: Add concurrency caps and backoff; prefer “updated-since” list endpoints if available.
+* **Replay/idempotency**: Your precedence ranks and unique `retell_call_id` upsert keep things safe.
+* **Monitoring**:
+
+  * Alert if `webhook_verified=false` for > X% of calls in last hour.
+  * Track median “call completed → outcome persisted” time.
+  * Dead-letter queue for sessions stuck > 30 minutes without terminal outcome.
+
+# 10) Decision
+
+* If signatures are still failing after the raw-bytes fix, go live **now** with the hybrid plan (it unblocks you today).
+* If you truly must choose one: **Polling-only** will work, but expect more API traffic and slightly slower finalisation.
+
+If you want, I can tailor the exact SQL schema changes and a drop-in worker for your current stack (Replit “flows” + Node server) so you can ship this in one pass.
