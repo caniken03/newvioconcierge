@@ -208,10 +208,16 @@ export class CallSchedulerService {
         );
       }
 
-      // Update call session with AI service call ID
+      // Update call session with AI service call ID and HYBRID polling setup
+      const now = new Date();
+      const firstPollAt = new Date(now.getTime() + 15000); // Poll after 15 seconds
       await storage.updateCallSession(callSession.id, {
         retellCallId: callResponse.call_id, // Both services use same field for compatibility
-        status: 'active'
+        status: 'active',
+        // HYBRID: Set up polling fallback for scheduled calls
+        nextPollAt: firstPollAt,
+        pollAttempts: 0,
+        sourceOfTruth: 'poll', // Default to poll until webhook confirms
       });
 
       // CRITICAL: Confirm reservation to finalize quota usage
