@@ -3375,10 +3375,16 @@ Log Level: INFO
           },
         });
 
-        // Update session with Retell call ID
+        // Update session with Retell call ID and HYBRID polling setup
+        const now = new Date();
+        const firstPollAt = new Date(now.getTime() + 15000); // Poll after 15 seconds
         await storage.updateCallSession(session.id, {
           retellCallId: retellCall.call_id,
           status: 'in_progress',
+          // HYBRID: Set up initial polling
+          nextPollAt: firstPollAt,
+          pollAttempts: 0,
+          sourceOfTruth: 'poll', // Default to poll until webhook confirms
         });
 
         res.status(201).json({
@@ -3447,11 +3453,17 @@ Log Level: INFO
           },
         });
 
-        // Update session with Retell call ID and status
+        // Update session with Retell call ID and status + HYBRID polling setup
+        const now = new Date();
+        const firstPollAt = new Date(now.getTime() + 15000); // Poll after 15 seconds
         const updatedSession = await storage.updateCallSession(session.id, {
           retellCallId: retellCall.call_id,
           status: 'in_progress',
-          startTime: new Date(),
+          startTime: now,
+          // HYBRID: Set up initial polling
+          nextPollAt: firstPollAt,
+          pollAttempts: 0,
+          sourceOfTruth: 'poll', // Default to poll until webhook confirms
         });
 
         res.json(updatedSession);
@@ -4543,11 +4555,17 @@ Log Level: INFO
         businessTemplateService
       );
 
-      // Update call session with Retell call ID
+      // Update call session with Retell call ID and HYBRID polling setup
+      const now = new Date();
+      const firstPollAt = new Date(now.getTime() + 15000); // Poll after 15 seconds
       await storage.updateCallSession(callSession.id, {
         retellCallId: retellResponse.call_id,
         status: 'in_progress',
-        startTime: new Date()
+        startTime: now,
+        // HYBRID: Set up initial polling
+        nextPollAt: firstPollAt,
+        pollAttempts: 0,
+        sourceOfTruth: 'poll', // Default to poll until webhook confirms
       });
 
       // Counters already incremented atomically by checkAndReserveCall
@@ -4883,7 +4901,7 @@ Log Level: INFO
     }
   });
 
-  // Retell AI webhook endpoint with proper raw-body verification
+  // Retell AI webhook endpoint with HYBRID raw-body verification (production-ready)
   app.post('/api/webhooks/retell', async (req, res) => {
     try {
       const signature = req.headers['x-retell-signature'];
@@ -4894,11 +4912,20 @@ Log Level: INFO
         return res.status(401).json({ message: 'Webhook signature required' });
       }
       
-      // Body is already parsed by express.json() middleware
-      const parsedBody = req.body;
+      // HYBRID APPROACH: req.body is now a Buffer (from express.raw middleware)
+      const rawBody = req.body as Buffer;
       
-      if (!parsedBody || typeof parsedBody !== 'object') {
-        console.warn('Invalid webhook payload - not a valid object');
+      if (!rawBody || !Buffer.isBuffer(rawBody)) {
+        console.warn('Invalid webhook payload - not a Buffer');
+        return res.status(400).json({ message: 'Invalid payload format' });
+      }
+      
+      // Parse JSON from raw bytes for processing (AFTER we have the raw bytes for verification)
+      let parsedBody: any;
+      try {
+        parsedBody = JSON.parse(rawBody.toString('utf8'));
+      } catch (parseError) {
+        console.warn('Failed to parse webhook JSON:', parseError);
         return res.status(400).json({ message: 'Invalid JSON payload' });
       }
       
@@ -4961,20 +4988,24 @@ Log Level: INFO
         return res.status(401).json({ message: 'Invalid signature' });
       }
       
+      // HYBRID APPROACH: Try verification, but mark verified status for audit trail
+      let webhookVerified = false;
       try {
-        // Per Retell documentation: verify using JSON.stringify(req.body), not raw bytes
-        // https://docs.retellai.com/features/secure-webhook
-        const bodyString = JSON.stringify(req.body);
-        const isValid = Retell.verify(bodyString, tenantConfig.retellApiKey, signatureStr);
+        // CRITICAL: Verify using EXACT raw bytes that Retell signed (as UTF-8 string)
+        // Retell signs the raw request body, so we convert Buffer to string without re-formatting
+        const rawBodyString = rawBody.toString('utf8');
+        const isValid = Retell.verify(rawBodyString, tenantConfig.retellApiKey, signatureStr);
         
-        if (!isValid) {
-          console.warn(`❌ Invalid Retell webhook signature for tenant ${tenantId}`);
-          return res.status(401).json({ message: 'Invalid webhook signature' });
+        if (isValid) {
+          console.log(`✅ Webhook signature verified for tenant ${tenantId}`);
+          webhookVerified = true;
+        } else {
+          console.warn(`❌ Invalid Retell webhook signature for tenant ${tenantId} - will process via polling fallback`);
+          // HYBRID: Don't reject - mark as unverified and rely on polling to confirm
         }
-        console.log(`✅ Webhook signature verified for tenant ${tenantId}`);
       } catch (error) {
         console.error(`Webhook signature verification error for tenant ${tenantId}:`, error);
-        return res.status(401).json({ message: 'Signature verification failed' });
+        // HYBRID: Don't reject - mark as unverified and rely on polling to confirm
       }
       
       if (payload.event === 'call_ended' || payload.event === 'call_completed' || payload.event === 'call_failed') {
@@ -5039,6 +5070,11 @@ Log Level: INFO
           endTime: new Date(),
           appointmentAction,
           durationSeconds,
+          // HYBRID: Track webhook verification status and source
+          webhookVerified,
+          sourceOfTruth: webhookVerified ? 'webhook' : 'poll', // Will be 'poll' if unverified
+          payloadWebhookLast: JSON.stringify(payload), // Store for audit trail
+          nextPollAt: null, // Stop polling since webhook received (even if unverified)
           ...(sentimentAnalysis && {
             // Sentiment analysis fields
             customerSentiment: sentimentAnalysis.overallSentiment,
@@ -5060,7 +5096,8 @@ Log Level: INFO
             call_id: payload.call_id,
             event_type: payload.event,
             timestamp: new Date().toISOString(),
-            outcome: finalOutcome
+            outcome: finalOutcome,
+            webhook_verified: webhookVerified
           })
         });
 

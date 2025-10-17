@@ -50,7 +50,11 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// Body parsing for all routes (including webhooks)
+// CRITICAL: Raw body capture for webhook signature verification MUST come BEFORE json parsing
+// Retell signs the exact raw bytes - we need to capture them before any parsing
+app.use('/api/webhooks/retell', express.raw({ type: '*/*' }));
+
+// Body parsing for all OTHER routes (webhooks already handled above)
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: false }));
 
@@ -147,6 +151,13 @@ app.use((req, res, next) => {
     // Start the call scheduler service
     import("./services/call-scheduler").then(({ callScheduler }) => {
       callScheduler.start();
+    });
+    
+    // Start the HYBRID call polling service
+    import("./services/call-polling-service").then(async ({ getPollingService }) => {
+      const { storage } = await import("./storage");
+      const pollingService = getPollingService(storage);
+      pollingService.start();
     });
     
     // Initialize and start observability service

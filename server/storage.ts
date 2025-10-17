@@ -258,6 +258,10 @@ export interface IStorage {
   updateCallSession(id: string, updates: Partial<InsertCallSession>): Promise<CallSession>;
   getCallSessionsByContact(contactId: string): Promise<CallSession[]>;
   getCallSessionByRetellId(retellCallId: string): Promise<CallSession | undefined>;
+  // HYBRID: Polling service methods
+  getCallSessionById(id: string): Promise<CallSession | undefined>; // Alias for getCallSession
+  getSessionsDueForPolling(now: Date): Promise<CallSession[]>;
+  getStuckCallSessions(thresholdTime: Date): Promise<CallSession[]>;
 
   // Expert Recommendation: Retell webhook event operations for idempotent processing
   upsertRetellEvent(event: InsertRetellEvent): Promise<RetellEvent>;
@@ -2322,6 +2326,46 @@ export class DatabaseStorage implements IStorage {
       .from(callSessions)
       .where(eq(callSessions.retellCallId, retellCallId));
     return session;
+  }
+
+  // HYBRID: Polling service methods
+  async getCallSessionById(id: string): Promise<CallSession | undefined> {
+    return this.getCallSession(id); // Alias for getCallSession
+  }
+
+  async getSessionsDueForPolling(now: Date): Promise<CallSession[]> {
+    // Get sessions where:
+    // 1. nextPollAt is not null AND <= now (due for polling)
+    // 2. outcome is null (not yet terminal)
+    return await db
+      .select()
+      .from(callSessions)
+      .where(
+        and(
+          isNotNull(callSessions.nextPollAt),
+          lte(callSessions.nextPollAt, now),
+          isNull(callSessions.outcome)
+        )
+      )
+      .orderBy(asc(callSessions.nextPollAt)); // Poll oldest first
+  }
+
+  async getStuckCallSessions(thresholdTime: Date): Promise<CallSession[]> {
+    // Get sessions that started before threshold time with no outcome
+    return await db
+      .select()
+      .from(callSessions)
+      .where(
+        and(
+          isNotNull(callSessions.startTime),
+          lte(callSessions.startTime, thresholdTime),
+          isNull(callSessions.outcome),
+          or(
+            eq(callSessions.status, 'in_progress'),
+            eq(callSessions.status, 'queued')
+          )
+        )
+      );
   }
 
   // Expert Recommendation: Retell webhook event operations for idempotent processing
