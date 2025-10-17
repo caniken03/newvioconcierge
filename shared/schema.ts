@@ -223,6 +223,14 @@ export const callSessions = pgTable("call_sessions", {
   lastTransitionSource: text("last_transition_source"), // JSON: {call_id, event_type, timestamp}
   analyzedAt: timestamp("analyzed_at"), // When call_analyzed event arrived
   
+  // Hybrid Webhook + Polling System (Production-Ready)
+  webhookVerified: boolean("webhook_verified").default(false), // True if webhook signature verified
+  pollAttempts: integer("poll_attempts").default(0), // Count of polling attempts
+  nextPollAt: timestamp("next_poll_at"), // When to next poll Retell API (null = stop polling)
+  sourceOfTruth: varchar("source_of_truth", { length: 20 }).default("poll"), // webhook, poll, manual
+  payloadWebhookLast: text("payload_webhook_last"), // Last webhook payload (JSON) for audit
+  payloadPollLast: text("payload_poll_last"), // Last poll response (JSON) for audit
+  
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   // Critical performance indexes
