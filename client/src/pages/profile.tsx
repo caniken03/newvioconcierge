@@ -895,7 +895,7 @@ export default function Profile() {
       title: "Calendar & Integration Settings",
       description: "Manage Cal.com, Calendly, and other integrations",
       icon: Settings,
-      accessLevel: "client_admin_only"
+      accessLevel: "super_admin_only"
     },
     {
       id: "team",

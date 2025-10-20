@@ -61,6 +61,7 @@ class DailySummaryServiceImpl implements DailySummaryService {
           dailySummaryTime: userNotificationPreferences.dailySummaryTime,
           dailySummaryDays: userNotificationPreferences.dailySummaryDays,
           timezone: userNotificationPreferences.timezone,
+          lastDailySummarySentAt: userNotificationPreferences.lastDailySummarySentAt,
         })
         .from(users)
         .innerJoin(
@@ -75,8 +76,11 @@ class DailySummaryServiceImpl implements DailySummaryService {
         );
 
       if (recipients.length === 0) {
+        console.log('📧 No recipients with daily summaries enabled');
         return; // No summaries to send
       }
+
+      console.log(`📧 Found ${recipients.length} recipient(s) with daily summaries enabled`);
 
       let sentCount = 0;
 
@@ -91,13 +95,36 @@ class DailySummaryServiceImpl implements DailySummaryService {
           // Parse delivery days and check if today is included
           const deliveryDays = JSON.parse(recipient.dailySummaryDays || '[]');
           
+          // Check if today is a delivery day
+          if (!deliveryDays.includes(userLocalDay)) {
+            continue; // Skip if today is not a delivery day
+          }
+          
           // Normalize delivery time (PostgreSQL time type may include seconds)
           const deliveryTime = recipient.dailySummaryTime?.substring(0, 5) || '09:00';
+          const [targetHour, targetMinute] = deliveryTime.split(':').map(Number);
+          const targetTimeToday = new Date(userLocalTime);
+          targetTimeToday.setHours(targetHour, targetMinute, 0, 0);
           
-          // Check if current time matches user's configured delivery time (in their timezone)
-          if (userLocalTimeStr === deliveryTime && deliveryDays.includes(userLocalDay)) {
-            console.log(`📧 Sending to ${recipient.userName} (${userLocalTimeStr} in ${userTimezone})`);
+          // Check if we've already sent a summary today
+          const lastSentAt = recipient.lastDailySummarySentAt;
+          const lastSentLocalTime = lastSentAt ? toZonedTime(lastSentAt, userTimezone) : null;
+          const alreadySentToday = lastSentLocalTime && 
+            format(lastSentLocalTime, 'yyyy-MM-dd') === format(userLocalTime, 'yyyy-MM-dd');
+          
+          console.log(`📧 ${recipient.userName}: Local time=${userLocalTimeStr}, Target=${deliveryTime}, Day=${userLocalDay}, Already sent today=${alreadySentToday}`);
+          
+          // Send if: current time >= target time AND we haven't sent today yet
+          if (userLocalTime >= targetTimeToday && !alreadySentToday) {
+            console.log(`📧 ✅ Sending to ${recipient.userName} (${userLocalTimeStr} in ${userTimezone})`);
             await this.sendDailySummary(recipient);
+            
+            // Update the last sent timestamp
+            await db
+              .update(userNotificationPreferences)
+              .set({ lastDailySummarySentAt: now })
+              .where(eq(userNotificationPreferences.userId, recipient.userId));
+            
             sentCount++;
           }
         } catch (error) {
@@ -130,7 +157,7 @@ class DailySummaryServiceImpl implements DailySummaryService {
         appointmentType: contacts.appointmentType,
         appointmentStatus: contacts.appointmentStatus,
         callStatus: callSessions.status,
-        callOutcome: callSessions.callOutcome,
+        callOutcome: callSessions.outcome,
         createdAt: callSessions.createdAt,
       })
       .from(callSessions)
