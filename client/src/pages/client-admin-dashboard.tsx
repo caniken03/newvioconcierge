@@ -2,10 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import ContactModal from "@/components/modals/contact-modal";
 import CallNowModal from "@/components/call-now-modal";
 import { useAuth } from "@/hooks/use-auth";
@@ -18,19 +15,8 @@ import {
   CheckCircle, 
   AlertTriangle,
   Users, 
-  TrendingUp,
-  TrendingDown,
-  Activity,
   PhoneCall,
-  UserPlus,
-  FileText,
-  Bell,
-  MessageSquare,
-  Target,
-  Zap,
-  ExternalLink,
-  ArrowLeft,
-  Eye
+  ExternalLink
 } from "lucide-react";
 
 // Helper function to format call outcomes for display
@@ -185,8 +171,8 @@ export default function ClientAdminDashboard() {
 
   return (
     <div className="p-6 space-y-6" data-testid="client-admin-dashboard">
-      {/* Primary KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Primary KPI Cards - Actionable Metrics Only */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card 
           className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-blue-200" 
           onClick={() => navigateToAppointments('today')}
@@ -235,62 +221,6 @@ export default function ClientAdminDashboard() {
               <div className="flex items-center">
                 <Clock className="w-4 h-4 text-orange-500 mr-1" />
                 <span className="text-xs text-orange-500 font-medium">{Math.min(overdueCalls, contactStats.pending)} overdue</span>
-              </div>
-              <ExternalLink className="w-4 h-4 text-muted-foreground" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-green-200"
-          onClick={navigateToAnalytics}
-          data-testid="card-success-rate"
-        >
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Call Success Rate</p>
-                <p className="text-3xl font-bold text-foreground" data-testid="metric-success-rate">
-                  {Math.round(callSuccessRate)}%
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-green-100 text-green-600 rounded-lg flex items-center justify-center">
-                <TrendingUp className="w-6 h-6" />
-              </div>
-            </div>
-            <div className="flex items-center justify-between mt-4">
-              <div className="flex items-center">
-                <TrendingUp className="w-4 h-4 text-green-500 mr-1" />
-                <span className="text-xs text-green-500 font-medium">+{((callSuccessRate - 80) / 80 * 100).toFixed(1)}%</span>
-                <span className="text-xs text-muted-foreground ml-1">vs baseline</span>
-              </div>
-              <ExternalLink className="w-4 h-4 text-muted-foreground" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-red-200"
-          onClick={navigateToAnalytics}
-          data-testid="card-no-show-rate"
-        >
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">No-Show Rate</p>
-                <p className="text-3xl font-bold text-foreground" data-testid="metric-no-show-rate">
-                  {Math.round(noShowRate)}%
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-red-100 text-red-600 rounded-lg flex items-center justify-center">
-                <TrendingDown className="w-6 h-6" />
-              </div>
-            </div>
-            <div className="flex items-center justify-between mt-4">
-              <div className="flex items-center">
-                <TrendingDown className="w-4 h-4 text-green-500 mr-1" />
-                <span className="text-xs text-green-500 font-medium">-{((15 - noShowRate) / 15 * 100).toFixed(1)}%</span>
-                <span className="text-xs text-muted-foreground ml-1">vs baseline</span>
               </div>
               <ExternalLink className="w-4 h-4 text-muted-foreground" />
             </div>
@@ -469,123 +399,6 @@ export default function ClientAdminDashboard() {
         </Card>
       </div>
 
-      {/* Recent Activity & Performance Insights */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Activity Feed */}
-        <Card 
-          className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-green-200" 
-          onClick={() => navigateToCalls('recent')}
-          data-testid="card-recent-activity"
-        >
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Activity className="w-5 h-5 text-green-500" />
-                Recent Activity
-              </div>
-              <ExternalLink className="w-4 h-4 text-muted-foreground" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {recentActivity.map((activity: any, index: number) => (
-                <div key={index} className="flex items-center space-x-3 p-3 bg-muted/30 rounded-lg">
-                  <div className="w-8 h-8 bg-background rounded-full flex items-center justify-center border">
-                    {activity.type === 'call' && <PhoneCall className="w-4 h-4" />}
-                    {activity.type === 'new_contact' && <UserPlus className="w-4 h-4" />}
-                    {activity.type === 'appointment' && <Calendar className="w-4 h-4" />}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{activity.contact}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Call result: {formatCallOutcome(activity.outcome)}
-                    </p>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{activity.time}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Performance Insights */}
-        <Card 
-          className="cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border hover:border-purple-200" 
-          onClick={navigateToAnalytics}
-          data-testid="card-performance-insights"
-        >
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Target className="w-5 h-5 text-purple-500" />
-                Performance Insights
-              </div>
-              <ExternalLink className="w-4 h-4 text-muted-foreground" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {/* Weekly Trends */}
-              <div className="space-y-3">
-                <h4 className="text-sm font-medium text-muted-foreground">Weekly Trends</h4>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Call Success Rate</span>
-                    <div className="flex items-center gap-2">
-                      <Progress value={callSuccessRate} className="w-20 h-2" />
-                      <span className="text-sm font-medium">{Math.round(callSuccessRate)}%</span>
-                      <TrendingUp className="w-4 h-4 text-green-500" />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Appointment Confirmations</span>
-                    <div className="flex items-center gap-2">
-                      <Progress value={100 - noShowRate} className="w-20 h-2" />
-                      <span className="text-sm font-medium">{Math.round(100 - noShowRate)}%</span>
-                      <TrendingUp className="w-4 h-4 text-green-500" />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Response Rate</span>
-                    <div className="flex items-center gap-2">
-                      <Progress value={callAnalytics?.todaysSummary?.callsCompletedToday / Math.max(callAnalytics?.todaysSummary?.callsAttemptedToday, 1) * 100 || 0} className="w-20 h-2" />
-                      <span className="text-sm font-medium">{Math.round(callAnalytics?.todaysSummary?.callsCompletedToday / Math.max(callAnalytics?.todaysSummary?.callsAttemptedToday, 1) * 100 || 0)}%</span>
-                      <TrendingUp className="w-4 h-4 text-green-500" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Peak Performance Times */}
-              <div className="space-y-3">
-                <h4 className="text-sm font-medium text-muted-foreground">Best Call Times</h4>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="p-3 bg-green-50 dark:bg-green-950/20 rounded-lg text-center">
-                    <p className="text-sm font-medium text-green-700 dark:text-green-400">10:00 AM</p>
-                    <p className="text-xs text-green-600 dark:text-green-500">{Math.round(callSuccessRate + 10)}% success</p>
-                  </div>
-                  <div className="p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg text-center">
-                    <p className="text-sm font-medium text-blue-700 dark:text-blue-400">2:00 PM</p>
-                    <p className="text-xs text-blue-600 dark:text-blue-500">{Math.round(callSuccessRate + 3)}% success</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Contact Engagement */}
-              <div className="space-y-3">
-                <h4 className="text-sm font-medium text-muted-foreground">Contact Engagement</h4>
-                <div className="p-3 bg-muted/30 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm">Most Responsive</span>
-                    <Badge variant="outline">{Math.round(callSuccessRate)}%</Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{contactAnalytics?.statusDistribution?.[0]?.status || 'confirmed'} appointments show highest engagement</p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
       
       {/* Contact Modal */}
       <ContactModal
