@@ -4721,14 +4721,15 @@ Log Level: INFO
           try {
             const retellCall = await retellService.getCall(tenantConfig.retellApiKey, callSession.retellCallId);
             
-            // Update our session if status changed
-            if (retellCall.status !== callSession.status) {
+            // Update our session if status changed (use call_status field from Retell API)
+            const retellStatus = retellCall.call_status;
+            if (retellStatus && retellStatus !== callSession.status) {
               const updates: any = {
-                status: retellCall.status === 'completed' ? 'completed' : retellCall.status
+                status: retellStatus === 'completed' || retellStatus === 'ended' ? 'completed' : retellStatus
               };
               
-              // Only add endTime if status is completed
-              if (retellCall.status === 'completed') {
+              // Only add endTime if status is completed/ended
+              if (retellStatus === 'completed' || retellStatus === 'ended') {
                 updates.endTime = new Date();
               }
               
