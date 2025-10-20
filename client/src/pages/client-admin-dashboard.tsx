@@ -133,9 +133,24 @@ export default function ClientAdminDashboard() {
   );
 
   // Calculate derived metrics from real data
-  const failedCalls = callAnalytics?.recentCallActivity?.filter((call: any) => 
-    call.outcome === 'failed' || call.outcome === 'no_answer' || call.outcome === 'busy'
-  ) || [];
+  // Only show contacts whose MOST RECENT call failed (not all historical failures)
+  const failedCalls = (() => {
+    if (!callAnalytics?.recentCallActivity) return [];
+    
+    // Group calls by contact name to find most recent call per contact
+    const callsByContact = new Map<string, any>();
+    callAnalytics.recentCallActivity.forEach((call: any) => {
+      const existing = callsByContact.get(call.contactName);
+      if (!existing || new Date(call.timestamp) > new Date(existing.timestamp)) {
+        callsByContact.set(call.contactName, call);
+      }
+    });
+    
+    // Filter to only include contacts whose most recent call failed
+    return Array.from(callsByContact.values()).filter((call: any) => 
+      call.outcome === 'failed' || call.outcome === 'no_answer' || call.outcome === 'busy'
+    );
+  })();
 
   // Get unconfirmed appointments in next 24 hours
   const tomorrow = new Date();
