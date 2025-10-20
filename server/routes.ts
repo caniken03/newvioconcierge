@@ -5142,29 +5142,40 @@ Log Level: INFO
         let shouldUpdateAppointment = false;
         
         if (terminalActions.includes(appointmentAction)) {
-          // Get last transition to check if this is a newer event
-          const lastTransition = await storage.getAppointmentLastTransition(session.contactId!);
+          // CRITICAL FIX: Check if appointment_status actually needs updating
+          const expectedStatus = appointmentAction === 'confirmed' ? 'confirmed' : 
+                                 appointmentAction === 'rescheduled' ? 'needs_rescheduling' :
+                                 appointmentAction === 'cancelled' ? 'cancelled' : '';
           
-          if (!lastTransition?.lastTransitionSource) {
-            // No previous transition - safe to update
+          // If current status doesn't match expected status, we MUST update
+          if (contact?.appointmentStatus !== expectedStatus) {
             shouldUpdateAppointment = true;
-            console.log(`📍 First appointment transition for contact ${session.contactId}: ${appointmentAction}`);
+            console.log(`📍 Appointment status needs update: ${contact?.appointmentStatus} → ${expectedStatus} (${appointmentAction})`);
           } else {
-            try {
-              const lastSource = JSON.parse(lastTransition.lastTransitionSource);
-              const thisTimestamp = new Date().toISOString();
-              
-              // Only update if this event is from a different call or has stronger outcome
-              if (lastSource.call_id !== payload.call_id || lastSource.outcome !== finalOutcome) {
-                shouldUpdateAppointment = true;
-                console.log(`📍 Appointment transition guard passed: ${lastSource.outcome} → ${finalOutcome} (${appointmentAction})`);
-              } else {
-                console.log(`⏭️ Skipping duplicate appointment update: ${appointmentAction} (same call, same outcome)`);
-              }
-            } catch (err) {
-              // Fallback: if we can't parse transition source, allow update
+            // Status already correct - check if this is a duplicate event
+            const lastTransition = await storage.getAppointmentLastTransition(session.contactId!);
+            
+            if (!lastTransition?.lastTransitionSource) {
+              // No previous transition - safe to update
               shouldUpdateAppointment = true;
-              console.warn('⚠️ Failed to parse last transition source, allowing update');
+              console.log(`📍 First appointment transition for contact ${session.contactId}: ${appointmentAction}`);
+            } else {
+              try {
+                const lastSource = JSON.parse(lastTransition.lastTransitionSource);
+                
+                // Only skip if SAME call AND SAME outcome (true duplicate)
+                if (lastSource.call_id === payload.call_id && lastSource.outcome === finalOutcome) {
+                  console.log(`⏭️ Skipping duplicate appointment update: ${appointmentAction} (same call, same outcome, status already correct)`);
+                } else {
+                  // Different call or different outcome - allow update
+                  shouldUpdateAppointment = true;
+                  console.log(`📍 Appointment transition guard passed: ${lastSource.outcome} → ${finalOutcome} (${appointmentAction})`);
+                }
+              } catch (err) {
+                // Fallback: if we can't parse transition source, allow update
+                shouldUpdateAppointment = true;
+                console.warn('⚠️ Failed to parse last transition source, allowing update');
+              }
             }
           }
         }
