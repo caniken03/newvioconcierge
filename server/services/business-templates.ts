@@ -5,6 +5,8 @@
  * field omission rules, and industry-optimized voice calling.
  */
 
+import { format, toZonedTime } from 'date-fns-tz';
+
 interface BusinessTemplate {
   id: string;
   name: string;
@@ -617,7 +619,7 @@ export class BusinessTemplateService {
       // Retell AI agent expects these specific variable names:
       first_name: String(this.extractFirstName(contact.name || '')),  // First name only for HIPAA
       company_name: String(tenantConfig.companyName || 'your healthcare provider'),
-      appointment_spoken: String(this.formatAppointmentSpoken(contact.appointmentTime)),
+      appointment_spoken: String(this.formatAppointmentSpoken(contact.appointmentTime, contact.timezone)),
       owner_name: String('your healthcare provider'),  // Always anonymous for privacy
       internal_reference: String(contact.id || '')
       // NOTE: appointment_type OMITTED for HIPAA compliance (may reveal medical condition)
@@ -641,7 +643,7 @@ export class BusinessTemplateService {
       company_name: String(tenantConfig.companyName || 'our dental office'),
       owner_name: String(contact.ownerName || 'your dentist'),
       appointment_type: String(this.formatDentalProcedure(contact.appointmentType || 'appointment')),
-      appointment_spoken: String(this.formatAppointmentSpoken(contact.appointmentTime)),
+      appointment_spoken: String(this.formatAppointmentSpoken(contact.appointmentTime, contact.timezone)),
       appointment_duration: String(contact.appointmentDuration || ''),
       special_instructions: String(this.formatDentalPrep(contact.specialInstructions || '')),
       internal_reference: String(contact.id || '')
@@ -660,7 +662,7 @@ export class BusinessTemplateService {
       owner_name: String(contact.ownerName || 'your stylist'),
       company_name: String(tenantConfig.companyName || 'our salon'),
       appointment_type: String(contact.appointmentType || 'service'),
-      appointment_spoken: String(this.formatAppointmentSpoken(contact.appointmentTime)),
+      appointment_spoken: String(this.formatAppointmentSpoken(contact.appointmentTime, contact.timezone)),
       appointment_duration: String(contact.appointmentDuration || ''),
       special_instructions: String(this.formatBeautyInstructions(contact.specialInstructions || '')),
       internal_reference: String(contact.id || '')
@@ -678,7 +680,7 @@ export class BusinessTemplateService {
       last_name: String(nameParts.slice(1).join(' ') || ''),
       company_name: String(tenantConfig.companyName || 'our restaurant'),
       appointment_type: String(contact.appointmentType || 'reservation'),
-      appointment_spoken: String(this.formatAppointmentSpoken(contact.appointmentTime)),
+      appointment_spoken: String(this.formatAppointmentSpoken(contact.appointmentTime, contact.timezone)),
       appointment_duration: String(contact.appointmentDuration || ''),
       special_instructions: String(this.extractDietaryRequirements(contact.specialInstructions || '')),
       internal_reference: String(contact.id || '')
@@ -705,7 +707,7 @@ export class BusinessTemplateService {
       
       // Appointment details
       appointment_type: String(contact.appointmentType || 'appointment'),
-      appointment_spoken: String(this.formatAppointmentSpoken(contact.appointmentTime)),
+      appointment_spoken: String(this.formatAppointmentSpoken(contact.appointmentTime, contact.timezone)),
       appointment_duration: String(contact.appointmentDuration || '60'),
       appointment_tz: String(contact.timezone || 'UK'),
       
@@ -785,23 +787,22 @@ export class BusinessTemplateService {
     }
   }
 
-  private formatAppointmentSpoken(appointmentTime: string | Date | null): string {
+  private formatAppointmentSpoken(appointmentTime: string | Date | null, timezone?: string): string {
     if (!appointmentTime) return 'your upcoming appointment';
     
     try {
       const date = new Date(appointmentTime);
-      const dateStr = date.toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        month: 'long', 
-        day: 'numeric' 
-      });
-      const timeStr = date.toLocaleTimeString('en-US', { 
-        hour: 'numeric', 
-        minute: '2-digit',
-        hour12: true 
-      });
+      const tz = timezone || 'Europe/London'; // Default to UK timezone
+      
+      // Convert UTC time to the contact's timezone
+      const zonedDate = toZonedTime(date, tz);
+      
+      const dateStr = format(zonedDate, 'EEEE, MMMM d', { timeZone: tz });
+      const timeStr = format(zonedDate, 'h:mm a', { timeZone: tz });
+      
       return `${dateStr} at ${timeStr}`;
-    } catch {
+    } catch (error) {
+      console.error('Error formatting appointment time:', error);
       return 'your upcoming appointment';
     }
   }
