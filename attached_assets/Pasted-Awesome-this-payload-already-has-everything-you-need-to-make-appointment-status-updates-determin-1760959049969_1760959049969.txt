@@ -1,0 +1,181 @@
+Awesome — this payload already has everything you need to make appointment status updates **deterministic, idempotent, and fully event-driven**. Here’s a drop-in approach that will stop the polling pain and turn each `call_analyzed` into a clean state transition.
+
+# What to key off in this payload
+
+* **Event type:** `event = "call_analyzed"` (treat this as a *terminal* event for the call attempt)
+* **Appointment identity:** from `metadata.appointmentTime`, `metadata.contactId`, plus your own internal `appointment_id` if you have it
+* **Outcome flags (single source of truth):**
+  `call_analysis.in_voicemail`, `call_analysis.call_successful`
+  and granular booleans under `call_analysis.custom_analysis_data.*`:
+
+  * `appointment_confirmed` (✅ primary)
+  * `appointment_cancelled`
+  * `appointment_rescheduled` (+ possibly `new_appointment_details`)
+  * `reached_voicemail`, `wrong_person`, `callback_requested`, `followup_required`
+
+> Treat these flags as your **domain signals**; don’t re-parse the transcript for status.
+
+# Minimal data model (SQL)
+
+```sql
+-- Raw events (append-only, idempotency by event_id)
+create table retell_events (
+  event_id text primary key,
+  event_type text not null,
+  appointment_id uuid not null,
+  occurred_at timestamptz not null,
+  payload jsonb not null
+);
+
+-- Appointments (current snapshot)
+create table appointments (
+  id uuid primary key,
+  contact_id uuid not null,
+  scheduled_at_utc timestamptz not null,
+  status text not null check (status in (
+    'pending','dialing','connected',
+    'confirmed','declined','rescheduled','voicemail',
+    'no_answer','wrong_person','callback_requested','followup_needed'
+  )),
+  last_event_id text,
+  last_event_at timestamptz
+);
+
+create unique index on appointments (contact_id, scheduled_at_utc);
+```
+
+# Event reducer (deterministic mapping)
+
+Define a pure function that maps this single `call_analyzed` into a **terminal appointment status**:
+
+```ts
+type Outcome =
+  | 'confirmed'
+  | 'declined'
+  | 'rescheduled'
+  | 'voicemail'
+  | 'wrong_person'
+  | 'callback_requested'
+  | 'followup_needed'
+  | 'no_answer';
+
+function reduceCallAnalyzed(a: any): Outcome {
+  const d = a.call_analysis?.custom_analysis_data ?? {};
+  if (d.appointment_confirmed) return 'confirmed';
+  if (d.appointment_cancelled) return 'declined';
+  if (d.appointment_rescheduled) return 'rescheduled';
+  if (d.wrong_person) return 'wrong_person';
+  if (d.callback_requested) return 'callback_requested';
+  if (d.followup_required) return 'followup_needed';
+  // fallback to channel-level signals
+  if (a.call_analysis?.in_voicemail || d.reached_voicemail) return 'voicemail';
+  // call ended but none of the above → treat as no_answer/inconclusive
+  return 'no_answer';
+}
+```
+
+# Idempotent handler (pseudo-code)
+
+```ts
+// POST /webhooks/retell
+// use a deterministic event_id; if Retell doesn't send one, hash the body
+const eventId = `retell:${body.call_id}:analyzed`;
+const apptKey = {
+  contact_id: body.metadata.contactId,
+  scheduled_at_utc: new Date(body.metadata.appointmentTime) // note: UTC
+};
+
+await tx(async (db) => {
+  // 1) append-only insert (idempotent)
+  await db.query(`
+    insert into retell_events (event_id, event_type, appointment_id, occurred_at, payload)
+    values ($1, $2, (select id from appointments where contact_id=$3 and scheduled_at_utc=$4),
+            $5, $6)
+    on conflict (event_id) do nothing
+  `, [
+    eventId,
+    body.event,
+    apptKey.contact_id,
+    apptKey.scheduled_at_utc,
+    new Date(), // received_at / occurred_at as now, or pass a call_end timestamp if provided
+    body
+  ]);
+
+  // if nothing inserted → duplicate delivery; stop here
+  const inserted = await db.affectedRows();
+  if (!inserted) return;
+
+  // 2) compute outcome
+  const outcome = reduceCallAnalyzed(body);
+
+  // 3) advance appointment state (ignore stale events)
+  await db.query(`
+    update appointments
+       set status = $1,
+           last_event_id = $2,
+           last_event_at = $3
+     where contact_id = $4
+       and scheduled_at_utc = $5
+       and (last_event_at is null or last_event_at <= $3)
+  `, [outcome, eventId, new Date(), apptKey.contact_id, apptKey.scheduled_at_utc]);
+
+  // 4) emit your own domain event (for emails/SMS/UI updates)
+  publish('appointment.updated', {
+    appointment_id: /* fetch id if you need */,
+    status: outcome,
+    source_event_id: eventId
+  });
+});
+
+// Always ACK fast
+res.status(200).json({ ok: true });
+```
+
+# Mapping your concrete sample
+
+Given your JSON:
+
+* `event`: `call_analyzed`
+* `call_status`: `ended`
+* `call_analysis.call_successful`: `true`
+* `call_analysis.custom_analysis_data.appointment_confirmed`: `true`
+* `metadata.appointmentTime`: `2025-10-23T13:00:00.000Z` (UTC)
+* `metadata.contactId`: `b24230fc-…`
+
+👉 Reducer returns **`confirmed`**.
+Your `appointments.status` should become `confirmed`, and you can store the **recording/transcript URLs** for audit or QA.
+
+# Notes & best practices
+
+* **Time zones:** `metadata.appointmentTime` is ISO UTC — keep it UTC in DB; localize only in UI.
+* **Single-writer rule:** Update a given appointment row inside a DB transaction (or with `FOR UPDATE`) to avoid races if multiple events arrive.
+* **Out-of-order protection:** Guard with `last_event_at <= incoming_occurred_at` (or use the call end timestamp if Retell provides one).
+* **Retries:** Your webhook should accept duplicate deliveries gracefully (idempotent by `eventId`).
+* **Voicemail/no-answer loop:** If you get `voicemail`/`no_answer`, schedule a **retry job** and track attempt counts separately; don’t overwrite `confirmed` with later noise.
+
+# Optional: derive richer fields
+
+From your payload you can also persist:
+
+* `analysis.user_sentiment` → for QA dashboards
+* `recording_url` + `transcript` (TTL or move to your storage)
+* `new_appointment_details` → parse and apply only when `appointment_rescheduled === true`
+* `direction`, `from_number`, `to_number` → audit
+
+# Quick unit test (Jest style)
+
+```ts
+test('confirmed when appointment_confirmed=true', () => {
+  const body = require('./fixtures/call_analyzed_confirmed.json');
+  expect(reduceCallAnalyzed(body)).toBe('confirmed');
+});
+
+test('voicemail when reached_voicemail', () => {
+  const body = { call_analysis: { custom_analysis_data: { reached_voicemail: true } } };
+  expect(reduceCallAnalyzed(body)).toBe('voicemail');
+});
+```
+
+---
+
+If you share one **no-PII sample** for a voicemail/no-answer case and a cancelled/rescheduled case, I’ll hand you a complete reducer table (all branches) and a ready-to-paste SQL migration set tailored to your stack.

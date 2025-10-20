@@ -1,0 +1,185 @@
+Got it. Polling will always feel flaky here—you want an **event-driven, idempotent webhook pipeline** with a tiny state machine for each appointment. Here’s a battle-tested process you can drop in:
+
+---
+
+# The process (high level)
+
+1. **Treat Retell as the source of truth via webhooks**
+
+   * Expose `POST /webhooks/retell`.
+   * Verify the signature (HMAC or whatever Retell provides).
+   * **Acknowledge fast** (`200 OK` within ~2–3s). Do *not* do business logic inline.
+
+2. **Enqueue, don’t process inline**
+
+   * Push the raw payload to a queue (e.g., SQS, Pub/Sub, RabbitMQ) with a **dedupe key** = `event_id` (or hash of the body).
+   * This gives you a clean retry story and protects the endpoint.
+
+3. **Store every event (append-only)**
+
+   * Table: `retell_events(event_id PK, appointment_id, type, payload, occurred_at, received_at)`.
+   * Put a **unique constraint** on `event_id` to make your consumer **idempotent** (at-least-once delivery safe).
+
+4. **Drive a tiny state machine per appointment**
+
+   * Table: `appointments(id PK, status, last_event_id, last_event_at, …)`.
+   * Reducer logic (deterministic) maps events → next status:
+
+   ```
+   Pending → (on CALL_STARTED) Dialing
+   Dialing → (on ANSWERED) Connected
+   Dialing → (on NO_ANSWER | BUSY | TIMEOUT) NoAnswer
+   Connected → (on USER_CONFIRMED) Confirmed
+   Connected → (on USER_DECLINED) Declined
+   Connected → (on VOICEMAIL_DETECTED) Voicemail
+   * → (on RETRY_SCHEDULED) Retrying
+   ```
+
+   * Reject **stale transitions** (e.g., an old NO_ANSWER arriving after USER_CONFIRMED) by comparing `occurred_at` vs `last_event_at`.
+
+5. **Idempotency everywhere**
+
+   * Consumer transaction:
+
+     * Insert `retell_events` (ignore on duplicate).
+     * If inserted, run reducer to upsert `appointments.status`.
+     * Commit.
+   * This guarantees **exactly-once side effects** per event.
+
+6. **Timeouts & fallbacks (no more polling)**
+
+   * Use a background job to mark calls “inconclusive” if **no terminal event** after N minutes (e.g., 15).
+   * Only “poll” as a **reconciliation job** (hourly) that compares last event time vs expected; never as core logic.
+
+7. **Observability**
+
+   * Log/correlate with `appointment_id` + `event_id`.
+   * Dashboards for: “events by type”, “stuck in Dialing > 10m”, “status mismatches”.
+   * Dead-letter queue for JSON you can’t parse—alert and inspect.
+
+8. **Downstream notifications are event-driven**
+
+   * Emit your own internal domain events after state changes (`appointment.confirmed`, `appointment.no_answer`, `appointment.voicemail`).
+   * That’s what triggers emails, SMS, UI updates—never couple those to the raw Retell webhook.
+
+---
+
+# Concrete payload handling (example)
+
+**Incoming (example)**
+*(Field names illustrative—map to Retell’s actual schema.)*
+
+```json
+{
+  "event_id": "evt_8f1a2c",
+  "appointment_id": "appt_123",
+  "type": "USER_CONFIRMED",
+  "occurred_at": "2025-10-20T12:14:05Z",
+  "call": {
+    "sid": "CAxxxx",
+    "to": "+447700900000",
+    "from": "+4420xxxxxxx"
+  },
+  "meta": { "attempt": 2 }
+}
+```
+
+**Webhook controller (pseudo-code)**
+
+```ts
+// POST /webhooks/retell
+if (!verifySignature(req)) return res.status(401).end();
+
+enqueue("retell-events", {
+  body: req.body,
+  dedupeKey: req.body.event_id ?? hash(req.body)
+});
+
+return res.status(200).json({ ok: true });
+```
+
+**Consumer (idempotent reducer)**
+
+```ts
+withTransaction(async (tx) => {
+  const inserted = await tx.insertInto("retell_events")
+    .values({
+      event_id: body.event_id,
+      appointment_id: body.appointment_id,
+      type: body.type,
+      payload: body,
+      occurred_at: body.occurred_at,
+      received_at: now()
+    })
+    .onConflictDoNothing()
+    .execute();
+
+  if (!inserted) return; // duplicate → already handled
+
+  const appt = await tx.selectFrom("appointments")
+    .where("id", "=", body.appointment_id)
+    .forUpdate()
+    .executeTakeFirst();
+
+  const isStale = appt && appt.last_event_at && appt.last_event_at > body.occurred_at;
+  if (isStale) return;
+
+  const next = reduceStatus(appt?.status ?? "Pending", body.type);
+
+  await tx.updateTable("appointments")
+    .set({
+      status: next,
+      last_event_id: body.event_id,
+      last_event_at: body.occurred_at
+    })
+    .where("id", "=", body.appointment_id)
+    .execute();
+
+  publishDomainEvent(`appointment.${toKebab(next)}`, {
+    appointment_id: body.appointment_id,
+    previous_status: appt?.status ?? "Pending",
+    new_status: next,
+    source_event_id: body.event_id
+  });
+});
+```
+
+**Reducer (simple, testable)**
+
+```ts
+function reduceStatus(current: Status, event: EventType): Status {
+  const t = {
+    Pending:      { CALL_STARTED: "Dialing" },
+    Dialing:      { ANSWERED: "Connected", NO_ANSWER: "NoAnswer", VOICEMAIL_DETECTED: "Voicemail", TIMEOUT: "NoAnswer" },
+    Connected:    { USER_CONFIRMED: "Confirmed", USER_DECLINED: "Declined", VOICEMAIL_DETECTED: "Voicemail" },
+    NoAnswer:     { RETRY_SCHEDULED: "Retrying" },
+    Voicemail:    { RETRY_SCHEDULED: "Retrying" },
+    Retrying:     { CALL_STARTED: "Dialing" }
+  };
+  return t[current]?.[event] ?? current;
+}
+```
+
+---
+
+# Why this works (and fixes your pain)
+
+* **No fragile polling**: the state is derived from **delivered events** with a safe timeout fallback.
+* **Idempotent & race-proof**: duplicates and out-of-order delivery don’t break correctness.
+* **Auditable**: append-only event log tells you exactly what happened and when.
+* **Composable**: new outcomes (e.g., “RescheduleRequested”) are just another event + transition.
+
+---
+
+# Quick checklist to implement
+
+* [ ] Webhook endpoint + signature verification
+* [ ] Queue with dedupe key
+* [ ] `retell_events` (append-only, unique `event_id`)
+* [ ] `appointments` (status + `last_event_at`)
+* [ ] Deterministic reducer + stale-event guard
+* [ ] Timeout job (mark “Inconclusive” after N minutes without terminal event)
+* [ ] Domain events for downstream updates
+* [ ] Alerts for dead-lettered payloads / frequent timeouts
+
+If you share one **sample payload** you’re receiving from Retell (redact sensitive fields), I’ll map their exact `type` values to a ready-to-paste reducer and DB schema for you.
