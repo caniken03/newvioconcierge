@@ -857,27 +857,6 @@ export const temporaryAccess = pgTable("temporary_access", {
   consentFk: foreignKey({ columns: [table.consentId], foreignColumns: [clientConsent.id], name: "temporary_access_consent_fk" }).onDelete("set null"),
 }));
 
-// User notification preferences for daily summaries and alerts
-export const userNotificationPreferences = pgTable("user_notification_preferences", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull().unique(),
-  tenantId: uuid("tenant_id").notNull(),
-  
-  // Daily Summary Settings
-  dailySummaryEnabled: boolean("daily_summary_enabled").default(true),
-  dailySummaryTime: time("daily_summary_time").default("09:00"), // Time to send summary (HH:MM)
-  dailySummaryDays: text("daily_summary_days").default('["1","2","3","4","5"]'), // JSON array of day numbers: 0=Sunday, 1=Monday, etc.
-  timezone: varchar("timezone", { length: 100 }).default("Europe/London"), // User's timezone for delivery time
-  lastDailySummarySentAt: timestamp("last_daily_summary_sent_at"), // Track when the last summary was sent
-  
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-}, (table) => ({
-  userIdIdx: uniqueIndex("user_notification_preferences_user_id_idx").on(table.userId),
-  tenantIdIdx: index("user_notification_preferences_tenant_id_idx").on(table.tenantId),
-  userFk: foreignKey({ columns: [table.userId], foreignColumns: [users.id], name: "user_notification_preferences_user_fk" }).onDelete("cascade"),
-  tenantFk: foreignKey({ columns: [table.tenantId], foreignColumns: [tenants.id], name: "user_notification_preferences_tenant_fk" }).onDelete("cascade"),
-}));
 
 // User invitations for team management
 export const userInvitations = pgTable("user_invitations", {
@@ -1312,12 +1291,6 @@ export const insertTemporaryAccessSchema = createInsertSchema(temporaryAccess).o
   updatedAt: true,
 });
 
-export const insertUserNotificationPreferencesSchema = createInsertSchema(userNotificationPreferences).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
 export const insertUserInvitationSchema = createInsertSchema(userInvitations).omit({
   id: true,
   createdAt: true,
@@ -1409,9 +1382,6 @@ export type InsertClientConsent = z.infer<typeof insertClientConsentSchema>;
 
 export type TemporaryAccess = typeof temporaryAccess.$inferSelect;
 export type InsertTemporaryAccess = z.infer<typeof insertTemporaryAccessSchema>;
-
-export type UserNotificationPreferences = typeof userNotificationPreferences.$inferSelect;
-export type InsertUserNotificationPreferences = z.infer<typeof insertUserNotificationPreferencesSchema>;
 
 export type UserInvitation = typeof userInvitations.$inferSelect;
 export type InsertUserInvitation = z.infer<typeof insertUserInvitationSchema>;

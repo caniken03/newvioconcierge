@@ -1,6 +1,6 @@
 import { eq, and, gte, lte, sql } from 'drizzle-orm';
 import { db } from '../db';
-import { users, userNotificationPreferences, callSessions, contacts, tenants } from '@shared/schema';
+import { users, callSessions, contacts, tenants } from '@shared/schema';
 import { generateDailySummaryEmail, shouldSendSummary } from '../utils/daily-summary-email';
 import { Resend } from 'resend';
 import { format, startOfDay, endOfDay, addHours } from 'date-fns';

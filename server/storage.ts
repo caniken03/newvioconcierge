@@ -23,7 +23,6 @@ import {
   auditTrail,
   clientConsent,
   temporaryAccess,
-  userNotificationPreferences,
   userInvitations,
   retellEvents,
   type User,
@@ -3398,44 +3397,6 @@ export class DatabaseStorage implements IStorage {
       reason: evaluation.reason,
       nextAllowedTime: evaluation.nextAllowedTime
     };
-  }
-
-  // User Notification Preferences
-  async getUserNotificationPreferences(userId: string): Promise<any | undefined> {
-    const [preferences] = await db
-      .select()
-      .from(userNotificationPreferences)
-      .where(eq(userNotificationPreferences.userId, userId))
-      .limit(1);
-
-    return preferences;
-  }
-
-  async createUserNotificationPreferences(userId: string, tenantId: string, timezone?: string): Promise<any> {
-    const [newPreferences] = await db.insert(userNotificationPreferences).values({
-      userId,
-      tenantId,
-      dailySummaryEnabled: true,
-      dailySummaryTime: "09:00",
-      dailySummaryDays: '["1","2","3","4","5"]', // Weekdays by default
-      timezone: timezone || "Europe/London",
-    }).returning();
-    
-    return newPreferences;
-  }
-
-  async updateUserNotificationPreferences(userId: string, updates: any): Promise<any> {
-    const [updated] = await db
-      .update(userNotificationPreferences)
-      .set({ ...updates, updatedAt: new Date() })
-      .where(eq(userNotificationPreferences.userId, userId))
-      .returning();
-
-    if (!updated) {
-      throw new Error('User notification preferences not found');
-    }
-
-    return updated;
   }
 
   // User Invitations (Team Management)
