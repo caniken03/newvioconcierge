@@ -805,7 +805,7 @@ export class DatabaseStorage implements IStorage {
     const [successStats] = await db
       .select({
         total: count(),
-        successful: sql<number>`COUNT(CASE WHEN ${callSessions.callOutcome} = 'confirmed' THEN 1 END)`,
+        successful: sql<number>`COUNT(CASE WHEN ${callSessions.outcome} = 'confirmed' THEN 1 END)`,
       })
       .from(callSessions)
       .where(eq(callSessions.tenantId, tenantId));
@@ -835,7 +835,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         id: callSessions.id,
         contactName: contacts.name,
-        outcome: callSessions.callOutcome,
+        outcome: callSessions.outcome,
         createdAt: callSessions.createdAt,
       })
       .from(callSessions)
@@ -895,7 +895,7 @@ export class DatabaseStorage implements IStorage {
     const [successStats] = await db
       .select({
         total: count(),
-        successful: sql<number>`COUNT(CASE WHEN ${callSessions.callOutcome} = 'confirmed' THEN 1 END)`,
+        successful: sql<number>`COUNT(CASE WHEN ${callSessions.outcome} = 'confirmed' THEN 1 END)`,
       })
       .from(callSessions);
 
@@ -904,7 +904,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         tenantName: tenants.name,
         contactName: contacts.name,
-        outcome: callSessions.callOutcome,
+        outcome: callSessions.outcome,
         createdAt: callSessions.createdAt,
       })
       .from(callSessions)
@@ -1403,13 +1403,13 @@ export class DatabaseStorage implements IStorage {
         type: sql<string>`'call_session'`,
         timestamp: callSessions.createdAt,
         status: callSessions.status,
-        outcome: callSessions.callOutcome,
+        outcome: callSessions.outcome,
         duration: callSessions.durationSeconds,
         startTime: callSessions.startTime,
         endTime: callSessions.endTime,
         details: sql<string>`CASE 
-          WHEN ${callSessions.callOutcome} IS NOT NULL 
-          THEN CONCAT('Call outcome: ', ${callSessions.callOutcome})
+          WHEN ${callSessions.outcome} IS NOT NULL 
+          THEN CONCAT('Call outcome: ', ${callSessions.outcome})
           ELSE CONCAT('Call status: ', ${callSessions.status})
         END`
       })
@@ -1722,7 +1722,7 @@ export class DatabaseStorage implements IStorage {
     const callData = await db
       .select({
         date: sql<string>`DATE(${callSessions.createdAt})`,
-        successfulCalls: sql<number>`COUNT(CASE WHEN ${callSessions.callOutcome} = 'confirmed' THEN 1 END)`
+        successfulCalls: sql<number>`COUNT(CASE WHEN ${callSessions.outcome} = 'confirmed' THEN 1 END)`
       })
       .from(callSessions)
       .where(and(
@@ -1793,8 +1793,8 @@ export class DatabaseStorage implements IStorage {
     const [currentCallStats] = await db
       .select({
         totalCalls: count(),
-        answeredCalls: sql<number>`COUNT(CASE WHEN ${callSessions.callOutcome} IN ('confirmed', 'answered', 'completed') THEN 1 END)`,
-        confirmedCalls: sql<number>`COUNT(CASE WHEN ${callSessions.callOutcome} = 'confirmed' THEN 1 END)`
+        answeredCalls: sql<number>`COUNT(CASE WHEN ${callSessions.outcome} IN ('confirmed', 'answered', 'completed') THEN 1 END)`,
+        confirmedCalls: sql<number>`COUNT(CASE WHEN ${callSessions.outcome} = 'confirmed' THEN 1 END)`
       })
       .from(callSessions)
       .where(and(
@@ -1807,8 +1807,8 @@ export class DatabaseStorage implements IStorage {
     const [previousCallStats] = await db
       .select({
         totalCalls: count(),
-        answeredCalls: sql<number>`COUNT(CASE WHEN ${callSessions.callOutcome} IN ('confirmed', 'answered', 'completed') THEN 1 END)`,
-        confirmedCalls: sql<number>`COUNT(CASE WHEN ${callSessions.callOutcome} = 'confirmed' THEN 1 END)`
+        answeredCalls: sql<number>`COUNT(CASE WHEN ${callSessions.outcome} IN ('confirmed', 'answered', 'completed') THEN 1 END)`,
+        confirmedCalls: sql<number>`COUNT(CASE WHEN ${callSessions.outcome} = 'confirmed' THEN 1 END)`
       })
       .from(callSessions)
       .where(and(
@@ -1897,7 +1897,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         attempted: count(),
         completed: sql<number>`COUNT(CASE WHEN ${callSessions.status} = 'completed' THEN 1 END)`,
-        confirmed: sql<number>`COUNT(CASE WHEN ${callSessions.callOutcome} = 'confirmed' THEN 1 END)`
+        confirmed: sql<number>`COUNT(CASE WHEN ${callSessions.outcome} = 'confirmed' THEN 1 END)`
       })
       .from(callSessions)
       .where(and(
@@ -1921,7 +1921,7 @@ export class DatabaseStorage implements IStorage {
 
     const outcomeData = await db
       .select({
-        outcome: callSessions.callOutcome,
+        outcome: callSessions.outcome,
         count: count()
       })
       .from(callSessions)
@@ -1929,7 +1929,7 @@ export class DatabaseStorage implements IStorage {
         eq(callSessions.tenantId, tenantId),
         sql`${callSessions.triggerTime} >= ${thirtyDaysAgo}`
       ))
-      .groupBy(callSessions.callOutcome);
+      .groupBy(callSessions.outcome);
 
     const totalOutcomes = outcomeData.reduce((sum, item) => sum + item.count, 0);
     const outcomeBreakdown = outcomeData.map(item => ({
@@ -1944,7 +1944,7 @@ export class DatabaseStorage implements IStorage {
         id: callSessions.id,
         contactId: callSessions.contactId,
         status: callSessions.status,
-        outcome: callSessions.callOutcome,
+        outcome: callSessions.outcome,
         startTime: callSessions.startTime,
         duration: callSessions.durationSeconds,
         contactName: contacts.name
@@ -2194,8 +2194,8 @@ export class DatabaseStorage implements IStorage {
       .select({
         errorType: sql<string>`CASE 
           WHEN ${callLogs.logLevel} = 'error' THEN 'system_error'
-          WHEN ${callSessions.callOutcome} = 'failed' THEN 'call_failed'
-          WHEN ${callSessions.callOutcome} = 'no_answer' THEN 'no_answer'
+          WHEN ${callSessions.outcome} = 'failed' THEN 'call_failed'
+          WHEN ${callSessions.outcome} = 'no_answer' THEN 'no_answer'
           ELSE 'other'
         END`,
         count: count()
@@ -2208,8 +2208,8 @@ export class DatabaseStorage implements IStorage {
       ))
       .groupBy(sql`CASE 
         WHEN ${callLogs.logLevel} = 'error' THEN 'system_error'
-        WHEN ${callSessions.callOutcome} = 'failed' THEN 'call_failed'
-        WHEN ${callSessions.callOutcome} = 'no_answer' THEN 'no_answer'
+        WHEN ${callSessions.outcome} = 'failed' THEN 'call_failed'
+        WHEN ${callSessions.outcome} = 'no_answer' THEN 'no_answer'
         ELSE 'other'
       END`);
 
