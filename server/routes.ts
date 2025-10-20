@@ -3285,6 +3285,15 @@ Log Level: INFO
   app.get('/api/call-sessions', authenticateJWT, async (req: any, res) => {
     try {
       const sessions = await storage.getCallSessionsByTenant(req.user.tenantId);
+      // DEBUG: Log first session to verify callOutcome is present
+      if (sessions.length > 0) {
+        console.log('DEBUG /api/call-sessions - First session:', JSON.stringify({
+          id: sessions[0].id,
+          status: sessions[0].status,
+          callOutcome: sessions[0].callOutcome,
+          contactName: sessions[0].contactName
+        }));
+      }
       res.json(sessions);
     } catch (error) {
       res.status(500).json({ message: 'Failed to fetch call sessions' });
