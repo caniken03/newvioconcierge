@@ -2134,19 +2134,39 @@ export default function Contacts() {
                           {/* Status */}
                           <td className="px-4 py-4">
                             <div>
-                              <Badge 
-                                variant={contact.appointmentStatus === 'confirmed' ? 'default' : 'secondary'}
-                                className={`capitalize ${
-                                  contact.appointmentStatus === 'confirmed' ? 'bg-green-500 text-white' :
-                                  contact.appointmentStatus === 'pending' ? 'bg-yellow-500 text-white' :
-                                  contact.appointmentStatus === 'cancelled' ? 'bg-red-500 text-white' :
-                                  contact.appointmentStatus === 'rescheduled' ? 'bg-blue-500 text-white' :
-                                  'bg-gray-500 text-white'
-                                }`}
-                                data-testid={`status-${contact.id}`}
-                              >
-                                {contact.appointmentStatus || 'Pending'}
-                              </Badge>
+                              {(() => {
+                                // Determine what status to display
+                                const getDisplayStatus = () => {
+                                  // Priority 1: Show appointment status if confirmed/cancelled/rescheduled
+                                  if (contact.appointmentStatus === 'confirmed') return { label: 'Confirmed', color: 'bg-green-500 text-white' };
+                                  if (contact.appointmentStatus === 'cancelled') return { label: 'Cancelled', color: 'bg-red-500 text-white' };
+                                  if (contact.appointmentStatus === 'rescheduled') return { label: 'Rescheduled', color: 'bg-blue-500 text-white' };
+                                  
+                                  // Priority 2: Show last call outcome if appointment is pending and there was a call attempt
+                                  if (contact.appointmentStatus === 'pending' && contact.lastCallOutcome) {
+                                    const outcome = contact.lastCallOutcome.toLowerCase();
+                                    if (outcome === 'voicemail') return { label: 'Voicemail', color: 'bg-orange-500 text-white' };
+                                    if (outcome === 'no_answer') return { label: 'No Answer', color: 'bg-amber-500 text-white' };
+                                    if (outcome === 'busy') return { label: 'Busy', color: 'bg-amber-600 text-white' };
+                                    if (outcome === 'failed') return { label: 'Failed', color: 'bg-red-600 text-white' };
+                                  }
+                                  
+                                  // Default: Show pending
+                                  return { label: 'Pending', color: 'bg-yellow-500 text-white' };
+                                };
+                                
+                                const status = getDisplayStatus();
+                                
+                                return (
+                                  <Badge 
+                                    variant="secondary"
+                                    className={`capitalize ${status.color}`}
+                                    data-testid={`status-${contact.id}`}
+                                  >
+                                    {status.label}
+                                  </Badge>
+                                );
+                              })()}
                             </div>
                           </td>
 
