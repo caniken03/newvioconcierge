@@ -2256,7 +2256,7 @@ export class DatabaseStorage implements IStorage {
         startTime: callSessions.startTime,
         endTime: callSessions.endTime,
         durationSeconds: callSessions.durationSeconds,
-        callOutcome: callSessions.callOutcome,
+        callOutcome: callSessions.outcome, // Map 'outcome' column to 'callOutcome' property
         appointmentAction: callSessions.appointmentAction,
         customerResponse: callSessions.customerResponse,
         customerSentiment: callSessions.customerSentiment,
