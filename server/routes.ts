@@ -4564,15 +4564,28 @@ Log Level: INFO
       // CRITICAL FIX: Poll after 90 seconds - gives call time to complete (most finish within 60-90s)
       // Polling too early (15s) causes "ongoing" calls to be marked as failed
       const firstPollAt = new Date(now.getTime() + 90000);
-      await storage.updateCallSession(callSession.id, {
-        retellCallId: retellResponse.call_id,
-        status: 'in_progress',
-        startTime: now,
-        // HYBRID: Set up initial polling
-        nextPollAt: firstPollAt,
-        pollAttempts: 0,
-        sourceOfTruth: 'poll', // Default to poll until webhook confirms
-      });
+      
+      try {
+        await storage.updateCallSession(callSession.id, {
+          retellCallId: retellResponse.call_id,
+          status: 'in_progress',
+          startTime: now,
+          // HYBRID: Set up initial polling
+          nextPollAt: firstPollAt,
+          pollAttempts: 0,
+          sourceOfTruth: 'poll', // Default to poll until webhook confirms
+        });
+        console.log(`✅ Call session ${callSession.id} updated successfully with polling schedule`);
+      } catch (updateError) {
+        console.error(`❌ CRITICAL: Failed to update call session ${callSession.id}:`, updateError);
+        console.error('Update attempted with:', {
+          retellCallId: retellResponse.call_id,
+          status: 'in_progress',
+          firstPollAt,
+          pollAttempts: 0
+        });
+        throw updateError; // Re-throw to trigger error handler
+      }
 
       // Counters already incremented atomically by checkAndReserveCall
       console.log(`✅ Call successfully initiated to ${contact.phone}, counters already incremented`)

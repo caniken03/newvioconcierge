@@ -33,6 +33,21 @@ import {
   Eye
 } from "lucide-react";
 
+// Helper function to format call outcomes for display
+const formatCallOutcome = (outcome: string): string => {
+  const outcomeMap: Record<string, string> = {
+    'confirmed': 'Confirmed',
+    'voicemail': 'Voicemail',
+    'no_answer': 'No Answer',
+    'busy': 'Busy',
+    'failed': 'Failed',
+    'cancelled': 'Cancelled',
+    'rescheduled': 'Rescheduled',
+    'completed': 'Completed'
+  };
+  return outcomeMap[outcome] || outcome;
+};
+
 export default function ClientAdminDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -298,9 +313,9 @@ export default function ClientAdminDashboard() {
                 <div key={call.id || index} className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-800">
                   <div>
                     <p className="text-sm font-medium">{call.contactName}</p>
-                    <p className="text-xs text-muted-foreground">{call.outcome} • {new Date(call.timestamp).toLocaleTimeString()}</p>
+                    <p className="text-xs text-muted-foreground">{formatCallOutcome(call.outcome)} • {new Date(call.timestamp).toLocaleTimeString()}</p>
                   </div>
-                  <Badge variant="outline">{call.duration ? `${call.duration}s` : 'Failed'}</Badge>
+                  <Badge variant="outline">{call.duration ? `${call.duration}s` : formatCallOutcome(call.outcome)}</Badge>
                 </div>
               ))}
               {failedCalls.length === 0 && (
@@ -468,7 +483,7 @@ export default function ClientAdminDashboard() {
                   <div className="flex-1">
                     <p className="text-sm font-medium">{activity.contact}</p>
                     <p className="text-xs text-muted-foreground">
-                      Call result: {activity.outcome}
+                      Call result: {formatCallOutcome(activity.outcome)}
                     </p>
                   </div>
                   <p className="text-xs text-muted-foreground">{activity.time}</p>
