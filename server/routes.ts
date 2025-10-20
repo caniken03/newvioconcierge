@@ -4720,9 +4720,12 @@ Log Level: INFO
         if (tenantConfig?.retellApiKey) {
           try {
             const retellCall = await retellService.getCall(tenantConfig.retellApiKey, callSession.retellCallId);
+            console.log(`🔍 Retell API response for ${callSession.retellCallId}:`, JSON.stringify(retellCall, null, 2));
             
             // Update our session if status changed (use call_status field from Retell API)
             const retellStatus = retellCall.call_status;
+            console.log(`📊 Current session status: ${callSession.status}, Retell status: ${retellStatus}`);
+            
             if (retellStatus && retellStatus !== callSession.status) {
               const updates: any = {
                 status: retellStatus === 'completed' || retellStatus === 'ended' ? 'completed' : retellStatus
@@ -4733,7 +4736,9 @@ Log Level: INFO
                 updates.endTime = new Date();
               }
               
+              console.log(`✏️ Attempting to update session ${sessionId} with:`, updates);
               await storage.updateCallSession(sessionId, updates);
+              console.log(`✅ Session ${sessionId} updated successfully`);
             }
           } catch (error) {
             console.warn('Failed to get latest call status from Retell:', error);
