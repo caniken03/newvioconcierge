@@ -1,6 +1,6 @@
 import { eq, and, gte, lte, sql } from 'drizzle-orm';
 import { db } from '../db';
-import { users, userNotificationPreferences, callSessions, contacts } from '@shared/schema';
+import { users, userNotificationPreferences, callSessions, contacts, tenants } from '@shared/schema';
 import { generateDailySummaryEmail, shouldSendSummary } from '../utils/daily-summary-email';
 import { Resend } from 'resend';
 import { format, startOfDay, endOfDay, addHours } from 'date-fns';
@@ -50,85 +50,92 @@ class DailySummaryServiceImpl implements DailySummaryService {
 
       console.log(`📧 Checking for daily summaries to send at ${format(now, 'HH:mm')} UTC`);
 
-      // Find all users with daily summaries enabled
-      const recipients = await db
+      // Find all tenants with daily summaries enabled
+      const tenantsQuery = await db
         .select({
-          userId: users.id,
-          userEmail: users.email,
-          userName: users.fullName,
-          tenantId: users.tenantId,
-          dailySummaryEnabled: userNotificationPreferences.dailySummaryEnabled,
-          dailySummaryTime: userNotificationPreferences.dailySummaryTime,
-          dailySummaryDays: userNotificationPreferences.dailySummaryDays,
-          timezone: userNotificationPreferences.timezone,
-          lastDailySummarySentAt: userNotificationPreferences.lastDailySummarySentAt,
+          tenantId: tenants.id,
+          tenantName: tenants.name,
+          dailySummaryEnabled: tenants.dailySummaryEnabled,
+          dailySummaryRecipientName: tenants.dailySummaryRecipientName,
+          dailySummaryRecipientEmail: tenants.dailySummaryRecipientEmail,
+          dailySummaryTime: tenants.dailySummaryTime,
+          dailySummaryDays: tenants.dailySummaryDays,
+          dailySummaryTimezone: tenants.dailySummaryTimezone,
+          lastDailySummarySentAt: tenants.lastDailySummarySentAt,
         })
-        .from(users)
-        .innerJoin(
-          userNotificationPreferences,
-          eq(users.id, userNotificationPreferences.userId)
-        )
+        .from(tenants)
         .where(
           and(
-            eq(users.isActive, true),
-            eq(userNotificationPreferences.dailySummaryEnabled, true)
+            eq(tenants.status, 'active'),
+            eq(tenants.dailySummaryEnabled, true)
           )
         );
 
-      if (recipients.length === 0) {
-        console.log('📧 No recipients with daily summaries enabled');
+      if (tenantsQuery.length === 0) {
         return; // No summaries to send
       }
 
-      console.log(`📧 Found ${recipients.length} recipient(s) with daily summaries enabled`);
+      console.log(`📧 Found ${tenantsQuery.length} tenant(s) with daily summaries enabled`);
 
       let sentCount = 0;
 
-      for (const recipient of recipients) {
+      for (const tenant of tenantsQuery) {
         try {
-          // Convert current UTC time to user's timezone
-          const userTimezone = recipient.timezone || 'Europe/London';
-          const userLocalTime = toZonedTime(now, userTimezone);
-          const userLocalTimeStr = format(userLocalTime, 'HH:mm');
-          const userLocalDay = userLocalTime.getDay().toString();
+          // Skip if recipient email is not configured
+          if (!tenant.dailySummaryRecipientEmail) {
+            console.log(`📧 Skipping ${tenant.tenantName}: No recipient email configured`);
+            continue;
+          }
+
+          // Convert current UTC time to tenant's timezone
+          const tenantTimezone = tenant.dailySummaryTimezone || 'Europe/London';
+          const tenantLocalTime = toZonedTime(now, tenantTimezone);
+          const tenantLocalTimeStr = format(tenantLocalTime, 'HH:mm');
+          const tenantLocalDay = tenantLocalTime.getDay().toString();
           
           // Parse delivery days and check if today is included
-          const deliveryDays = JSON.parse(recipient.dailySummaryDays || '[]');
+          const deliveryDays = JSON.parse(tenant.dailySummaryDays || '["1","2","3","4","5"]');
           
           // Check if today is a delivery day
-          if (!deliveryDays.includes(userLocalDay)) {
+          if (!deliveryDays.includes(tenantLocalDay)) {
             continue; // Skip if today is not a delivery day
           }
           
           // Normalize delivery time (PostgreSQL time type may include seconds)
-          const deliveryTime = recipient.dailySummaryTime?.substring(0, 5) || '09:00';
+          const deliveryTime = tenant.dailySummaryTime?.substring(0, 5) || '09:00';
           const [targetHour, targetMinute] = deliveryTime.split(':').map(Number);
-          const targetTimeToday = new Date(userLocalTime);
+          const targetTimeToday = new Date(tenantLocalTime);
           targetTimeToday.setHours(targetHour, targetMinute, 0, 0);
           
           // Check if we've already sent a summary today
-          const lastSentAt = recipient.lastDailySummarySentAt;
-          const lastSentLocalTime = lastSentAt ? toZonedTime(lastSentAt, userTimezone) : null;
+          const lastSentAt = tenant.lastDailySummarySentAt;
+          const lastSentLocalTime = lastSentAt ? toZonedTime(lastSentAt, tenantTimezone) : null;
           const alreadySentToday = lastSentLocalTime && 
-            format(lastSentLocalTime, 'yyyy-MM-dd') === format(userLocalTime, 'yyyy-MM-dd');
+            format(lastSentLocalTime, 'yyyy-MM-dd') === format(tenantLocalTime, 'yyyy-MM-dd');
           
-          console.log(`📧 ${recipient.userName}: Local time=${userLocalTimeStr}, Target=${deliveryTime}, Day=${userLocalDay}, Already sent today=${alreadySentToday}`);
+          console.log(`📧 ${tenant.tenantName}: Local time=${tenantLocalTimeStr}, Target=${deliveryTime}, Day=${tenantLocalDay}, Already sent=${alreadySentToday}`);
           
           // Send if: current time >= target time AND we haven't sent today yet
-          if (userLocalTime >= targetTimeToday && !alreadySentToday) {
-            console.log(`📧 ✅ Sending to ${recipient.userName} (${userLocalTimeStr} in ${userTimezone})`);
-            await this.sendDailySummary(recipient);
+          if (tenantLocalTime >= targetTimeToday && !alreadySentToday) {
+            console.log(`📧 ✅ Sending to ${tenant.dailySummaryRecipientName} at ${tenant.dailySummaryRecipientEmail} (${tenantLocalTimeStr} in ${tenantTimezone})`);
             
-            // Update the last sent timestamp
+            await this.sendDailySummaryToTenant({
+              tenantId: tenant.tenantId,
+              tenantName: tenant.tenantName,
+              recipientName: tenant.dailySummaryRecipientName || tenant.tenantName,
+              recipientEmail: tenant.dailySummaryRecipientEmail,
+            });
+            
+            // Update the last sent timestamp for the tenant
             await db
-              .update(userNotificationPreferences)
+              .update(tenants)
               .set({ lastDailySummarySentAt: now })
-              .where(eq(userNotificationPreferences.userId, recipient.userId));
+              .where(eq(tenants.id, tenant.tenantId));
             
             sentCount++;
           }
         } catch (error) {
-          console.error(`❌ Failed to send daily summary to ${recipient.userEmail}:`, error);
+          console.error(`❌ Failed to send daily summary for ${tenant.tenantName}:`, error);
         }
       }
 
@@ -140,10 +147,15 @@ class DailySummaryServiceImpl implements DailySummaryService {
     }
   }
 
-  private async sendDailySummary(recipient: any): Promise<void> {
-    const { userId, userEmail, userName, tenantId } = recipient;
+  private async sendDailySummaryToTenant(params: {
+    tenantId: string;
+    tenantName: string;
+    recipientName: string;
+    recipientEmail: string;
+  }): Promise<void> {
+    const { tenantId, tenantName, recipientName, recipientEmail } = params;
     
-    console.log(`📧 Sending daily summary to ${userName} (${userEmail})`);
+    console.log(`📧 Sending daily summary to ${recipientName} (${recipientEmail}) for ${tenantName}`);
 
     // Fetch stats for the past 24 hours
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -338,13 +350,10 @@ class DailySummaryServiceImpl implements DailySummaryService {
       })),
     };
 
-    // Get tenant/company name (simplified - you may need to fetch from tenant_config)
-    const companyName = 'Your Practice'; // TODO: Fetch from tenant_config
-
     // Generate email HTML
     const emailHtml = generateDailySummaryEmail({
-      userName,
-      companyName,
+      userName: recipientName,
+      companyName: tenantName,
       date: today,
       stats,
       detailedData,
@@ -361,13 +370,13 @@ class DailySummaryServiceImpl implements DailySummaryService {
     try {
       const { data, error } = await resend.emails.send({
         from: 'VioConcierge <noreply@smartaisolutions.ai>',
-        to: userEmail,
+        to: recipientEmail,
         subject: `Daily Summary - ${format(today, 'MMMM d, yyyy')}`,
         html: emailHtml,
       });
 
       if (error) {
-        console.error(`❌ Failed to send daily summary email to ${userEmail}:`, error);
+        console.error(`❌ Failed to send daily summary email to ${recipientEmail}:`, error);
         // Check if it's a Resend testing restriction
         if (error.message && error.message.includes('testing emails')) {
           console.warn('⚠️ Resend testing restriction: Emails can only be sent to verified domain or account owner email');
@@ -376,24 +385,28 @@ class DailySummaryServiceImpl implements DailySummaryService {
         throw new Error(`Email sending failed: ${error.message}`);
       }
 
-      console.log(`✅ Daily summary email sent to ${userEmail}:`, data?.id || 'success');
+      console.log(`✅ Daily summary email sent to ${recipientEmail}:`, data?.id || 'success');
     } catch (error) {
-      console.error(`❌ Failed to send email to ${userEmail}:`, error);
+      console.error(`❌ Failed to send email to ${recipientEmail}:`, error);
       throw error;
     }
   }
 
-  async sendTestSummary(email: string, tenantId: string, userName?: string): Promise<void> {
+  async sendTestSummary(email: string, tenantId: string, recipientName?: string): Promise<void> {
     console.log(`📧 Sending test daily summary to ${email} for tenant ${tenantId}`);
     
-    const recipient = {
-      userId: 'test',
-      userEmail: email,
-      userName: userName || 'Test User',
-      tenantId: tenantId,
-    };
+    // Fetch tenant info
+    const tenant = await db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
+    if (!tenant || tenant.length === 0) {
+      throw new Error(`Tenant not found: ${tenantId}`);
+    }
     
-    await this.sendDailySummary(recipient);
+    await this.sendDailySummaryToTenant({
+      tenantId: tenantId,
+      tenantName: tenant[0].name,
+      recipientName: recipientName || 'Test User',
+      recipientEmail: email,
+    });
   }
 }
 

@@ -64,6 +64,15 @@ export const tenants = pgTable("tenants", {
   retellConfigured: boolean("retell_configured").default(false),
   calendarConfigured: boolean("calendar_configured").default(false),
   
+  // Daily Email Summary Configuration
+  dailySummaryEnabled: boolean("daily_summary_enabled").default(true),
+  dailySummaryRecipientName: varchar("daily_summary_recipient_name", { length: 255 }),
+  dailySummaryRecipientEmail: varchar("daily_summary_recipient_email", { length: 255 }),
+  dailySummaryTime: time("daily_summary_time").default("09:00"),
+  dailySummaryDays: text("daily_summary_days").default('["1","2","3","4","5"]'), // JSON array: 0=Sunday, 1=Monday, etc.
+  dailySummaryTimezone: varchar("daily_summary_timezone", { length: 100 }).default("Europe/London"),
+  lastDailySummarySentAt: timestamp("last_daily_summary_sent_at"),
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

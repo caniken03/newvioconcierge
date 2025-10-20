@@ -220,6 +220,277 @@ function CallSettingsContent() {
   );
 }
 
+// Daily Email Summary Settings Component
+function DailyEmailSummaryContent() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  // Fetch current tenant data
+  const { data: tenant, isLoading } = useQuery<any>({
+    queryKey: ['/api/tenant'],
+  });
+
+  const [enabled, setEnabled] = useState(true);
+  const [recipientName, setRecipientName] = useState('');
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [deliveryTime, setDeliveryTime] = useState('09:00');
+  const [selectedDays, setSelectedDays] = useState<string[]>(['1', '2', '3', '4', '5']);
+  const [timezone, setTimezone] = useState('Europe/London');
+
+  // Update local state when tenant data is loaded
+  useEffect(() => {
+    if (tenant) {
+      setEnabled(tenant.dailySummaryEnabled ?? true);
+      setRecipientName(tenant.dailySummaryRecipientName || '');
+      setRecipientEmail(tenant.dailySummaryRecipientEmail || '');
+      setDeliveryTime(tenant.dailySummaryTime?.substring(0, 5) || '09:00');
+      
+      // Parse delivery days
+      try {
+        const days = JSON.parse(tenant.dailySummaryDays || '["1","2","3","4","5"]');
+        setSelectedDays(days);
+      } catch {
+        setSelectedDays(['1', '2', '3', '4', '5']);
+      }
+      
+      setTimezone(tenant.dailySummaryTimezone || 'Europe/London');
+    }
+  }, [tenant]);
+
+  // Save configuration mutation
+  const saveConfigMutation = useMutation({
+    mutationFn: async (data: {
+      dailySummaryEnabled: boolean;
+      dailySummaryRecipientName: string;
+      dailySummaryRecipientEmail: string;
+      dailySummaryTime: string;
+      dailySummaryDays: string;
+      dailySummaryTimezone: string;
+    }) => {
+      const response = await apiRequest('PUT', '/api/tenant/daily-summary', data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tenant'] });
+      toast({
+        title: "Settings saved",
+        description: "Daily email summary preferences have been updated.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to save settings",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSave = () => {
+    // Validation
+    if (enabled && !recipientName.trim()) {
+      toast({
+        title: "Validation error",
+        description: "Please enter a recipient name.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (enabled && !recipientEmail.trim()) {
+      toast({
+        title: "Validation error",
+        description: "Please enter a recipient email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Basic email validation
+    if (enabled && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
+      toast({
+        title: "Validation error",
+        description: "Please enter a valid email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    saveConfigMutation.mutate({
+      dailySummaryEnabled: enabled,
+      dailySummaryRecipientName: recipientName,
+      dailySummaryRecipientEmail: recipientEmail,
+      dailySummaryTime: deliveryTime,
+      dailySummaryDays: JSON.stringify(selectedDays),
+      dailySummaryTimezone: timezone,
+    });
+  };
+
+  const toggleDay = (day: string) => {
+    setSelectedDays(prev => 
+      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+    );
+  };
+
+  const daysOfWeek = [
+    { value: '0', label: 'Sunday', short: 'Sun' },
+    { value: '1', label: 'Monday', short: 'Mon' },
+    { value: '2', label: 'Tuesday', short: 'Tue' },
+    { value: '3', label: 'Wednesday', short: 'Wed' },
+    { value: '4', label: 'Thursday', short: 'Thu' },
+    { value: '5', label: 'Friday', short: 'Fri' },
+    { value: '6', label: 'Saturday', short: 'Sat' },
+  ];
+
+  return (
+    <TabsContent value="daily-summary" className="space-y-6">
+      <Card data-testid="daily-summary-section">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="w-5 h-5" />
+            Daily Email Summary Settings
+          </CardTitle>
+          <CardDescription>
+            Configure who receives daily activity summaries and when they're delivered
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Enable/Disable Toggle */}
+          <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div className="space-y-0.5">
+              <Label className="text-base font-medium">Enable Daily Summaries</Label>
+              <p className="text-sm text-muted-foreground">
+                Receive automated daily reports of appointment calls and outcomes
+              </p>
+            </div>
+            <Switch
+              checked={enabled}
+              onCheckedChange={setEnabled}
+              data-testid="switch-enable-daily-summary"
+            />
+          </div>
+
+          {enabled && (
+            <>
+              {/* Recipient Information */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Recipient Information</h3>
+                <div className="grid gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="recipient-name">Recipient Name</Label>
+                    <Input
+                      id="recipient-name"
+                      placeholder="e.g., Ken Barnes or Office Manager"
+                      value={recipientName}
+                      onChange={(e) => setRecipientName(e.target.value)}
+                      data-testid="input-recipient-name"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      This name will appear in the email greeting
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="recipient-email">Recipient Email Address</Label>
+                    <Input
+                      id="recipient-email"
+                      type="email"
+                      placeholder="e.g., ken@smartaisolutions.ai"
+                      value={recipientEmail}
+                      onChange={(e) => setRecipientEmail(e.target.value)}
+                      data-testid="input-recipient-email"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Daily summaries will be sent to this email address
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Delivery Schedule */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Delivery Schedule</h3>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="delivery-time">Delivery Time</Label>
+                  <Select value={deliveryTime} onValueChange={setDeliveryTime}>
+                    <SelectTrigger id="delivery-time" data-testid="select-delivery-time">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="06:00">06:00 (6:00 AM)</SelectItem>
+                      <SelectItem value="07:00">07:00 (7:00 AM)</SelectItem>
+                      <SelectItem value="08:00">08:00 (8:00 AM)</SelectItem>
+                      <SelectItem value="09:00">09:00 (9:00 AM)</SelectItem>
+                      <SelectItem value="10:00">10:00 (10:00 AM)</SelectItem>
+                      <SelectItem value="11:00">11:00 (11:00 AM)</SelectItem>
+                      <SelectItem value="12:00">12:00 (12:00 PM)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Delivery Days</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {daysOfWeek.map((day) => (
+                      <div
+                        key={day.value}
+                        onClick={() => toggleDay(day.value)}
+                        className={`px-4 py-2 rounded-md border cursor-pointer transition-colors ${
+                          selectedDays.includes(day.value)
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-background hover:bg-muted'
+                        }`}
+                        data-testid={`day-toggle-${day.value}`}
+                      >
+                        <span className="hidden sm:inline">{day.label}</span>
+                        <span className="sm:hidden">{day.short}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Select the days you want to receive summaries
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="timezone">Timezone</Label>
+                  <Select value={timezone} onValueChange={setTimezone}>
+                    <SelectTrigger id="timezone" data-testid="select-timezone">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Europe/London">Europe/London (GMT/BST)</SelectItem>
+                      <SelectItem value="America/New_York">America/New_York (EST/EDT)</SelectItem>
+                      <SelectItem value="America/Chicago">America/Chicago (CST/CDT)</SelectItem>
+                      <SelectItem value="America/Los_Angeles">America/Los_Angeles (PST/PDT)</SelectItem>
+                      <SelectItem value="Europe/Paris">Europe/Paris (CET/CEST)</SelectItem>
+                      <SelectItem value="Asia/Dubai">Asia/Dubai (GST)</SelectItem>
+                      <SelectItem value="Asia/Tokyo">Asia/Tokyo (JST)</SelectItem>
+                      <SelectItem value="Australia/Sydney">Australia/Sydney (AEDT/AEST)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </>
+          )}
+
+          <div className="flex justify-end pt-4">
+            <Button 
+              onClick={handleSave}
+              disabled={saveConfigMutation.isPending || isLoading}
+              data-testid="button-save-daily-summary"
+            >
+              {saveConfigMutation.isPending ? "Saving..." : "Save Email Summary Settings"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </TabsContent>
+  );
+}
+
 // Business Hours Settings Component
 function BusinessHoursContent() {
   const { toast } = useToast();
@@ -884,6 +1155,13 @@ export default function Profile() {
       accessLevel: "client_admin_only"
     },
     {
+      id: "daily-summary",
+      title: "Daily Email Summaries",
+      description: "Configure automated daily activity reports",
+      icon: Mail,
+      accessLevel: "client_admin_only"
+    },
+    {
       id: "travel-directions",
       title: "Travel & Directions",
       description: "Configure arrival instructions for voice agent",
@@ -1195,6 +1473,10 @@ export default function Profile() {
 
           if (section.id === "calls") {
             return <CallSettingsContent key="calls" />;
+          }
+
+          if (section.id === "daily-summary") {
+            return <DailyEmailSummaryContent key="daily-summary" />;
           }
 
           if (section.id === "travel-directions") {

@@ -3995,6 +3995,37 @@ Log Level: INFO
     }
   });
 
+  // Daily Email Summary Configuration Endpoint
+  app.put('/api/tenant/daily-summary', authenticateJWT, requireRole(['client_admin', 'super_admin']), async (req: any, res) => {
+    try {
+      const dailySummarySchema = z.object({
+        dailySummaryEnabled: z.boolean(),
+        dailySummaryRecipientName: z.string().optional(),
+        dailySummaryRecipientEmail: z.string().email().optional(),
+        dailySummaryTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/),
+        dailySummaryDays: z.string(), // JSON array of day numbers
+        dailySummaryTimezone: z.string().min(1),
+      });
+
+      const summaryData = dailySummarySchema.parse(req.body);
+      
+      // Update tenant record
+      const updatedTenant = await storage.updateTenant(req.user.tenantId, {
+        dailySummaryEnabled: summaryData.dailySummaryEnabled,
+        dailySummaryRecipientName: summaryData.dailySummaryRecipientName,
+        dailySummaryRecipientEmail: summaryData.dailySummaryRecipientEmail,
+        dailySummaryTime: summaryData.dailySummaryTime,
+        dailySummaryDays: summaryData.dailySummaryDays,
+        dailySummaryTimezone: summaryData.dailySummaryTimezone,
+      });
+      
+      res.json(updatedTenant);
+    } catch (error) {
+      console.error('Daily summary update error:', error);
+      res.status(400).json({ message: 'Failed to save daily summary configuration' });
+    }
+  });
+
   // User Profile Update Endpoint
   app.put('/api/user/profile', authenticateJWT, async (req: any, res) => {
     try {
