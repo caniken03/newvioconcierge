@@ -4007,7 +4007,9 @@ Log Level: INFO
         dailySummaryTimezone: z.string().min(1),
       });
 
+      console.log('📧 Daily summary update request body:', req.body);
       const summaryData = dailySummarySchema.parse(req.body);
+      console.log('📧 Validated summary data:', summaryData);
       
       // Update tenant record
       const updatedTenant = await storage.updateTenant(req.user.tenantId, {
@@ -4017,6 +4019,12 @@ Log Level: INFO
         dailySummaryTime: summaryData.dailySummaryTime,
         dailySummaryDays: summaryData.dailySummaryDays,
         dailySummaryTimezone: summaryData.dailySummaryTimezone,
+      });
+      
+      console.log('📧 Updated tenant daily summary fields:', {
+        dailySummaryEnabled: updatedTenant.dailySummaryEnabled,
+        dailySummaryDays: updatedTenant.dailySummaryDays,
+        dailySummaryTime: updatedTenant.dailySummaryTime,
       });
       
       res.json(updatedTenant);

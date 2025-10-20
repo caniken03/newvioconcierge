@@ -316,20 +316,40 @@ function DailyEmailSummaryContent() {
       return;
     }
 
-    saveConfigMutation.mutate({
+    // Validate delivery days
+    if (enabled && selectedDays.length === 0) {
+      toast({
+        title: "Validation error",
+        description: "Please select at least one delivery day.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const dataToSave = {
       dailySummaryEnabled: enabled,
       dailySummaryRecipientName: recipientName,
       dailySummaryRecipientEmail: recipientEmail,
       dailySummaryTime: deliveryTime,
       dailySummaryDays: JSON.stringify(selectedDays),
       dailySummaryTimezone: timezone,
+    };
+    
+    console.log('📧 Frontend saving daily summary settings:', {
+      selectedDays,
+      dailySummaryDays: dataToSave.dailySummaryDays,
+      allData: dataToSave
     });
+
+    saveConfigMutation.mutate(dataToSave);
   };
 
   const toggleDay = (day: string) => {
-    setSelectedDays(prev => 
-      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
-    );
+    setSelectedDays(prev => {
+      const newDays = prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day];
+      console.log(`📧 Toggled day ${day}: ${prev} → ${newDays}`);
+      return newDays;
+    });
   };
 
   const daysOfWeek = [
