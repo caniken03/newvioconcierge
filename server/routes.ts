@@ -5033,7 +5033,7 @@ Log Level: INFO
         // HYBRID: Don't reject - mark as unverified and rely on polling to confirm
       }
       
-      if (payload.event === 'call_ended' || payload.event === 'call_completed' || payload.event === 'call_failed') {
+      if (payload.event === 'call_ended' || payload.event === 'call_completed' || payload.event === 'call_failed' || payload.event === 'call_analyzed') {
         
         // Find the call session by retellCallId with tenant isolation
         const session = await storage.getCallSessionByRetellId(payload.call_id);
