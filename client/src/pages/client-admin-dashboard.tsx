@@ -119,9 +119,9 @@ export default function ClientAdminDashboard() {
   );
 
   // Calculate derived metrics from real data
-  // Only show contacts whose MOST RECENT call failed (not all historical failures)
-  const failedCalls = (() => {
-    if (!callAnalytics?.recentCallActivity) return [];
+  // Only show contacts whose MOST RECENT call needs attention (not all historical failures)
+  const contactsNeedingAttention = (() => {
+    if (!callAnalytics?.recentCallActivity) return { noAnswer: [], voicemail: [], busy: [] };
     
     // Group calls by contact name to find most recent call per contact
     const callsByContact = new Map<string, any>();
@@ -132,10 +132,18 @@ export default function ClientAdminDashboard() {
       }
     });
     
-    // Filter to only include contacts whose most recent call failed
-    return Array.from(callsByContact.values()).filter((call: any) => 
-      call.outcome === 'failed' || call.outcome === 'no_answer' || call.outcome === 'busy'
-    );
+    // Categorize by specific outcome
+    const noAnswer: any[] = [];
+    const voicemail: any[] = [];
+    const busy: any[] = [];
+    
+    Array.from(callsByContact.values()).forEach((call: any) => {
+      if (call.outcome === 'no_answer') noAnswer.push(call);
+      else if (call.outcome === 'voicemail') voicemail.push(call);
+      else if (call.outcome === 'busy') busy.push(call);
+    });
+    
+    return { noAnswer, voicemail, busy };
   })();
 
   // Get unconfirmed appointments in next 24 hours
@@ -238,38 +246,73 @@ export default function ClientAdminDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Failed Calls */}
-            <div 
-              className="space-y-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded-lg transition-colors" 
-              onClick={() => navigateToCalls('failed')}
-              data-testid="actionable-failed-calls"
-            >
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <PhoneCall className="w-4 h-4" />
-                  Failed Calls ({failedCalls.length})
-                </h4>
-                <div className="flex items-center gap-2">
-                  <Badge variant="destructive">{failedCalls.length}</Badge>
-                  <ExternalLink className="w-4 h-4 text-muted-foreground" />
-                </div>
-              </div>
-              {failedCalls.slice(0, 2).map((call: any, index: number) => (
-                <div key={call.id || index} className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-800">
-                  <div>
-                    <p className="text-sm font-medium">{call.contactName}</p>
-                    <p className="text-xs text-muted-foreground">{formatCallOutcome(call.outcome)} • {new Date(call.timestamp).toLocaleTimeString()}</p>
+            {/* No Answer - Needs Follow-up */}
+            {contactsNeedingAttention.noAnswer.length > 0 && (
+              <div 
+                className="space-y-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded-lg transition-colors" 
+                onClick={() => navigateToCalls('failed')}
+                data-testid="actionable-no-answer"
+              >
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <PhoneCall className="w-4 h-4" />
+                    No Answer ({contactsNeedingAttention.noAnswer.length})
+                  </h4>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="destructive">{contactsNeedingAttention.noAnswer.length}</Badge>
+                    <ExternalLink className="w-4 h-4 text-muted-foreground" />
                   </div>
-                  <Badge variant="outline">{call.duration ? `${call.duration}s` : formatCallOutcome(call.outcome)}</Badge>
                 </div>
-              ))}
-              {failedCalls.length === 0 && (
-                <div className="p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
-                  <p className="text-sm font-medium text-green-700 dark:text-green-400">No failed calls</p>
-                  <p className="text-xs text-green-600 dark:text-green-500">All recent calls successful</p>
+                {contactsNeedingAttention.noAnswer.slice(0, 2).map((call: any, index: number) => (
+                  <div key={call.id || index} className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                    <div>
+                      <p className="text-sm font-medium">{call.contactName}</p>
+                      <p className="text-xs text-muted-foreground">Didn't answer • {new Date(call.timestamp).toLocaleTimeString()}</p>
+                    </div>
+                    <Badge variant="outline">Follow-up needed</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Voicemail Left */}
+            {contactsNeedingAttention.voicemail.length > 0 && (
+              <div 
+                className="space-y-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded-lg transition-colors" 
+                onClick={() => navigateToCalls('failed')}
+                data-testid="actionable-voicemail"
+              >
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <PhoneCall className="w-4 h-4" />
+                    Voicemail ({contactsNeedingAttention.voicemail.length})
+                  </h4>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">{contactsNeedingAttention.voicemail.length}</Badge>
+                    <ExternalLink className="w-4 h-4 text-muted-foreground" />
+                  </div>
                 </div>
-              )}
-            </div>
+                {contactsNeedingAttention.voicemail.slice(0, 2).map((call: any, index: number) => (
+                  <div key={call.id || index} className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <div>
+                      <p className="text-sm font-medium">{call.contactName}</p>
+                      <p className="text-xs text-muted-foreground">Message left • {new Date(call.timestamp).toLocaleTimeString()}</p>
+                    </div>
+                    <Badge variant="outline">Voicemail</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* All contacts reached successfully */}
+            {contactsNeedingAttention.noAnswer.length === 0 && 
+             contactsNeedingAttention.voicemail.length === 0 && 
+             contactsNeedingAttention.busy.length === 0 && (
+              <div className="p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
+                <p className="text-sm font-medium text-green-700 dark:text-green-400">All contacts reached</p>
+                <p className="text-xs text-green-600 dark:text-green-500">No follow-ups needed</p>
+              </div>
+            )}
 
             {/* Unconfirmed Appointments */}
             <div 
