@@ -153,9 +153,15 @@ export default function CallNowModal({ isOpen, onClose, contact }: CallNowModalP
     queryKey: [`/api/calls/${currentCallSessionId}`],
     enabled: !!currentCallSessionId && isOpen,
     refetchInterval: (query) => {
-      // Stop polling when call is completed or failed
+      // Keep polling until we get a confirmed outcome, not just any status
+      // This ensures we catch webhook updates that come in after initial call completion
       const data = query.state.data as CallSession | undefined;
-      if (!data || data.status === 'completed' || data.status === 'failed') {
+      const hasDefinitiveOutcome = data?.callOutcome && ['confirmed', 'voicemail', 'no_answer', 'busy', 'cancelled'].includes(data.callOutcome);
+      const elapsedTime = callStartTime ? Date.now() - callStartTime.getTime() : 0;
+      const maxPollTime = 90000; // Poll for max 90 seconds
+      
+      // Stop polling if: we have a definitive outcome OR we've polled for 90+ seconds
+      if (hasDefinitiveOutcome || elapsedTime > maxPollTime) {
         return false;
       }
       return 2000; // Poll every 2 seconds for active calls
