@@ -72,7 +72,8 @@ export default function CallManagement() {
       confirmed: "default",
       voicemail: "secondary",
       no_answer: "destructive",
-      busy: "outline"
+      busy: "outline",
+      rescheduled: "default"
     };
     
     const labels: Record<string, string> = {
@@ -81,22 +82,27 @@ export default function CallManagement() {
       initiated: "Calling",
       in_progress: "Calling",
       active: "Calling",
-      completed: "Completed", 
       failed: "No Answer",
       cancelled: "Cancelled",
       confirmed: "Confirmed",
       voicemail: "Voicemail",
       no_answer: "No Answer",
-      busy: "Busy"
+      busy: "Busy",
+      rescheduled: "Rescheduled"
     };
 
-    // If status is completed or failed, use the outcome for more specific display
+    // ALWAYS show the actual outcome instead of generic "completed" status
     let displayStatus = status;
     let displayVariant = variants[status] || "secondary";
     
+    // If call is completed or failed, ALWAYS use the outcome (never show "Completed")
     if ((status === 'completed' || status === 'failed') && callOutcome) {
       displayStatus = callOutcome;
       displayVariant = variants[callOutcome] || variants[status] || "secondary";
+    } else if (status === 'completed' && !callOutcome) {
+      // If completed but no outcome, show "Ended" instead of "Completed"
+      displayStatus = 'ended';
+      labels['ended'] = 'Call Ended';
     }
 
     return (
