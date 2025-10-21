@@ -332,13 +332,20 @@ export class CallSchedulerService {
         return;
       }
 
-      // Get tenant configuration for reminder timing
-      const tenantConfig = await storage.getTenantConfig(tenantId);
+      // Determine reminder hours: Contact preference takes priority over tenant config
+      let initialReminderHours: number;
       
-      // IMPORTANT: Only schedule ONE initial call (first value from config or default 24h)
-      // Follow-up calls are ONLY scheduled if the initial call is missed (handled in createRetryTask)
-      const reminderHoursArray = tenantConfig?.reminderHoursBefore || [24];
-      const initialReminderHours = Array.isArray(reminderHoursArray) ? reminderHoursArray[0] : reminderHoursArray;
+      if (contact.callBeforeHours && contact.callBeforeHours > 0) {
+        // Use contact's individual preference if set
+        initialReminderHours = contact.callBeforeHours;
+        console.log(`📋 Using contact's preference: ${initialReminderHours}h before appointment`);
+      } else {
+        // Fall back to tenant configuration
+        const tenantConfig = await storage.getTenantConfig(tenantId);
+        const reminderHoursArray = tenantConfig?.reminderHoursBefore || [24];
+        initialReminderHours = Array.isArray(reminderHoursArray) ? reminderHoursArray[0] : reminderHoursArray;
+        console.log(`🏢 Using tenant default: ${initialReminderHours}h before appointment`);
+      }
       
       const reminderTime = new Date(appointmentTime.getTime() - (initialReminderHours * 60 * 60 * 1000));
 
