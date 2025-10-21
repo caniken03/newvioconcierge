@@ -351,6 +351,19 @@ export class CallSchedulerService {
 
       // Only schedule if reminder time is in the future
       if (reminderTime > new Date()) {
+        // Check for existing pending tasks to prevent duplicates
+        const existingTasks = await storage.getFollowUpTasksByTenant(tenantId);
+        const hasPendingTask = existingTasks.some((task: FollowUpTask) => 
+          task.contactId === contactId &&
+          task.taskType === 'initial_call' &&
+          task.status === 'pending'
+        );
+
+        if (hasPendingTask) {
+          console.log(`⏭️ Skipping - pending initial call already exists for ${contact.name}`);
+          return;
+        }
+
         const reminderTask = await storage.createFollowUpTask({
           tenantId,
           contactId,
