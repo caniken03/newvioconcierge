@@ -178,7 +178,8 @@ app.use((req, res, next) => {
           await redisRateLimiter.connect();
           log('✅ Redis connected for distributed rate limiting');
         } catch (error) {
-          log('⚠️  Redis connection failed - using in-memory fallback:', error);
+          log('⚠️  Redis connection failed - using in-memory fallback');
+          console.error('Redis error:', error);
         }
       });
     }
