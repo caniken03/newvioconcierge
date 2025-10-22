@@ -289,7 +289,6 @@ export default function CallManagement() {
                         <TableHead className="text-xs text-muted-foreground">Appt Date</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Outcome</TableHead>
-                        <TableHead>Attempts</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -317,9 +316,6 @@ export default function CallManagement() {
                           </TableCell>
                           <TableCell>{getStatusBadge(call.status, call.callOutcome)}</TableCell>
                           <TableCell>{getOutcomeBadge(call.callOutcome)}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-xs">{call.attempts || 0}</Badge>
-                          </TableCell>
                           <TableCell>
                             <Button 
                               size="sm" 
@@ -406,10 +402,6 @@ export default function CallManagement() {
                         ? new Date(selectedCall.appointmentDate).toLocaleString()
                         : 'Not specified'}
                     </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Attempts</p>
-                    <p className="font-medium">{selectedCall.attempts || 0}</p>
                   </div>
                 </div>
               </div>
