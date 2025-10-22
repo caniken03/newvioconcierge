@@ -171,6 +171,18 @@ app.use((req, res, next) => {
   }, () => {
     log(`serving on port ${port}`);
     
+    // Initialize Redis connection for distributed rate limiting
+    if (process.env.REDIS_URL) {
+      import("./services/redis-rate-limiter").then(async ({ redisRateLimiter }) => {
+        try {
+          await redisRateLimiter.connect();
+          log('✅ Redis connected for distributed rate limiting');
+        } catch (error) {
+          log('⚠️  Redis connection failed - using in-memory fallback:', error);
+        }
+      });
+    }
+    
     // Start the call scheduler service
     import("./services/call-scheduler").then(({ callScheduler }) => {
       callScheduler.start();
