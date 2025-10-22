@@ -287,7 +287,6 @@ export default function CallManagement() {
                         <TableHead>Phone</TableHead>
                         <TableHead>Reminder Call Time</TableHead>
                         <TableHead className="text-xs text-muted-foreground">Appt Date</TableHead>
-                        <TableHead>Status</TableHead>
                         <TableHead>Outcome</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
@@ -314,7 +313,6 @@ export default function CallManagement() {
                               ? new Date(call.appointmentDate).toLocaleString(undefined, { month: 'short', day: 'numeric' })
                               : '-'}
                           </TableCell>
-                          <TableCell>{getStatusBadge(call.status, call.callOutcome)}</TableCell>
                           <TableCell>{getOutcomeBadge(call.callOutcome)}</TableCell>
                           <TableCell>
                             <Button 
@@ -378,10 +376,6 @@ export default function CallManagement() {
                 <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Call Details</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm text-muted-foreground">Status</p>
-                    <div className="mt-1">{getStatusBadge(selectedCall.status, selectedCall.callOutcome)}</div>
-                  </div>
-                  <div>
                     <p className="text-sm text-muted-foreground">Outcome</p>
                     <div className="mt-1">{getOutcomeBadge(selectedCall.callOutcome)}</div>
                   </div>
@@ -423,16 +417,6 @@ export default function CallManagement() {
                         <p className="font-medium">{new Date(selectedCall.endTime).toLocaleString()}</p>
                       </div>
                     )}
-                  </div>
-                </div>
-              )}
-
-              {selectedCall.retellCallId && (
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">System</h3>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Retell Call ID</p>
-                    <p className="font-mono text-sm">{selectedCall.retellCallId}</p>
                   </div>
                 </div>
               )}
