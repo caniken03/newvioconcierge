@@ -18,7 +18,10 @@ import {
   CheckCircle, 
   Search,
   Filter,
-  User
+  User,
+  Calendar,
+  Bell,
+  Timer
 } from "lucide-react";
 
 export default function CallManagement() {
@@ -346,78 +349,159 @@ export default function CallManagement() {
 
       {/* Call Details Dialog */}
       <Dialog open={showCallDetails} onOpenChange={setShowCallDetails}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Call Session Details</DialogTitle>
+            <DialogTitle className="text-2xl font-semibold flex items-center gap-2">
+              <PhoneCall className="h-6 w-6 text-primary" />
+              Call Session Details
+            </DialogTitle>
             <DialogDescription>
-              Technical details and analytics for this call
+              Comprehensive call information and outcome
             </DialogDescription>
           </DialogHeader>
           
           {selectedCall && (
-            <div className="space-y-6">
-              {/* Contact Information */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Contact</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Name</p>
-                    <p className="font-medium">{selectedCall.contactName}</p>
+            <div className="space-y-4">
+              {/* Contact Information Card */}
+              <div className="rounded-lg border bg-card p-5 shadow-sm">
+                <div className="flex items-center gap-2 mb-4">
+                  <User className="h-5 w-5 text-primary" />
+                  <h3 className="font-semibold text-base">Contact Information</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                      <User className="h-3.5 w-3.5" />
+                      Name
+                    </p>
+                    <p className="font-medium text-base">{selectedCall.contactName}</p>
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Phone Number</p>
-                    <p className="font-mono font-medium">{selectedCall.contactPhone}</p>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                      <Phone className="h-3.5 w-3.5" />
+                      Phone Number
+                    </p>
+                    <p className="font-mono font-medium text-base">{selectedCall.contactPhone}</p>
                   </div>
                 </div>
               </div>
 
-              {/* Call Information */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Call Details</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Outcome</p>
-                    <div className="mt-1">{getOutcomeBadge(selectedCall.callOutcome)}</div>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Reminder Call Time</p>
-                    <p className="font-medium">
+              {/* Call Outcome Card */}
+              <div className="rounded-lg border bg-card p-5 shadow-sm">
+                <div className="flex items-center gap-2 mb-4">
+                  <PhoneCall className="h-5 w-5 text-primary" />
+                  <h3 className="font-semibold text-base">Call Outcome</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  {getOutcomeBadge(selectedCall.callOutcome)}
+                </div>
+              </div>
+
+              {/* Schedule Information Card */}
+              <div className="rounded-lg border bg-card p-5 shadow-sm">
+                <div className="flex items-center gap-2 mb-4">
+                  <Calendar className="h-5 w-5 text-primary" />
+                  <h3 className="font-semibold text-base">Schedule Information</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                      <Bell className="h-3.5 w-3.5" />
+                      Reminder Call Time
+                    </p>
+                    <p className="font-medium text-base">
                       {selectedCall.reminderTime 
-                        ? new Date(selectedCall.reminderTime).toLocaleString()
+                        ? new Date(selectedCall.reminderTime).toLocaleString(undefined, { 
+                            month: 'short', 
+                            day: 'numeric', 
+                            year: 'numeric',
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                          })
                         : selectedCall.appointmentDate && selectedCall.callBeforeHours
-                          ? new Date(new Date(selectedCall.appointmentDate).getTime() - selectedCall.callBeforeHours * 60 * 60 * 1000).toLocaleString()
+                          ? new Date(new Date(selectedCall.appointmentDate).getTime() - selectedCall.callBeforeHours * 60 * 60 * 1000).toLocaleString(undefined, { 
+                              month: 'short', 
+                              day: 'numeric', 
+                              year: 'numeric',
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })
                           : 'Not set'}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Appointment Date</p>
-                    <p className="font-medium">
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5" />
+                      Appointment Date
+                    </p>
+                    <p className="font-medium text-base">
                       {selectedCall.appointmentDate 
-                        ? new Date(selectedCall.appointmentDate).toLocaleString()
+                        ? new Date(selectedCall.appointmentDate).toLocaleString(undefined, { 
+                            month: 'short', 
+                            day: 'numeric', 
+                            year: 'numeric',
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                          })
                         : 'Not specified'}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Timing */}
+              {/* Call Duration Card */}
               {(selectedCall.startTime || selectedCall.endTime) && (
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Timing</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                <div className="rounded-lg border bg-card p-5 shadow-sm">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Timer className="h-5 w-5 text-primary" />
+                    <h3 className="font-semibold text-base">Call Duration</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {selectedCall.startTime && (
-                      <div>
-                        <p className="text-sm text-muted-foreground">Started At</p>
-                        <p className="font-medium">{new Date(selectedCall.startTime).toLocaleString()}</p>
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5" />
+                          Started At
+                        </p>
+                        <p className="font-medium text-base">
+                          {new Date(selectedCall.startTime).toLocaleString(undefined, { 
+                            month: 'short', 
+                            day: 'numeric', 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            second: '2-digit'
+                          })}
+                        </p>
                       </div>
                     )}
                     {selectedCall.endTime && (
-                      <div>
-                        <p className="text-sm text-muted-foreground">Ended At</p>
-                        <p className="font-medium">{new Date(selectedCall.endTime).toLocaleString()}</p>
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                          <CheckCircle className="h-3.5 w-3.5" />
+                          Ended At
+                        </p>
+                        <p className="font-medium text-base">
+                          {new Date(selectedCall.endTime).toLocaleString(undefined, { 
+                            month: 'short', 
+                            day: 'numeric', 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            second: '2-digit'
+                          })}
+                        </p>
                       </div>
                     )}
                   </div>
+                  {selectedCall.startTime && selectedCall.endTime && (
+                    <div className="mt-4 pt-4 border-t">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Total Duration</span>
+                        <span className="font-semibold text-base">
+                          {Math.round((new Date(selectedCall.endTime).getTime() - new Date(selectedCall.startTime).getTime()) / 1000)} seconds
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
