@@ -14,6 +14,8 @@ The frontend is a React SPA using TypeScript and Vite, styled with Radix UI, sha
 ## Technical Implementations
 The backend is an Express.js application with Node.js and TypeScript, following a RESTful API design. Drizzle ORM is used for database interactions. Authentication is JWT-based with role-based access control. The system features multi-tenancy enforced at both database and API levels, with dynamic API calls and enhanced cache management for strict tenant data isolation.
 
+**Redis & Scaling Strategy (Oct 2025)**: Rate limiting uses local Redis with automatic fallback, supporting 20-30 concurrent clients on a single Replit instance. For scaling beyond 50+ clients, implement distributed Redis (Upstash with `rediss://` TLS URL or REST API) by adding `REDIS_URL` environment variable. Current setup provides production-ready rate limiting for initial deployment without external dependencies.
+
 ## Feature Specifications
 - **Multi-tenancy**: Strict isolation with super admin, client admin, and client user roles.
 - **Contact Management**: CSV import/export, deduplication, and E.164 phone normalization.
